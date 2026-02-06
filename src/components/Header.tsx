@@ -110,6 +110,8 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
 
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
+  const [hdrp, setHdrp] = useState(0); // ✅ mobil blur üçün “hard” driver
+  const [isMobile, setIsMobile] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [softOpen, setSoftOpen] = useState(false);
@@ -128,6 +130,19 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const rafPending = useRef(false);
   const lastPRef = useRef<number>(-1);
+
+  // ✅ matchMedia: mobil olub-olmadığını bilək
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 920px)");
+    const apply = () => setIsMobile(!!mq.matches);
+    apply();
+    if ("addEventListener" in mq) mq.addEventListener("change", apply);
+    else (mq as any).addListener(apply);
+    return () => {
+      if ("removeEventListener" in mq) mq.removeEventListener("change", apply);
+      else (mq as any).removeListener(apply);
+    };
+  }, []);
 
   const withLang = useCallback(
     (to: string) => {
@@ -225,10 +240,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
     const p = clamp01(y / 180);
 
+    // CSS var yenə yaz (desktop üçün)
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
+    // ✅ MOBİL üçün state-driven (inline style) — override olunmur
     if (Math.abs(p - lastPRef.current) > 0.002) {
       lastPRef.current = p;
+      setHdrp(p);
       setScrolled(p > 0.02);
     }
   }, []);
@@ -379,51 +397,36 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </div>
   );
 
+  // ✅ MOBİL üçün “desktop kimi” blur/background — INLINE (override olunmur)
+  const mobileP = clamp01(hdrp);
+  const mobileBgAlpha = open ? 0.86 : 0.72 * mobileP; // scroll olduqca artsın, menyu açıqsa tam
+  const mobileBlurPx = open ? 16 : 2 + 14 * mobileP; // 2px → 16px
+  const mobileSat = open ? 1.35 : 1 + 0.35 * mobileP;
+
+  const headerInlineStyle: React.CSSProperties | undefined = isMobile
+    ? {
+        backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
+        WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
+        backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
+        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.08 : 0.06 * mobileP).toFixed(3)})`,
+      }
+    : undefined;
+
   return (
     <header
       ref={headerRef}
+      style={headerInlineStyle}
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Header tuning (logo ultra-small + mobile blur EXACT like desktop) ===== */}
+      {/* ===== Minimal CSS: logo ultra-small + sol künc ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* Header-də link underline çıxart */
 .site-header a,
 .site-header a:hover,
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
-
-/* ===== Base vars ===== */
-.site-header{
-  --logoH: 28px;
-  --hdrPadY: 18px;
-
-  /* mobil/desktop blur rəngi */
-  --hdrBg: rgba(10,12,18,.72);
-  --hdrBd: rgba(255,255,255,.06);
-}
-
-/* ✅ Mobil: elit, xırda logo + sol küncə yaxın */
-@media (max-width: 920px){
-  .site-header{
-    --logoH: 16px;     /* ✅ daha da balaca */
-    --hdrPadY: 9px;
-  }
-}
-@media (max-width: 380px){
-  .site-header{
-    --logoH: 15px;
-    --hdrPadY: 8px;
-  }
-}
-
-/* Header inner spacing */
-.site-header .header-inner{
-  padding-top: var(--hdrPadY);
-  padding-bottom: var(--hdrPadY);
-}
 
 /* Mobil grid: center nav gizli */
 @media (max-width: 920px){
@@ -433,20 +436,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
     align-items:center;
   }
   .site-header .header-mid{ display:none !important; }
+  .site-header .header-left{ margin-left:-4px; } /* ✅ daha sola */
+  .site-header .header-right{ gap: 8px; }
+  .site-header .nav-toggle{ margin-left: 2px; }
 }
 
-/* LEFT: sol küncə yaxın oturtsun */
-.site-header .header-left{
-  min-width:0;
-  justify-self:start;
-}
-@media (max-width: 920px){
-  .site-header .header-left{
-    margin-left: -2px; /* ✅ bir az da sola (elit hiss) */
-  }
-}
-
-/* Brand link */
+/* Brand */
 .brand-link{
   display:inline-flex;
   align-items:center;
@@ -455,129 +450,38 @@ export default function Header({ introReady }: { introReady: boolean }) {
   line-height:0;
   min-width:0;
 }
-
-/* Sol tərəfdə logo üçün max en (mobil) */
 @media (max-width: 920px){
-  .brand-link{
-    max-width: calc(100vw - 170px);
-  }
+  .brand-link{ max-width: calc(100vw - 170px); }
 }
 @media (max-width: 420px){
-  .brand-link{
-    max-width: calc(100vw - 160px);
-  }
+  .brand-link{ max-width: calc(100vw - 160px); }
 }
 
-/* Header brand wrapper */
+/* Brand wrapper */
 .headerBrand{
   position:relative;
   display:inline-flex;
   align-items:center;
   justify-content:flex-start;
   padding:0;
-  border-radius:0;
   border:none;
   background:transparent;
   box-shadow:none;
   overflow:visible;
-  transform:translateY(0);
-  transition:transform .22s ease;
   -webkit-tap-highlight-color: transparent;
   max-width: 100%;
 }
-.headerBrand:hover{ transform:translateY(-1px); }
 
-/* Aura (çox yüngül) */
+/* Aura (yüngül) */
 .headerBrand__aura{
   position:absolute;
-  inset:-10px;
+  inset:-8px;
   pointer-events:none;
   background:
     radial-gradient(closest-side at 40% 50%, rgba(47,184,255,.10), transparent 65%),
     radial-gradient(closest-side at 70% 55%, rgba(42,125,255,.07), transparent 70%);
-  opacity:.18;
-  filter:blur(14px);
-  transition:opacity .22s ease;
-}
-.headerBrand:hover .headerBrand__aura{ opacity:.26; }
-
-@media (max-width: 920px){
-  .headerBrand__aura{
-    inset:-8px;
-    filter:blur(12px);
-    opacity:.12;
-  }
-  .headerBrand:hover .headerBrand__aura{ opacity:.16; }
-}
-
-/* Glint ləğv */
-.headerBrand__glint{ display:none !important; }
-
-/* ✅ Logo: həm hündürlük, həm də maksimum en daha “elit” */
-.headerBrand__img{
-  display:block;
-  height: var(--logoH);
-  width:auto;
-  max-width: clamp(96px, 28vw, 132px); /* ✅ daha da balaca */
-  object-fit:contain;
-  user-select:none;
-  filter:
-    drop-shadow(0 6px 16px rgba(0,0,0,.42))
-    drop-shadow(0 0 10px rgba(47,184,255,.06));
-  transform:translateZ(0);
-}
-
-/* Right spacing */
-@media (max-width: 920px){
-  .site-header .header-right{ gap: 8px; min-width:0; }
-  .site-header .nav-toggle{ margin-left: 2px; }
-}
-
-/* =========================================================
-   ✅ MOBIL BLUR FIX (dəqiq): DESKTOP kimi p-ə görə işləsin
-   - Biz headerRef-də --hdrp yazırıq (0..1).
-   - Mobil üçün background/backdrop --hdrp əsasında açılsın.
-   - Bu, is-scrolled class düşməsə belə işləyir.
-========================================================= */
-
-/* Default (desktop) toxunmuruq: səndə artıq əladı */
-@media (max-width: 920px){
-  /* mobil: sticky header həmişə düzgün qatın üstündə olsun */
-  .site-header{
-    background: rgba(0,0,0,0);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    border-bottom: 1px solid rgba(255,255,255,0);
-  }
-
-  /* ✅ əsas: scroll olduqca (hdrp>0) bg+blur artsın */
-  .site-header{
-    background: color-mix(in srgb, rgba(0,0,0,0) calc(100% - (var(--hdrp, 0) * 100%)), var(--hdrBg) calc(var(--hdrp, 0) * 100%)) !important;
-    -webkit-backdrop-filter: blur(calc(2px + (var(--hdrp, 0) * 14px))) saturate(calc(1 + (var(--hdrp, 0) * .35))) !important;
-    backdrop-filter: blur(calc(2px + (var(--hdrp, 0) * 14px))) saturate(calc(1 + (var(--hdrp, 0) * .35))) !important;
-    border-bottom: 1px solid color-mix(in srgb, rgba(255,255,255,0) calc(100% - (var(--hdrp, 0) * 100%)), var(--hdrBd) calc(var(--hdrp, 0) * 100%)) !important;
-  }
-
-  /* Safari köhnə versiya üçün fallback: class varsa, hard override */
-  .site-header.is-scrolled{
-    background: var(--hdrBg) !important;
-    -webkit-backdrop-filter: blur(14px) saturate(1.25) !important;
-    backdrop-filter: blur(14px) saturate(1.25) !important;
-    border-bottom: 1px solid var(--hdrBd) !important;
-  }
-
-  /* menyu açıq: daha güclü */
-  .site-header.is-open{
-    background: rgba(10,12,18,.86) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(1.35) !important;
-    backdrop-filter: blur(16px) saturate(1.35) !important;
-    border-bottom: 1px solid rgba(255,255,255,.08) !important;
-  }
-}
-
-@media (prefers-reduced-motion:reduce){
-  .headerBrand,
-  .headerBrand__aura{ transition:none !important; }
+  opacity:.12;
+  filter:blur(12px);
 }
           `,
         }}
@@ -598,6 +502,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 loading="eager"
                 decoding="async"
                 draggable={false}
+                // ✅ LOGO SIZE HARD OVERRIDE (bunu heç nə əzə bilməz)
+                style={{
+                  height: isMobile ? 14 : 28, // ✅ mobil daha da elit kiçik
+                  width: "auto",
+                  maxWidth: isMobile ? "118px" : "156px",
+                  objectFit: "contain",
+                  display: "block",
+                  userSelect: "none",
+                  filter:
+                    "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
+                  transform: "translateZ(0)",
+                }}
               />
             </span>
           </Link>
