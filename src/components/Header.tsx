@@ -385,7 +385,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Header tuning (MOBILE logo fit + mobile scroll blur fix) ===== */}
+      {/* ===== Header tuning (logo ultra-small + mobile blur EXACT like desktop) ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -395,61 +395,80 @@ export default function Header({ introReady }: { introReady: boolean }) {
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
 
-/* ✅ Dəyişənlər */
+/* ===== Base vars ===== */
 .site-header{
-  --logoH: 28px;         /* desktop default */
-  --hdrPadY: 18px;       /* desktop default */
-  --hdrBgA: rgba(10,12,18,.72);   /* scrolled bg */
-  --hdrBdA: rgba(255,255,255,.06);/* scrolled border */
+  --logoH: 28px;
+  --hdrPadY: 18px;
+
+  /* mobil/desktop blur rəngi */
+  --hdrBg: rgba(10,12,18,.72);
+  --hdrBd: rgba(255,255,255,.06);
 }
 
-/* ✅ Mobil: logo daha balaca + header daha sıx */
+/* ✅ Mobil: elit, xırda logo + sol küncə yaxın */
 @media (max-width: 920px){
   .site-header{
-    --logoH: 20px;       /* ✅ daha balaca (qarışmasın) */
-    --hdrPadY: 10px;
+    --logoH: 16px;     /* ✅ daha da balaca */
+    --hdrPadY: 9px;
   }
 }
 @media (max-width: 380px){
   .site-header{
-    --logoH: 18px;
-    --hdrPadY: 9px;
+    --logoH: 15px;
+    --hdrPadY: 8px;
   }
 }
 
-/* Header inner spacing-i sıx */
+/* Header inner spacing */
 .site-header .header-inner{
   padding-top: var(--hdrPadY);
   padding-bottom: var(--hdrPadY);
 }
 
-/* ✅ Mobil layout: sol (logo) + sağ (controls) — bir-birinə girməsin */
-.site-header .header-left,
-.site-header .header-right{
-  min-width:0;
-}
+/* Mobil grid: center nav gizli */
 @media (max-width: 920px){
   .site-header .header-grid{
-    grid-template-columns: 1fr auto; /* sol elastik, sağ sabit */
+    grid-template-columns: 1fr auto;
     column-gap: 10px;
     align-items:center;
   }
-  .site-header .header-mid{
-    display:none !important; /* mobil: center nav gizli */
+  .site-header .header-mid{ display:none !important; }
+}
+
+/* LEFT: sol küncə yaxın oturtsun */
+.site-header .header-left{
+  min-width:0;
+  justify-self:start;
+}
+@media (max-width: 920px){
+  .site-header .header-left{
+    margin-left: -2px; /* ✅ bir az da sola (elit hiss) */
   }
 }
 
-/* Brand link: klik sahəsi böyük qalsın, amma logo “fit” olsun */
+/* Brand link */
 .brand-link{
   display:inline-flex;
   align-items:center;
   justify-content:flex-start;
-  padding: 6px 0;
+  padding: 5px 0;
   line-height:0;
   min-width:0;
 }
 
-/* ✅ Logo konteyneri ekranı daşırmasın */
+/* Sol tərəfdə logo üçün max en (mobil) */
+@media (max-width: 920px){
+  .brand-link{
+    max-width: calc(100vw - 170px);
+  }
+}
+@media (max-width: 420px){
+  .brand-link{
+    max-width: calc(100vw - 160px);
+  }
+}
+
+/* Header brand wrapper */
 .headerBrand{
   position:relative;
   display:inline-flex;
@@ -468,19 +487,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 }
 .headerBrand:hover{ transform:translateY(-1px); }
 
-/* ✅ Sol tərəfdə logo üçün maksimum en (mobil) */
-@media (max-width: 920px){
-  .brand-link{
-    max-width: calc(100vw - 160px); /* sağdakı dil + menu üçün yer saxla */
-  }
-}
-@media (max-width: 420px){
-  .brand-link{
-    max-width: calc(100vw - 150px);
-  }
-}
-
-/* ✅ ÇOX yüngül aura */
+/* Aura (çox yüngül) */
 .headerBrand__aura{
   position:absolute;
   inset:-10px;
@@ -488,30 +495,30 @@ export default function Header({ introReady }: { introReady: boolean }) {
   background:
     radial-gradient(closest-side at 40% 50%, rgba(47,184,255,.10), transparent 65%),
     radial-gradient(closest-side at 70% 55%, rgba(42,125,255,.07), transparent 70%);
-  opacity:.20;
+  opacity:.18;
   filter:blur(14px);
   transition:opacity .22s ease;
 }
-.headerBrand:hover .headerBrand__aura{ opacity:.28; }
+.headerBrand:hover .headerBrand__aura{ opacity:.26; }
 
 @media (max-width: 920px){
   .headerBrand__aura{
     inset:-8px;
     filter:blur(12px);
-    opacity:.14;
+    opacity:.12;
   }
-  .headerBrand:hover .headerBrand__aura{ opacity:.18; }
+  .headerBrand:hover .headerBrand__aura{ opacity:.16; }
 }
 
-/* ✅ Üstündən gedən işıq (glint) TAM LƏĞV */
+/* Glint ləğv */
 .headerBrand__glint{ display:none !important; }
 
-/* ✅ Logo ölçüsü + max-width clamp: “NEOX” yazısı böyüyüb navbarı basmasın */
+/* ✅ Logo: həm hündürlük, həm də maksimum en daha “elit” */
 .headerBrand__img{
   display:block;
   height: var(--logoH);
   width:auto;
-  max-width: clamp(110px, 34vw, 156px); /* ✅ əsas fix */
+  max-width: clamp(96px, 28vw, 132px); /* ✅ daha da balaca */
   object-fit:contain;
   user-select:none;
   filter:
@@ -520,35 +527,52 @@ export default function Header({ introReady }: { introReady: boolean }) {
   transform:translateZ(0);
 }
 
-/* Sağ tərəf sıxlıq */
+/* Right spacing */
 @media (max-width: 920px){
-  .site-header .header-right{
-    gap: 8px;
-  }
-  .site-header .nav-toggle{
-    margin-left: 2px;
-  }
+  .site-header .header-right{ gap: 8px; min-width:0; }
+  .site-header .nav-toggle{ margin-left: 2px; }
 }
 
-/* ✅ MOBİL SCROLL PROBLEMİ: scroll edəndə header şəffaf qalmasın */
-.site-header{
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-.site-header.is-scrolled{
-  background: var(--hdrBgA) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(1.25) !important;
-  backdrop-filter: blur(14px) saturate(1.25) !important;
-  border-bottom: 1px solid var(--hdrBdA);
-}
+/* =========================================================
+   ✅ MOBIL BLUR FIX (dəqiq): DESKTOP kimi p-ə görə işləsin
+   - Biz headerRef-də --hdrp yazırıq (0..1).
+   - Mobil üçün background/backdrop --hdrp əsasında açılsın.
+   - Bu, is-scrolled class düşməsə belə işləyir.
+========================================================= */
 
-/* Əgər menyu açıqdırsa, mütləq oxunaqlı olsun */
-.site-header.is-open{
-  background: rgba(10,12,18,.82) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.35) !important;
-  backdrop-filter: blur(16px) saturate(1.35) !important;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+/* Default (desktop) toxunmuruq: səndə artıq əladı */
+@media (max-width: 920px){
+  /* mobil: sticky header həmişə düzgün qatın üstündə olsun */
+  .site-header{
+    background: rgba(0,0,0,0);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: 1px solid rgba(255,255,255,0);
+  }
+
+  /* ✅ əsas: scroll olduqca (hdrp>0) bg+blur artsın */
+  .site-header{
+    background: color-mix(in srgb, rgba(0,0,0,0) calc(100% - (var(--hdrp, 0) * 100%)), var(--hdrBg) calc(var(--hdrp, 0) * 100%)) !important;
+    -webkit-backdrop-filter: blur(calc(2px + (var(--hdrp, 0) * 14px))) saturate(calc(1 + (var(--hdrp, 0) * .35))) !important;
+    backdrop-filter: blur(calc(2px + (var(--hdrp, 0) * 14px))) saturate(calc(1 + (var(--hdrp, 0) * .35))) !important;
+    border-bottom: 1px solid color-mix(in srgb, rgba(255,255,255,0) calc(100% - (var(--hdrp, 0) * 100%)), var(--hdrBd) calc(var(--hdrp, 0) * 100%)) !important;
+  }
+
+  /* Safari köhnə versiya üçün fallback: class varsa, hard override */
+  .site-header.is-scrolled{
+    background: var(--hdrBg) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(1.25) !important;
+    backdrop-filter: blur(14px) saturate(1.25) !important;
+    border-bottom: 1px solid var(--hdrBd) !important;
+  }
+
+  /* menyu açıq: daha güclü */
+  .site-header.is-open{
+    background: rgba(10,12,18,.86) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.35) !important;
+    backdrop-filter: blur(16px) saturate(1.35) !important;
+    border-bottom: 1px solid rgba(255,255,255,.08) !important;
+  }
 }
 
 @media (prefers-reduced-motion:reduce){
