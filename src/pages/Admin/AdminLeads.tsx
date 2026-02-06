@@ -1,8 +1,10 @@
 // src/pages/Admin/AdminLeads.tsx
 // (MOBILE-READY — stacked list/detail + no sideways scroll)
 // ✅ FIX: Guard against empty API_BASE + readable error when Netlify returns HTML instead of JSON
+// ✅ PRO ADD: search + status filter + copy + quick actions + autosize note + better pills
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useAdmin } from "./adminContext";
 
 type LeadStatus = "new" | "contacted" | "closed" | "spam";
@@ -43,11 +45,48 @@ function waLink(phone?: string, text?: string) {
   return `https://wa.me/${digits}?text=${msg}`;
 }
 
-function KV({ k, v }: { k: string; v: string }) {
+function mailtoLink(email?: string, subject?: string, body?: string) {
+  const e = String(email || "").trim();
+  if (!e) return "";
+  const s = encodeURIComponent(subject || "NEOX");
+  const b = encodeURIComponent(body || "Salam! NEOX-dan yazıram 🙂");
+  return `mailto:${e}?subject=${s}&body=${b}`;
+}
+
+function telLink(phone?: string) {
+  const p = normalizePhone(phone);
+  if (!p) return "";
+  // tel wants digits/+ only
+  return `tel:${p}`;
+}
+
+function stripHtmlPreview(s: string) {
+  const t = String(s || "").trim();
+  if (!t) return "";
+  return t.length > 220 ? t.slice(0, 220) + "…" : t;
+}
+
+function normStatus(x?: string): string {
+  const s = String(x || "").trim().toLowerCase();
+  return s || "new";
+}
+
+function isKnownStatus(s: string): s is LeadStatus {
+  return s === "new" || s === "contacted" || s === "closed" || s === "spam";
+}
+
+function KV({ k, v, onCopy }: { k: string; v: string; onCopy?: () => void }) {
   return (
     <div style={S.kvRow}>
       <div style={S.k}>{k}</div>
-      <div style={S.v}>{v}</div>
+      <div style={S.vRow}>
+        <div style={S.v}>{v}</div>
+        {onCopy ? (
+          <button onClick={onCopy} style={S.copyBtn} title="Copy">
+            Copy
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -73,10 +112,34 @@ function useIsMobile(breakpoint = 900) {
   return isMobile;
 }
 
-function stripHtmlPreview(s: string) {
-  const t = String(s || "").trim();
-  if (!t) return "";
-  return t.length > 180 ? t.slice(0, 180) + "…" : t;
+/* ------------------ textarea autosize ------------------ */
+function useAutosizeTextarea(ref: React.RefObject<HTMLTextAreaElement>, value: string, maxPx = 220) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    const next = Math.min(el.scrollHeight, maxPx);
+    el.style.height = `${Math.max(44, next)}px`;
+  }, [ref, value, maxPx]);
+}
+
+async function copyText(txt: string) {
+  const t = String(txt || "").trim();
+  if (!t) return;
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } catch {}
+    document.body.removeChild(ta);
+  }
 }
 
 export default function AdminLeads() {
@@ -99,6 +162,9 @@ export default function AdminLeads() {
   const [draftStatus, setDraftStatus] = useState<LeadStatus>("new");
   const [draftNote, setDraftNote] = useState("");
 
+  const noteRef = useRef<HTMLTextAreaElement | null>(null);
+  useAutosizeTextarea(noteRef, draftNote, 240);
+
   const pollRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
 
@@ -106,6 +172,10 @@ export default function AdminLeads() {
 
   // mobile view: list vs detail
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+
+  // ✅ search + filter
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | LeadStatus | "other">("all");
 
   // if we have a selected lead on mobile, show detail automatically
   useEffect(() => {
@@ -120,7 +190,8 @@ export default function AdminLeads() {
 
   useEffect(() => {
     if (!selected) return;
-    setDraftStatus(((selected.status as LeadStatus) || "new") as LeadStatus);
+    const st = normStatus(selected.status);
+    setDraftStatus((isKnownStatus(st) ? st : "new") as LeadStatus);
     setDraftNote(selected.note || "");
   }, [selectedId, selected?.status, selected?.note]); // eslint-disable-line
 
@@ -163,7 +234,6 @@ export default function AdminLeads() {
 
     if (r.status === 401) {
       on401("Token səhvdir. Yenidən daxil ol.");
-      // return never; but TS wants something
       throw new Error("Unauthorized");
     }
 
@@ -172,7 +242,8 @@ export default function AdminLeads() {
     // If backend route is missing or Netlify SPA caught it, we often get HTML.
     if (!ct.includes("application/json")) {
       const text = await r.text();
-      const looksHtml = text.trim().startsWith("<!doctype") || text.trim().startsWith("<html") || text.trim().startsWith("<");
+      const looksHtml =
+        text.trim().startsWith("<!doctype") || text.trim().startsWith("<html") || text.trim().startsWith("<");
       if (!r.ok) {
         throw new Error(`${r.status} ${stripHtmlPreview(text) || "fetch failed"}`);
       }
@@ -185,7 +256,6 @@ export default function AdminLeads() {
           ].join("\n")
         );
       }
-      // fallback: try parse anyway
       try {
         return JSON.parse(text) as T;
       } catch {
@@ -314,6 +384,44 @@ export default function AdminLeads() {
   const showList = !isMobile || mobileView === "list";
   const showDetail = !isMobile || mobileView === "detail";
 
+  const filteredLeads = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const f = statusFilter;
+
+    return leads.filter((l) => {
+      const st = normStatus(l.status);
+      const known = isKnownStatus(st);
+
+      if (f !== "all") {
+        if (f === "other") {
+          if (known) return false;
+        } else {
+          if (st !== f) return false;
+        }
+      }
+
+      if (!s) return true;
+
+      const hay = [
+        l.id,
+        l.name,
+        l.email,
+        l.phone,
+        l.source,
+        l.message,
+        l.note,
+        l.status,
+        l.createdAt,
+        l.updatedAt,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return hay.includes(s);
+    });
+  }, [leads, q, statusFilter]);
+
   return (
     <div style={S.adminPage}>
       <div style={S.adminShell}>
@@ -321,24 +429,30 @@ export default function AdminLeads() {
           <div style={{ minWidth: 0 }}>
             <div style={S.topTitle}>Admin Leads</div>
             <div style={S.topSub}>
-              Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route:{" "}
-              <code style={S.codeMini}>{loc.pathname}</code>
+              Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route: <code style={S.codeMini}>{loc.pathname}</code>
               <span style={{ opacity: 0.7 }}> • Auto: {document.hidden ? "25s" : "10s"}</span>
             </div>
           </div>
 
           <div style={S.actions}>
+            <Link to={loc.pathname.replace(/\/leads$/, "/chats")} style={S.btnLinkNav as any} title="Go to chats">
+              Chats
+            </Link>
+
             {isMobile && mobileView === "detail" && (
               <button onClick={() => setMobileView("list")} style={S.btn} disabled={loading} title="Back to list">
                 ← List
               </button>
             )}
+
             <button onClick={() => fetchLeads(false)} style={S.btn} disabled={loading}>
               Yenilə
             </button>
+
             <button onClick={exportCSV} style={S.btn} disabled={loading}>
               Export
             </button>
+
             <button onClick={logout} style={S.btnGhost}>
               Çıxış
             </button>
@@ -353,16 +467,46 @@ export default function AdminLeads() {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}>Lead-lər</div>
-                <div style={S.badge}>{loading ? "Yüklənir..." : `${leads.length}`}</div>
+                <div style={S.badge}>{loading ? "..." : `${filteredLeads.length}`}</div>
+              </div>
+
+              {/* ✅ search + filter */}
+              <div style={S.searchBar}>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Axtar: ad/email/telefon/source/mesaj/qeyd…"
+                  style={S.searchInput}
+                />
+                {q.trim() ? (
+                  <button onClick={() => setQ("")} style={S.searchClear} title="Clear">
+                    ✕
+                  </button>
+                ) : null}
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  style={S.searchSelect}
+                  title="Status filter"
+                >
+                  <option value="all">all</option>
+                  <option value="new">new</option>
+                  <option value="contacted">contacted</option>
+                  <option value="closed">closed</option>
+                  <option value="spam">spam</option>
+                  <option value="other">other</option>
+                </select>
               </div>
 
               <div style={S.list}>
-                {leads.length === 0 ? (
-                  <div style={S.emptyPad}>Hələ lead yoxdur.</div>
+                {filteredLeads.length === 0 ? (
+                  <div style={S.emptyPad}>{q.trim() || statusFilter !== "all" ? "Uyğun lead tapılmadı." : "Hələ lead yoxdur."}</div>
                 ) : (
-                  leads.map((l) => {
+                  filteredLeads.map((l) => {
                     const activeRow = l.id === selectedId;
-                    const st = ((l.status as LeadStatus) || "new") as LeadStatus;
+                    const stRaw = normStatus(l.status);
+                    const st: LeadStatus | "other" = isKnownStatus(stRaw) ? (stRaw as LeadStatus) : "other";
 
                     return (
                       <button
@@ -372,12 +516,18 @@ export default function AdminLeads() {
                           if (isMobile) setMobileView("detail");
                         }}
                         style={{ ...S.item, ...(activeRow ? S.itemActive : null) }}
+                        title={l.id}
                       >
                         <div style={S.itemRow}>
                           <div style={S.itemName}>{l.name || "— Adsız"}</div>
-                          <div style={S.pill(st)}>{st}</div>
+                          <div style={S.pill(st)}>{stRaw}</div>
                         </div>
-                        <div style={S.itemMeta}>{l.phone ? `📞 ${l.phone}` : l.email ? `✉️ ${l.email}` : "—"}</div>
+
+                        <div style={S.itemMeta}>
+                          {l.phone ? `📞 ${l.phone}` : l.email ? `✉️ ${l.email}` : "—"}
+                          {l.source ? ` • ${l.source}` : ""}
+                        </div>
+
                         <div style={S.itemTime}>{formatDt(l.createdAt)}</div>
                       </button>
                     );
@@ -400,17 +550,55 @@ export default function AdminLeads() {
               ) : (
                 <div style={S.detailWrap}>
                   <div style={S.card}>
-                    <KV k="Ad" v={selected.name || "—"} />
-                    <KV k="Email" v={selected.email || "—"} />
-                    <KV k="Telefon" v={selected.phone || "—"} />
-                    <KV k="Mənbə" v={selected.source || "—"} />
+                    <KV k="Ad" v={selected.name || "—"} onCopy={selected.name ? () => copyText(selected.name!) : undefined} />
+                    <KV
+                      k="Email"
+                      v={selected.email || "—"}
+                      onCopy={selected.email ? () => copyText(selected.email!) : undefined}
+                    />
+                    <KV
+                      k="Telefon"
+                      v={selected.phone || "—"}
+                      onCopy={selected.phone ? () => copyText(selected.phone!) : undefined}
+                    />
+                    <KV k="Mənbə" v={selected.source || "—"} onCopy={selected.source ? () => copyText(selected.source!) : undefined} />
                     <KV k="Yaradılıb" v={formatDt(selected.createdAt)} />
                     <KV k="Yenilənib" v={formatDt(selected.updatedAt)} />
                   </div>
 
                   <div style={S.card}>
-                    <div style={S.k}>Mesaj</div>
+                    <div style={S.kRow}>
+                      <div style={S.k}>Mesaj</div>
+                      {selected.message ? (
+                        <button onClick={() => copyText(selected.message!)} style={S.copyBtn} title="Copy message">
+                          Copy
+                        </button>
+                      ) : null}
+                    </div>
                     <div style={S.message}>{selected.message || "—"}</div>
+
+                    <div style={S.quickActions}>
+                      {selected.phone ? (
+                        <>
+                          <a href={waLink(selected.phone, "Salam! NEOX-dan yazıram 🙂")} target="_blank" rel="noreferrer" style={S.btnLink}>
+                            WhatsApp
+                          </a>
+                          <a href={telLink(selected.phone)} style={S.btnLinkGhost}>
+                            Call
+                          </a>
+                        </>
+                      ) : null}
+
+                      {selected.email ? (
+                        <a
+                          href={mailtoLink(selected.email, "NEOX", "Salam! NEOX-dan yazıram 🙂")}
+                          style={S.btnLinkGhost}
+                          title="Send email"
+                        >
+                          Email
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div style={S.card}>
@@ -426,12 +614,21 @@ export default function AdminLeads() {
                       </div>
 
                       <div style={{ display: "grid", gap: 6, flex: 2, minWidth: 260 }}>
-                        <div style={S.k}>Qeyd</div>
-                        <input
+                        <div style={S.kRow}>
+                          <div style={S.k}>Qeyd</div>
+                          {draftNote.trim() ? (
+                            <button onClick={() => copyText(draftNote)} style={S.copyBtn} title="Copy note">
+                              Copy
+                            </button>
+                          ) : null}
+                        </div>
+                        <textarea
+                          ref={noteRef as any}
                           value={draftNote}
                           onChange={(e) => setDraftNote(e.target.value)}
                           placeholder="Qısa qeyd..."
-                          style={S.input}
+                          style={S.textarea}
+                          rows={1}
                         />
                       </div>
                     </div>
@@ -440,12 +637,6 @@ export default function AdminLeads() {
                       <button onClick={saveLead} style={S.btnPrimary} disabled={loading}>
                         Yadda saxla
                       </button>
-
-                      {selected.phone && (
-                        <a href={waLink(selected.phone, "Salam! NEOX-dan yazıram 🙂")} target="_blank" rel="noreferrer" style={S.btnLink}>
-                          WhatsApp
-                        </a>
-                      )}
 
                       {isMobile && (
                         <button onClick={() => setMobileView("list")} style={S.btn} disabled={loading}>
@@ -469,6 +660,7 @@ export default function AdminLeads() {
   );
 }
 
+/* ------------------ styles ------------------ */
 const S: Record<string, any> = {
   adminPage: {
     minHeight: "100dvh",
@@ -555,8 +747,49 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.62)",
   },
 
+  // ✅ Search bar
+  searchBar: {
+    padding: 10,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto auto",
+    gap: 10,
+    alignItems: "center",
+    borderBottom: "1px solid rgba(255,255,255,.06)",
+    background: "rgba(0,0,0,.10)",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.92)",
+    outline: "none",
+    minWidth: 0,
+  },
+  searchClear: {
+    height: 40,
+    minWidth: 40,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.88)",
+    cursor: "pointer",
+  },
+  searchSelect: {
+    height: 40,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.92)",
+    outline: "none",
+    cursor: "pointer",
+  },
+
   list: {
-    maxHeight: "calc(100dvh - 240px)",
+    maxHeight: "calc(100dvh - 280px)",
     overflowY: "auto",
     overflowX: "hidden",
     WebkitOverflowScrolling: "touch",
@@ -593,12 +826,13 @@ const S: Record<string, any> = {
   },
   itemTime: { marginTop: 6, fontSize: 11, color: "rgba(255,255,255,.46)" },
 
-  pill: (st: LeadStatus) => {
-    const map: Record<LeadStatus, string> = {
+  pill: (st: LeadStatus | "other") => {
+    const map: Record<string, string> = {
       new: "rgba(20,82,199,.18)",
       contacted: "rgba(98,210,170,.16)",
       closed: "rgba(160,160,160,.14)",
       spam: "rgba(255,90,90,.14)",
+      other: "rgba(255,255,255,.06)",
     };
     return {
       fontSize: 11,
@@ -628,9 +862,12 @@ const S: Record<string, any> = {
     borderBottom: "1px solid rgba(255,255,255,.06)",
   },
   k: { fontSize: 12, color: "rgba(255,255,255,.55)", letterSpacing: ".08em", textTransform: "uppercase" },
-  v: { fontSize: 13, color: "rgba(255,255,255,.90)", overflow: "hidden", textOverflow: "ellipsis" },
+  kRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  vRow: { display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end", minWidth: 0 },
+  v: { fontSize: 13, color: "rgba(255,255,255,.90)", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 },
 
   message: { marginTop: 8, whiteSpace: "pre-wrap", lineHeight: 1.45, color: "rgba(255,255,255,.86)" },
+  quickActions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 },
 
   controls: { display: "flex", gap: 12, flexWrap: "wrap" },
   detailActions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 },
@@ -654,6 +891,19 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.92)",
     outline: "none",
     maxWidth: "100%",
+  },
+  textarea: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.92)",
+    outline: "none",
+    maxWidth: "100%",
+    resize: "none",
+    lineHeight: 1.45,
+    overflow: "hidden",
   },
 
   btn: {
@@ -692,6 +942,41 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.92)",
     fontWeight: 900,
     textDecoration: "none",
+  },
+  btnLinkGhost: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "10px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.14)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.90)",
+    fontWeight: 850,
+    textDecoration: "none",
+  },
+  btnLinkNav: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.03)",
+    color: "rgba(255,255,255,.86)",
+    textDecoration: "none",
+  },
+
+  copyBtn: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.86)",
+    cursor: "pointer",
+    fontSize: 11,
+    fontWeight: 850,
+    whiteSpace: "nowrap",
   },
 
   error: {
