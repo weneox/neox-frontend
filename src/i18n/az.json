@@ -19,7 +19,7 @@
     "hero": {
       "kicker": "NEOX / AI AVTOMASİYA",
       "title": { "line1": "AI sənin", "line2": "əməliyyatını idarə edir." },
-      "sub": "AI agentlər və workflow-larla prosesləri avtomatlaşdırırıq: satış, dəstək, əməliyyat və kontent — daha az manual iş, daha çox sürət."
+      "sub": "AI agentlər və workflow-larla satış, dəstək və ops proseslərini avtomatlaşdırırıq — daha az manual iş, daha çox sürət."
     },
     "strip": {
       "aria": "Terminal zolağı",
@@ -208,12 +208,12 @@
         "1": " deyə qurmuruq.",
         "2": "Biz ",
         "glowWorking": "işləyən",
-        "glowMeasurable": "ölçülə bilən",
+        "glowMeasurable": "ölçülən",
         "glowControlled": "nəzarətli",
-        "3": " bir sistem qururuq."
+        "3": " sistem qururuq."
       },
-      "sub": "NEOX — AI avtomasiya və agent sistemləri studiyasıdır. Inbox → intent → routing → CRM → ölçüm. Məqsədimiz: əməliyyatları sadələşdirmək, komandanın yükünü azaltmaq və satış axınını 24/7 işlətmək.",
-      "ctaPrimary": "Layihəni başladaq",
+      "sub": "NEOX — AI avtomasiya və agent sistemləri studiyası. Inbox → intent → routing → CRM → ölçüm. Məqsəd: daha az manual iş, daha sürətli cavab, daha çox satış.",
+      "ctaPrimary": "Brif göndər",
       "ctaSecondary": "Xidmətlər",
       "chips": ["AI Agentlər", "Workflow avtomasiya", "24/7 Chatbot", "CRM əməliyyatları", "SMM avtomasiya"]
     },
@@ -354,7 +354,7 @@
         "glowBudget": "büdcənə",
         "2": " qənaət et"
       },
-      "sub": "Brif yaz — 24 saat içində quick-win plan + inteqrasiya xəritəsi çıxaraq.",
+      "sub": "Brif yaz — 24 saat içində quick-win plan və inteqrasiya xəritəsi çıxaraq.",
       "proofs": [
         { "top": "Stabil", "midGlow": "Qaydalar", "bot": "policy + fallback + audit izi" },
         { "top": "Ölçülən", "mid": ["KPI", "SLA"], "bot": "panel + alerts + tuning" },
@@ -877,7 +877,6 @@
       "templates3": "3 nümunə reply:\n1) Salam! Hansı məhsulu axtarırsınız? Büdcəniz nə qədərdir?\n2) Çatdırılma var. Ünvanı yazın, dəqiq qiymət çıxarım.\n3) Kampaniya aktivdir — sizə uyğun variantları siyahı şəklində göndərim?",
       "followupQuestion": "İstəsən bunu 10 dəqiqəyə sənin biznesinə uyğun qururuq: kanallar → intent çıxarışı → lead score → CRM write. Hansı CRM istifadə edirsən?"
     },
-  
     "neoxAi": {
       "errors": {
         "fail": "Xəta baş verdi. Server cavab vermir və ya API açarları düzgün deyil. Zəhmət olmasa bir az sonra yenidən cəhd edin.",
