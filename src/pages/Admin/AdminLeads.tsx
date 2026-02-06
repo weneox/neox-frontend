@@ -1,6 +1,6 @@
 // src/pages/Admin/AdminLeads.tsx
 // (MOBILE-READY — stacked list/detail + no sideways scroll)
-// ✅ FIX: API_BASE only from adminContext (NO localhost fallback)
+// ✅ FIX: Guard against empty API_BASE + readable error when Netlify returns HTML instead of JSON
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAdmin } from "./adminContext";
@@ -73,6 +73,12 @@ function useIsMobile(breakpoint = 900) {
   return isMobile;
 }
 
+function stripHtmlPreview(s: string) {
+  const t = String(s || "").trim();
+  if (!t) return "";
+  return t.length > 180 ? t.slice(0, 180) + "…" : t;
+}
+
 export default function AdminLeads() {
   const loc = useLocation();
 
@@ -123,6 +129,7 @@ export default function AdminLeads() {
     return {
       "x-admin-token": token,
       Authorization: `Bearer ${token}`,
+      Accept: "application/json",
     } as Record<string, string>;
   }, [token]);
 
@@ -137,6 +144,63 @@ export default function AdminLeads() {
     window.setTimeout(() => logout(), 250);
   }
 
+  function ensureApiBaseOrThrow() {
+    // If you have Netlify proxy for /api/*, same-origin is ok.
+    // But your current error indicates Netlify is returning HTML -> so we hard warn.
+    if (!API_BASE) {
+      throw new Error(
+        [
+          "API_BASE boşdur (same-origin). Bu səbəbdən Netlify backend əvəzinə HTML (index.html) qaytarır və JSON parse partlayır.",
+          "Fix: Netlify-də VITE_API_BASE = https://neox-backend-production.up.railway.app yaz → Deploys → Clear cache and deploy.",
+          "Alternativ: Netlify-də /api/* üçün proxy (_redirects və ya netlify.toml) əlavə et.",
+        ].join("\n")
+      );
+    }
+  }
+
+  async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
+    const r = await fetch(url, init);
+
+    if (r.status === 401) {
+      on401("Token səhvdir. Yenidən daxil ol.");
+      // return never; but TS wants something
+      throw new Error("Unauthorized");
+    }
+
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+
+    // If backend route is missing or Netlify SPA caught it, we often get HTML.
+    if (!ct.includes("application/json")) {
+      const text = await r.text();
+      const looksHtml = text.trim().startsWith("<!doctype") || text.trim().startsWith("<html") || text.trim().startsWith("<");
+      if (!r.ok) {
+        throw new Error(`${r.status} ${stripHtmlPreview(text) || "fetch failed"}`);
+      }
+      if (looksHtml) {
+        throw new Error(
+          [
+            "Server JSON əvəzinə HTML qaytardı (Netlify index.html/404 səhifəsi kimi görünür).",
+            `URL: ${url}`,
+            "Fix: VITE_API_BASE düzgün olmalıdır (Railway URL) və ya Netlify /api proxy olmalıdır.",
+          ].join("\n")
+        );
+      }
+      // fallback: try parse anyway
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new Error(`JSON deyil: ${stripHtmlPreview(text)}`);
+      }
+    }
+
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`${r.status} ${t || "fetch failed"}`);
+    }
+
+    return (await r.json()) as T;
+  }
+
   async function fetchLeads(silent = false) {
     if (!token) return;
     if (inflightRef.current) return;
@@ -146,16 +210,12 @@ export default function AdminLeads() {
     if (!silent) setErr(null);
 
     try {
-      const r = await fetch(`${API_BASE}/api/leads`, { headers: { ...authHeaders } });
+      ensureApiBaseOrThrow();
 
-      if (r.status === 401) return on401("Token səhvdir. Yenidən daxil ol.");
+      const j = await fetchJson<{ leads?: Lead[] }>(`${API_BASE}/api/leads`, {
+        headers: { ...authHeaders },
+      });
 
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`${r.status} ${t || "fetch failed"}`);
-      }
-
-      const j = await r.json();
       const list: Lead[] = j.leads || [];
       setLeads(list);
 
@@ -180,22 +240,15 @@ export default function AdminLeads() {
     setErr(null);
 
     try {
-      const r = await fetch(`${API_BASE}/api/leads/${selected.id}`, {
+      ensureApiBaseOrThrow();
+
+      const j = await fetchJson<{ lead: Lead }>(`${API_BASE}/api/leads/${selected.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ status: draftStatus, note: draftNote }),
       });
 
-      if (r.status === 401) return on401("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
-
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`${r.status} ${t || "save failed"}`);
-      }
-
-      const j = await r.json();
       const updated: Lead = j.lead;
-
       setLeads((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
       setErr(null);
     } catch (e: any) {
@@ -210,10 +263,15 @@ export default function AdminLeads() {
     setErr(null);
 
     try {
+      ensureApiBaseOrThrow();
+
       const r = await fetch(`${API_BASE}/api/leads.csv`, { headers: { ...authHeaders } });
 
       if (r.status === 401) return on401("Token səhvdir. Yenidən daxil ol.");
-      if (!r.ok) throw new Error(`CSV export failed (${r.status})`);
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`CSV export failed (${r.status}) ${stripHtmlPreview(t)}`);
+      }
 
       const blob = await r.blob();
       const a = document.createElement("a");
@@ -271,12 +329,7 @@ export default function AdminLeads() {
 
           <div style={S.actions}>
             {isMobile && mobileView === "detail" && (
-              <button
-                onClick={() => setMobileView("list")}
-                style={S.btn}
-                disabled={loading}
-                title="Back to list"
-              >
+              <button onClick={() => setMobileView("list")} style={S.btn} disabled={loading} title="Back to list">
                 ← List
               </button>
             )}
@@ -324,9 +377,7 @@ export default function AdminLeads() {
                           <div style={S.itemName}>{l.name || "— Adsız"}</div>
                           <div style={S.pill(st)}>{st}</div>
                         </div>
-                        <div style={S.itemMeta}>
-                          {l.phone ? `📞 ${l.phone}` : l.email ? `✉️ ${l.email}` : "—"}
-                        </div>
+                        <div style={S.itemMeta}>{l.phone ? `📞 ${l.phone}` : l.email ? `✉️ ${l.email}` : "—"}</div>
                         <div style={S.itemTime}>{formatDt(l.createdAt)}</div>
                       </button>
                     );
@@ -366,11 +417,7 @@ export default function AdminLeads() {
                     <div style={S.controls}>
                       <div style={{ display: "grid", gap: 6, flex: 1, minWidth: 220 }}>
                         <div style={S.k}>Status</div>
-                        <select
-                          value={draftStatus}
-                          onChange={(e) => setDraftStatus(e.target.value as LeadStatus)}
-                          style={S.select}
-                        >
+                        <select value={draftStatus} onChange={(e) => setDraftStatus(e.target.value as LeadStatus)} style={S.select}>
                           <option value="new">new</option>
                           <option value="contacted">contacted</option>
                           <option value="closed">closed</option>
@@ -395,12 +442,7 @@ export default function AdminLeads() {
                       </button>
 
                       {selected.phone && (
-                        <a
-                          href={waLink(selected.phone, "Salam! NEOX-dan yazıram 🙂")}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={S.btnLink}
-                        >
+                        <a href={waLink(selected.phone, "Salam! NEOX-dan yazıram 🙂")} target="_blank" rel="noreferrer" style={S.btnLink}>
                           WhatsApp
                         </a>
                       )}
@@ -653,6 +695,7 @@ const S: Record<string, any> = {
   },
 
   error: {
+    whiteSpace: "pre-wrap",
     padding: "10px 12px",
     borderRadius: 12,
     border: "1px solid rgba(255,90,90,.28)",

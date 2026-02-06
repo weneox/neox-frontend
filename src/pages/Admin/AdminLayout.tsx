@@ -54,6 +54,16 @@ function useIsMobile(breakpoint = 900) {
   return isMobile;
 }
 
+/* ------------------ helpers ------------------ */
+async function fetchWithAuth(url: string, token: string) {
+  return fetch(url, {
+    headers: {
+      "x-admin-token": token,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 /* ------------------ Login Card ------------------ */
 function AdminLoginCard() {
   const { apiBase, token, setToken } = useAdmin();
@@ -74,16 +84,36 @@ function AdminLoginCard() {
 
     try {
       const base = normalizeBase(apiBase); // "" => same-origin
-      const url = `${base}/api/leads`;
 
-      const r = await fetch(url, {
-        headers: { "x-admin-token": t, Authorization: `Bearer ${t}` },
-      });
+      // ✅ Endpoint compatibility fallback:
+      // Some builds use /api/leads, others /api/admin/leads
+      const tryUrls = [`${base}/api/leads`, `${base}/api/admin/leads`];
 
-      if (r.status === 401) return setErr("Token səhvdir.");
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        return setErr(`Xəta: ${r.status} ${txt || ""}`.trim());
+      let ok = false;
+      let lastStatus = 0;
+      let lastText = "";
+
+      for (const url of tryUrls) {
+        const r = await fetchWithAuth(url, t);
+        lastStatus = r.status;
+
+        if (r.status === 401) {
+          ok = false;
+          lastText = "Token səhvdir.";
+          break;
+        }
+
+        if (r.ok) {
+          ok = true;
+          break;
+        }
+
+        lastText = await r.text().catch(() => "");
+      }
+
+      if (!ok) {
+        if (lastStatus === 401) return setErr("Token səhvdir.");
+        return setErr(`Xəta: ${lastStatus} ${String(lastText || "").trim()}`.trim());
       }
     } catch {
       return setErr("Backend-ə qoşulmaq olmur. VITE_API_BASE düz deyil?");
@@ -124,9 +154,7 @@ function AdminLoginCard() {
 
             <div style={S.tip}>
               Backend test:{" "}
-              <code style={S.codeMini}>
-                {(normalizeBase(apiBase) || "(same-origin)")}/health
-              </code>
+              <code style={S.codeMini}>{(normalizeBase(apiBase) || "(same-origin)")}/health</code>
               <span style={{ opacity: 0.7 }}> • API_BASE: </span>
               <code style={S.codeMini}>{normalizeBase(apiBase) || "(same-origin)"}</code>
             </div>
@@ -142,13 +170,16 @@ function AdminScaffold() {
   const loc = useLocation();
   const params = useParams<{ lang?: string }>();
 
+  // ✅ Site dil yolu (/{lang}/...) — bu i18n route üçündür
   const lang = useMemo<Lang>(
     () => (params.lang as Lang) || getLangFromPath(loc.pathname),
     [params.lang, loc.pathname]
   );
 
   const isMobile = useIsMobile(900);
-  const { token, logout } = useAdmin();
+
+  // ✅ Admin context (token + adminLang)
+  const { token, logout, adminLang, setAdminLang, langs, apiBase } = useAdmin();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -203,10 +234,27 @@ function AdminScaffold() {
             <div style={S.topSub}>
               Route: <code style={S.codeMini}>{loc.pathname}</code> • Token:{" "}
               <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b>
+              <span style={{ opacity: 0.7 }}> • API:</span>{" "}
+              <code style={S.codeMini}>{normalizeBase(apiBase) || "(same-origin)"}</code>
             </div>
           </div>
 
           <div style={S.topActions}>
+            {/* ✅ Admin panel language (translation/display language) */}
+            <select
+              value={adminLang}
+              onChange={(e) => setAdminLang(e.target.value as any)}
+              style={S.langSelect}
+              aria-label="Admin panel dili"
+              title="Admin panel dili"
+            >
+              {langs.map((l) => (
+                <option key={l} value={l}>
+                  {l.toUpperCase()}
+                </option>
+              ))}
+            </select>
+
             <button onClick={logout} style={S.btnGhost}>
               Çıxış
             </button>
@@ -237,6 +285,9 @@ function AdminScaffold() {
               <div style={S.sideFoot}>
                 headers: <code style={S.codeMini}>x-admin-token</code> /{" "}
                 <code style={S.codeMini}>Authorization</code>
+                <div style={{ marginTop: 6, opacity: 0.8 }}>
+                  admin_lang: <code style={S.codeMini}>{adminLang}</code>
+                </div>
               </div>
             </aside>
           )}
@@ -293,6 +344,9 @@ function AdminScaffold() {
                 <div style={S.sideFoot}>
                   headers: <code style={S.codeMini}>x-admin-token</code> /{" "}
                   <code style={S.codeMini}>Authorization</code>
+                  <div style={{ marginTop: 6, opacity: 0.8 }}>
+                    admin_lang: <code style={S.codeMini}>{adminLang}</code>
+                  </div>
                 </div>
               </aside>
             </>
@@ -300,7 +354,8 @@ function AdminScaffold() {
 
           {/* Content */}
           <section style={S.content}>
-            <Outlet />
+            {/* ✅ Outlet context: istəsən səhifələr useOutletContext ilə də götürə bilər */}
+            <Outlet context={{ adminLang }} />
           </section>
         </div>
       </div>
@@ -331,7 +386,13 @@ const S: Record<string, any> = {
     overflowX: "hidden",
   },
 
-  shellCenter: { maxWidth: 980, margin: "0 auto", paddingTop: 30, display: "grid", placeItems: "center" },
+  shellCenter: {
+    maxWidth: 980,
+    margin: "0 auto",
+    paddingTop: 30,
+    display: "grid",
+    placeItems: "center",
+  },
   shellWide: { maxWidth: 1240, margin: "0 auto" },
 
   topbar: {
@@ -369,8 +430,29 @@ const S: Record<string, any> = {
 
   topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
-  mainGrid: { display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: 12, alignItems: "start" },
-  mainStack: { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, alignItems: "start" },
+  langSelect: {
+    height: 40,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.88)",
+    cursor: "pointer",
+    outline: "none",
+  },
+
+  mainGrid: {
+    display: "grid",
+    gridTemplateColumns: "260px minmax(0, 1fr)",
+    gap: 12,
+    alignItems: "start",
+  },
+  mainStack: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
+    alignItems: "start",
+  },
 
   sidebarSticky: {
     borderRadius: 18,

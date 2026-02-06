@@ -2,6 +2,9 @@
 // MOBILE-READY — stacked list/thread + back button + sticky reply bar
 // ✅ FIX: API_BASE + token from adminContext (NO localhost fallback)
 // ✅ FIX: remove duplicated localStorage auth flow (single source of truth)
+// ✅ NEW: Translation-aware message rendering (adminLang from AdminContext)
+// ✅ NEW: sendReply includes admin_lang for backend auto-translation pipeline
+// ✅ FIX: fetchConversations + fetchThread now send admin_lang too
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
 import { useAdmin } from "./adminContext";
@@ -41,9 +44,10 @@ function formatDt(iso?: string) {
 }
 
 function useLangAndChatId() {
+  // NOTE: route lang is website language, not adminLang (adminLang comes from context dropdown)
   const { lang, id } = useParams<{ lang?: string; id?: string }>();
   return {
-    lang: (lang || "az").toLowerCase(),
+    routeLang: (lang || "az").toLowerCase(),
     chatId: (id || "").trim() || null,
   };
 }
@@ -83,13 +87,53 @@ function useIsMobile(breakpoint = 900) {
   return isMobile;
 }
 
+function normLang(x?: string) {
+  return String(x || "").trim().toLowerCase() || "";
+}
+
+// ✅ Safe: adds/updates query params for both absolute and relative URLs
+function withQuery(url: string, params: Record<string, string>) {
+  const base = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const u = new URL(url, base);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
+  // return as absolute if original looked absolute, else return relative
+  const looksAbs = /^https?:\/\//i.test(url);
+  return looksAbs ? u.toString() : u.pathname + (u.search || "") + (u.hash || "");
+}
+
+// Pick best translation for admin language:
+// 1) translations[adminLang]
+// 2) translations["az"] (common fallback)
+// 3) first available translations value
+function pickAdminTranslation(meta: any, adminLang: string) {
+  const tr = meta?.translations;
+  if (!tr || typeof tr !== "object") return "";
+  const a = normLang(adminLang);
+  const direct = tr[a];
+  if (direct) return String(direct || "").trim();
+
+  const az = tr["az"];
+  if (az) return String(az || "").trim();
+
+  const firstKey = Object.keys(tr)[0];
+  if (firstKey) return String(tr[firstKey] || "").trim();
+
+  return "";
+}
+
 export default function AdminChats() {
   const loc = useLocation();
-  const { lang, chatId } = useLangAndChatId();
+  const { routeLang, chatId } = useLangAndChatId();
   const isMobile = useIsMobile(900);
 
   // ✅ single source of truth
-  const { apiBase: apiBaseRaw, token, setToken, logout: ctxLogout } = useAdmin();
+  const {
+    apiBase: apiBaseRaw,
+    token,
+    setToken,
+    logout: ctxLogout,
+    adminLang, // ✅ from dropdown (AdminLayout)
+  } = useAdmin();
 
   // ✅ normalize api base (remove trailing slash). "" => same-origin
   const API_BASE = useMemo(() => String(apiBaseRaw || "").replace(/\/+$/, ""), [apiBaseRaw]);
@@ -222,7 +266,11 @@ export default function AdminChats() {
       if (!silent) setLoading(true);
       if (!silent) setErr(null);
 
-      const r = await fetch(`${API_BASE}/api/admin/conversations`, {
+      const url = withQuery(`${API_BASE}/api/admin/conversations`, {
+        admin_lang: String(adminLang || "az"),
+      });
+
+      const r = await fetch(url, {
         headers: buildAdminHeaders(token),
         signal: ac.signal,
       });
@@ -266,7 +314,11 @@ export default function AdminChats() {
       const ac = new AbortController();
       threadAbortRef.current = ac;
 
-      const r = await fetch(`${API_BASE}/api/admin/conversations/${id}/messages`, {
+      const url = withQuery(`${API_BASE}/api/admin/conversations/${id}/messages`, {
+        admin_lang: String(adminLang || "az"),
+      });
+
+      const r = await fetch(url, {
         headers: buildAdminHeaders(token),
         signal: ac.signal,
       });
@@ -379,7 +431,8 @@ export default function AdminChats() {
           "Content-Type": "application/json",
           ...buildAdminHeaders(token),
         },
-        body: JSON.stringify({ content: text }),
+        // ✅ send admin_lang so backend can translate to user language + store original
+        body: JSON.stringify({ content: text, admin_lang: adminLang }),
       });
 
       if (r.status === 401) return on401("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
@@ -420,7 +473,7 @@ export default function AdminChats() {
     fetchConversations({ silent: false, keepActive: true });
     return () => stopAllNetworking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, API_BASE]);
+  }, [token, API_BASE, adminLang]);
 
   // When active changes, load thread
   useEffect(() => {
@@ -428,7 +481,7 @@ export default function AdminChats() {
     fetchThread(activeId, { silent: false });
     if (isMobile) setMobileView("thread");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activeId, API_BASE]);
+  }, [token, activeId, API_BASE, adminLang]);
 
   // Poll (uses latest activeId)
   const activeIdRef = useRef<string | null>(null);
@@ -452,7 +505,7 @@ export default function AdminChats() {
       pollRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, API_BASE]);
+  }, [token, API_BASE, adminLang]);
 
   // ✅ focus=reply support (for magic link)
   useEffect(() => {
@@ -511,7 +564,7 @@ export default function AdminChats() {
             </div>
 
             <div style={{ marginTop: 14, fontSize: 12, color: "rgba(255,255,255,.55)" }}>
-              <Link to={`/${lang}/admin/leads`} style={{ color: "rgba(255,255,255,.8)" }}>
+              <Link to={`/${routeLang}/admin/leads`} style={{ color: "rgba(255,255,255,.8)" }}>
                 ← Admin Leads
               </Link>
             </div>
@@ -535,12 +588,13 @@ export default function AdminChats() {
             <div style={{ fontSize: 18, fontWeight: 950 }}>Admin Chats</div>
             <div style={S.subLine}>
               Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route:{" "}
-              <code style={S.code}>{loc.pathname}</code> <span style={{ opacity: 0.7 }}> • Auto: 6s</span>
+              <code style={S.code}>{loc.pathname}</code> <span style={{ opacity: 0.7 }}> • Auto: 6s</span>{" "}
+              <span style={{ opacity: 0.7 }}> • AdminLang: {String(adminLang || "az").toUpperCase()}</span>
             </div>
           </div>
 
           <div style={S.actions}>
-            <Link to={`/${lang}/admin/leads`} style={S.btnLinkNav as any}>
+            <Link to={`/${routeLang}/admin/leads`} style={S.btnLinkNav as any}>
               Leads
             </Link>
 
@@ -706,11 +760,63 @@ export default function AdminChats() {
 
                         const roleLabel = isAdminReply ? "OPERATOR" : isUser ? "USER" : String(m.role || "").toUpperCase();
 
+                        const userLang = normLang(m.lang) || normLang(active?.lang) || "az";
+
+                        // ---- translation-aware rendering ----
+                        // USER: primary = translated-to-adminLang (if exists), secondary = original
+                        // OPERATOR: primary = meta.original.text (admin text), secondary = content (sent to user)
+                        let primary = String(m.content || "");
+                        let secondary = "";
+                        let secondaryTag = "";
+
+                        if (isUser) {
+                          const tr = pickAdminTranslation(m.meta, adminLang);
+                          if (tr && tr !== primary) {
+                            secondary = primary;
+                            secondaryTag = userLang.toUpperCase();
+                            primary = tr;
+                          }
+                        }
+
+                        if (isAdminReply) {
+                          const origText = String(m?.meta?.original?.text || "").trim();
+                          const origLang = normLang(m?.meta?.original?.lang) || normLang(adminLang) || "az";
+                          if (origText) {
+                            primary = origText;
+
+                            const sent = String(m.content || "").trim();
+                            if (sent && sent !== origText) {
+                              secondary = sent;
+                              secondaryTag = userLang.toUpperCase();
+                            }
+                          } else {
+                            primary = String(m.content || "");
+                          }
+
+                          // show operator language tag (adminLang)
+                          // userLang tag is shown on secondary if exists
+                          void origLang;
+                        }
+
                         return (
                           <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
                             <div style={{ ...S.bubble, ...(mine ? S.bubbleMine : S.bubbleUser) }}>
-                              <div style={S.bubbleRole}>{roleLabel}</div>
-                              <div style={S.bubbleText}>{m.content}</div>
+                              <div style={S.bubbleRole}>
+                                {roleLabel}
+                                <span style={{ opacity: 0.65, marginLeft: 10 }}>
+                                  · {isAdminReply ? String(adminLang || "az").toUpperCase() : userLang.toUpperCase()}
+                                </span>
+                              </div>
+
+                              <div style={S.bubbleText}>{primary}</div>
+
+                              {secondary ? (
+                                <div style={S.bubbleSecondary}>
+                                  <div style={S.secondaryTag}>{secondaryTag}</div>
+                                  <div style={S.secondaryText}>{secondary}</div>
+                                </div>
+                              ) : null}
+
                               <div style={S.bubbleTime}>{formatDt(m.createdAt)}</div>
                             </div>
                           </div>
@@ -725,7 +831,7 @@ export default function AdminChats() {
                       ref={replyInputRef}
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
-                      placeholder="Operator reply yaz…"
+                      placeholder={`Operator reply yaz… (${String(adminLang || "az").toUpperCase()})`}
                       style={S.input}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendReply();
@@ -746,7 +852,8 @@ export default function AdminChats() {
 
         <div style={S.footerLine}>
           token headers: <code style={S.code}>x-admin-token</code> / <code style={S.code}>Authorization</code> • API:{" "}
-          <code style={S.code}>{API_BASE || "(same-origin)"}</code> • preview: <code style={S.code}>{pickPreview(orderedMessages)}</code>
+          <code style={S.code}>{API_BASE || "(same-origin)"}</code> • preview:{" "}
+          <code style={S.code}>{pickPreview(orderedMessages)}</code>
         </div>
       </div>
     </div>
@@ -879,7 +986,14 @@ const S: Record<string, any> = {
   },
   itemActive: { background: "rgba(255,255,255,.05)", transform: "translateY(-1px)" },
   itemRow: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", minWidth: 0 },
-  itemName: { fontWeight: 900, fontSize: 14, color: "rgba(255,255,255,.92)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  itemName: {
+    fontWeight: 900,
+    fontSize: 14,
+    color: "rgba(255,255,255,.92)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
   itemMeta: {
     marginTop: 6,
     fontSize: 12,
@@ -977,6 +1091,35 @@ const S: Record<string, any> = {
   bubbleRole: { fontSize: 10, letterSpacing: ".16em", opacity: 0.75, marginBottom: 6 },
   bubbleText: { whiteSpace: "pre-wrap", lineHeight: 1.45, wordBreak: "break-word" },
   bubbleTime: { marginTop: 8, fontSize: 11, opacity: 0.55 },
+
+  // ✅ Translation block
+  bubbleSecondary: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px dashed rgba(255,255,255,.14)",
+    opacity: 0.92,
+  },
+  secondaryTag: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 10,
+    letterSpacing: ".16em",
+    padding: "3px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.72)",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  secondaryText: {
+    whiteSpace: "pre-wrap",
+    lineHeight: 1.45,
+    wordBreak: "break-word",
+    color: "rgba(255,255,255,.72)",
+    fontStyle: "italic",
+  },
 
   replyBar: {
     borderRadius: 16,
