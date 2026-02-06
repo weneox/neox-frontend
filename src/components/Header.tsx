@@ -225,17 +225,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
     const p = clamp01(y / 180);
 
-    // DOM write yalnız dəyişəndə
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
-    // state update yalnız dəyişəndə
     if (Math.abs(p - lastPRef.current) > 0.002) {
       lastPRef.current = p;
       setScrolled(p > 0.02);
     }
   }, []);
 
-  // Scroll listener + rAF throttle (daha yüngül)
+  // Scroll listener + rAF throttle
   useEffect(() => {
     scrollElRef.current = getScrollableEl();
     ensureSentinel();
@@ -387,7 +385,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Header tuning (logo + mobile sizing) ===== */}
+      {/* ===== Header tuning (MOBILE logo fit + mobile scroll blur fix) ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -397,45 +395,66 @@ export default function Header({ introReady }: { introReady: boolean }) {
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
 
-/* ✅ Mobil optimizasiya üçün dəyişənlər */
+/* ✅ Dəyişənlər */
 .site-header{
   --logoH: 28px;         /* desktop default */
   --hdrPadY: 18px;       /* desktop default */
+  --hdrBgA: rgba(10,12,18,.72);   /* scrolled bg */
+  --hdrBdA: rgba(255,255,255,.06);/* scrolled border */
 }
+
+/* ✅ Mobil: logo daha balaca + header daha sıx */
 @media (max-width: 920px){
   .site-header{
-    --logoH: 22px;       /* ✅ mobil: daha balaca */
-    --hdrPadY: 12px;     /* ✅ mobil: daha sıx */
+    --logoH: 20px;       /* ✅ daha balaca (qarışmasın) */
+    --hdrPadY: 10px;
   }
 }
 @media (max-width: 380px){
   .site-header{
-    --logoH: 20px;       /* çox balaca ekranlar */
-    --hdrPadY: 10px;
+    --logoH: 18px;
+    --hdrPadY: 9px;
   }
 }
 
-/* Header inner spacing-i sıx (layout səliqəli) */
+/* Header inner spacing-i sıx */
 .site-header .header-inner{
   padding-top: var(--hdrPadY);
   padding-bottom: var(--hdrPadY);
 }
 
-/* Brand link: mobilde klik sahəsi böyük qalsın, amma logo balaca görünsün */
+/* ✅ Mobil layout: sol (logo) + sağ (controls) — bir-birinə girməsin */
+.site-header .header-left,
+.site-header .header-right{
+  min-width:0;
+}
+@media (max-width: 920px){
+  .site-header .header-grid{
+    grid-template-columns: 1fr auto; /* sol elastik, sağ sabit */
+    column-gap: 10px;
+    align-items:center;
+  }
+  .site-header .header-mid{
+    display:none !important; /* mobil: center nav gizli */
+  }
+}
+
+/* Brand link: klik sahəsi böyük qalsın, amma logo “fit” olsun */
 .brand-link{
   display:inline-flex;
   align-items:center;
   justify-content:flex-start;
-  padding: 6px 0;        /* tap target */
+  padding: 6px 0;
   line-height:0;
+  min-width:0;
 }
 
-/* ===== Header logo wrap — pill YOX ===== */
+/* ✅ Logo konteyneri ekranı daşırmasın */
 .headerBrand{
   position:relative;
   display:inline-flex;
   align-items:center;
-  justify-content:center;
+  justify-content:flex-start;
   padding:0;
   border-radius:0;
   border:none;
@@ -445,10 +464,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
   transform:translateY(0);
   transition:transform .22s ease;
   -webkit-tap-highlight-color: transparent;
+  max-width: 100%;
 }
 .headerBrand:hover{ transform:translateY(-1px); }
 
-/* ✅ ÇOX YÜNGÜL aura (mobilde daha da yüngül) */
+/* ✅ Sol tərəfdə logo üçün maksimum en (mobil) */
+@media (max-width: 920px){
+  .brand-link{
+    max-width: calc(100vw - 160px); /* sağdakı dil + menu üçün yer saxla */
+  }
+}
+@media (max-width: 420px){
+  .brand-link{
+    max-width: calc(100vw - 150px);
+  }
+}
+
+/* ✅ ÇOX yüngül aura */
 .headerBrand__aura{
   position:absolute;
   inset:-10px;
@@ -466,19 +498,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
   .headerBrand__aura{
     inset:-8px;
     filter:blur(12px);
-    opacity:.16;
+    opacity:.14;
   }
-  .headerBrand:hover .headerBrand__aura{ opacity:.20; }
+  .headerBrand:hover .headerBrand__aura{ opacity:.18; }
 }
 
 /* ✅ Üstündən gedən işıq (glint) TAM LƏĞV */
 .headerBrand__glint{ display:none !important; }
 
-/* ✅ Logo ölçüsü: dəyişənlə idarə olunur */
+/* ✅ Logo ölçüsü + max-width clamp: “NEOX” yazısı böyüyüb navbarı basmasın */
 .headerBrand__img{
   display:block;
   height: var(--logoH);
   width:auto;
+  max-width: clamp(110px, 34vw, 156px); /* ✅ əsas fix */
   object-fit:contain;
   user-select:none;
   filter:
@@ -487,14 +520,35 @@ export default function Header({ introReady }: { introReady: boolean }) {
   transform:translateZ(0);
 }
 
-/* Mobil grid: orta nav çox vaxt gizlidir, sağ tərəfdə sıxlıq olur → aralıqları azaldırıq */
+/* Sağ tərəf sıxlıq */
 @media (max-width: 920px){
   .site-header .header-right{
-    gap: 10px;
+    gap: 8px;
   }
   .site-header .nav-toggle{
-    margin-left: 4px;
+    margin-left: 2px;
   }
+}
+
+/* ✅ MOBİL SCROLL PROBLEMİ: scroll edəndə header şəffaf qalmasın */
+.site-header{
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.site-header.is-scrolled{
+  background: var(--hdrBgA) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.25) !important;
+  backdrop-filter: blur(14px) saturate(1.25) !important;
+  border-bottom: 1px solid var(--hdrBdA);
+}
+
+/* Əgər menyu açıqdırsa, mütləq oxunaqlı olsun */
+.site-header.is-open{
+  background: rgba(10,12,18,.82) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.35) !important;
+  backdrop-filter: blur(16px) saturate(1.35) !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -565,4 +619,3 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </header>
   );
 }
- 
