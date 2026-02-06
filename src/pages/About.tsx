@@ -2,7 +2,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Shield, Target, Workflow, Radar, Network, CheckCircle, ArrowRight, Sparkles, Zap, Cpu } from "lucide-react";
+import {
+  Shield,
+  Target,
+  Workflow,
+  Radar,
+  Network,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  Zap,
+  Cpu,
+} from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -104,7 +115,7 @@ function useRevealWithinBatched(
     const fallback = window.setTimeout(() => {
       els.forEach(show);
       io.disconnect();
-    }, 1500);
+    }, 1800);
 
     return () => {
       window.clearTimeout(fallback);
@@ -131,7 +142,7 @@ export default function About() {
   const [enter, setEnter] = useState(false);
   useEffect(() => {
     if (reduced) return;
-    const tt = window.setTimeout(() => setEnter(true), 240);
+    const tt = window.setTimeout(() => setEnter(true), 220);
     return () => window.clearTimeout(tt);
   }, [reduced]);
 
@@ -246,14 +257,15 @@ export default function About() {
           --ab-shadow: 0 16px 56px rgba(0,0,0,.62);
           --ab-shadow2: 0 22px 70px rgba(0,0,0,.70);
 
-          /* palette (Services/Contact ilə eyni) */
           --ab-blue1: rgba(47,184,255,1);
           --ab-blue2: rgba(42,125,255,1);
 
-          /* glow */
           --ab-glow1: rgba(170,225,255,.20);
           --ab-glow2: rgba(47,184,255,.18);
           --ab-glow3: rgba(42,125,255,.16);
+
+          /* header safety (mobilde üst-üstə düşməsin) */
+          --ab-headerSafe: 86px;
         }
 
         html, body{
@@ -278,11 +290,17 @@ export default function About() {
         }
         .ab-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ arxa fon layer-lar */
-        .ab-bgGlow{
+        /* ✅ background layer-ları iOS Safari üçün 100vw/100vh (sağdakı qara band gedir) */
+        .ab-layer{
           position: fixed;
-          inset: -30vh -20vw;
-          pointer-events:none;
+          top: 0; left: 50%;
+          width: 100vw;
+          height: 100vh;
+          transform: translateX(-50%);
+          pointer-events: none;
+        }
+
+        .ab-bgGlow{
           z-index: -3;
           background:
             radial-gradient(900px 520px at 18% 12%, rgba(47,184,255,.14), transparent 60%),
@@ -292,10 +310,8 @@ export default function About() {
           opacity: .92;
           filter: saturate(1.05);
         }
+
         .ab-drift{
-          position: fixed;
-          inset: -30vh -20vw;
-          pointer-events:none;
           z-index: -3;
           opacity: .22;
           background:
@@ -306,14 +322,11 @@ export default function About() {
           animation: abDrift 9.5s ease-in-out infinite;
         }
         @keyframes abDrift{
-          0%,100%{ transform: translate3d(0,0,0) scale(1); }
-          50%{ transform: translate3d(-18px, 10px, 0) scale(1.04); }
+          0%,100%{ transform: translateX(-50%) translate3d(0,0,0) scale(1); }
+          50%{ transform: translateX(-50%) translate3d(-18px, 10px, 0) scale(1.04); }
         }
 
         .ab-noise{
-          position: fixed;
-          inset: 0;
-          pointer-events:none;
           z-index: -2;
           opacity: .06;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
@@ -321,9 +334,6 @@ export default function About() {
         }
 
         .ab-vignette{
-          position: fixed;
-          inset: 0;
-          pointer-events:none;
           z-index: -1;
           background:
             radial-gradient(1200px 720px at 50% -10%, rgba(0,0,0,0), rgba(0,0,0,.55) 70%, rgba(0,0,0,.92) 100%),
@@ -372,7 +382,7 @@ export default function About() {
             radial-gradient(140px 46px at 50% 50%, var(--ab-glow2), transparent 72%),
             radial-gradient(120px 40px at 80% 50%, var(--ab-glow3), transparent 70%);
           filter: blur(10px);
-          opacity: .95;
+          opacity: .92;
           pointer-events:none;
           z-index: -1;
         }
@@ -405,7 +415,7 @@ export default function About() {
         .ab-page.ab-io .ab-reveal{
           opacity: 0;
           transform: translate3d(var(--rx, 0px), var(--ry, 16px), 0);
-          transition: opacity .48s ease, transform .48s ease;
+          transition: opacity .52s ease, transform .52s ease;
           will-change: transform, opacity;
         }
         .ab-page.ab-io .ab-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
@@ -421,12 +431,15 @@ export default function About() {
         /* HERO */
         .ab-hero{
           position: relative;
-          padding-top: 96px;
-          padding-bottom: 74px;
+          padding-top: calc(var(--ab-headerSafe) + env(safe-area-inset-top, 0px));
+          padding-bottom: 66px;
           overflow: hidden;
         }
         @media (max-width: 860px){
-          .ab-hero{ padding-top: 84px; padding-bottom: 64px; }
+          .ab-hero{
+            padding-top: calc(94px + env(safe-area-inset-top, 0px)); /* mobil: header ilə 100% məsafə */
+            padding-bottom: 58px;
+          }
         }
 
         .ab-heroGlass{
@@ -449,24 +462,31 @@ export default function About() {
           z-index: 2;
         }
 
+        /* ✅ başlıq mobil üçün daha yığcam */
         .ab-title{
-          margin-top: 14px;
-          font-size: clamp(34px, 6.2vw, 72px);
+          margin-top: 12px;
+          font-size: clamp(30px, 7.2vw, 72px);
           line-height: 1.06;
           letter-spacing: -.02em;
-          font-weight: 650;
+          font-weight: 660;
           text-align:center;
           text-wrap: balance;
         }
+        @media (max-width: 420px){
+          .ab-title{ font-size: 30px; line-height: 1.05; }
+        }
 
         .ab-sub{
-          margin: 18px auto 0;
+          margin: 14px auto 0;
           max-width: 980px;
           text-align:center;
-          font-size: 16px;
-          line-height: 1.70;
+          font-size: 15.5px;
+          line-height: 1.68;
           color: var(--ab-dim);
           font-weight: 450;
+        }
+        @media (max-width: 420px){
+          .ab-sub{ font-size: 15px; }
         }
 
         /* pill */
@@ -501,7 +521,7 @@ export default function About() {
 
         /* buttons */
         .ab-actions{
-          margin-top: 26px;
+          margin-top: 22px;
           display:flex;
           justify-content:center;
           gap: 12px;
@@ -549,7 +569,7 @@ export default function About() {
         .ab-btn--primary:hover{ border-color: rgba(47,184,255,.42); }
 
         .ab-chips{
-          margin-top: 16px;
+          margin-top: 14px;
           display:flex;
           gap: 10px;
           justify-content:center;
@@ -576,7 +596,7 @@ export default function About() {
         }
 
         /* strip */
-        .ab-afterHeroSpacer{ height: 22px; background:#000; }
+        .ab-afterHeroSpacer{ height: 18px; background:#000; }
 
         .ab-strip{
           background: #000;
@@ -1009,11 +1029,11 @@ export default function About() {
         }
       `}</style>
 
-      {/* ✅ premium background layers (kontenti örtmür) */}
-      <div className="ab-bgGlow" aria-hidden="true" />
-      {!reduced && <div className="ab-drift" aria-hidden="true" />}
-      <div className="ab-noise" aria-hidden="true" />
-      <div className="ab-vignette" aria-hidden="true" />
+      {/* ✅ premium background layers (tam ekran, sağdakı qara band yoxdur) */}
+      <div className="ab-layer ab-bgGlow" aria-hidden="true" />
+      {!reduced && <div className="ab-layer ab-drift" aria-hidden="true" />}
+      <div className="ab-layer ab-noise" aria-hidden="true" />
+      <div className="ab-layer ab-vignette" aria-hidden="true" />
 
       {/* HERO */}
       <section className="ab-hero" aria-label={t("about.hero.aria")}>
@@ -1022,22 +1042,29 @@ export default function About() {
 
         <div className="ab-container">
           {/* Kicker pill */}
-          <div style={{ display: "flex", justifyContent: "center", ...d(0) }} className={cx("ab-enter", enter && "ab-in")}>
+          <div
+            style={{ display: "flex", justifyContent: "center", ...d(0) }}
+            className={cx("ab-enter", enter && "ab-in")}
+          >
             <div className="ab-kickerPill">
               <span className="ab-kdot" aria-hidden="true" />
               <span className="ab-kickerText">{t("about.hero.kicker")}</span>
             </div>
           </div>
 
-          {/* Title */}
+          {/* Title (✅ mobil üçün daha yığcam quruluş) */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            {t("about.hero.title.0")}“<span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>”
+            {t("about.hero.title.0")} “
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>”
             {t("about.hero.title.1")}
-            <br />
-            {t("about.hero.title.2")} <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
-            {t("about.hero.title.3")}
+            {/* ✅ mobil: əlavə forced <br/> yoxdur, özü balanslayır */}
+            <span style={{ display: "block", marginTop: 10 }}>
+              {t("about.hero.title.2")}{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
+              {t("about.hero.title.3")}
+            </span>
           </h1>
 
           {/* Sub */}
@@ -1071,7 +1098,7 @@ export default function About() {
       <div className="ab-afterHeroSpacer" aria-hidden="true" />
 
       {/* STRIP */}
-      <section className="ab-strip" aria-label={t("about.strip.aria")}>
+      <section className={cx("ab-strip", "ab-reveal", "ab-reveal-bottom")} aria-label={t("about.strip.aria")}>
         <div className="ab-stripFade l" />
         <div className="ab-stripFade r" />
         <div className="ab-stripTrack" aria-hidden="true">
@@ -1091,7 +1118,8 @@ export default function About() {
             <h2 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")}>
               {t("about.foundation.title.0")}{" "}
               <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowSystem")}</span>,{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowControl")}</span> {t("about.foundation.title.1")}{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowControl")}</span>{" "}
+              {t("about.foundation.title.1")}{" "}
               <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowResult")}</span>
             </h2>
             <p className={cx("ab-p", "ab-reveal", "ab-reveal-top")} style={{ maxWidth: 920 }}>
@@ -1211,18 +1239,18 @@ export default function About() {
             </div>
 
             {/* copy */}
-            <aside style={{ minWidth: 0 }}>
-              <div className={cx("ab-kicker", "ab-reveal", "ab-reveal-top")} style={{ textAlign: "left" }}>
+            <aside style={{ minWidth: 0 }} className={cx("ab-reveal", "ab-reveal-right")}>
+              <div className="ab-kicker" style={{ textAlign: "left" }}>
                 {t("about.arch.kicker")}
               </div>
-              <h3 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")} style={{ textAlign: "left" }}>
+              <h3 className="ab-h2" style={{ textAlign: "left" }}>
                 {t("about.arch.title.0")} <span className="ab-glowWord ab-gradient">{t("about.arch.title.glow")}</span>
               </h3>
-              <p className={cx("ab-p", "ab-reveal", "ab-reveal-top")} style={{ textAlign: "left", maxWidth: 820, marginInline: 0 }}>
+              <p className="ab-p" style={{ textAlign: "left", maxWidth: 820, marginInline: 0 }}>
                 {t("about.arch.sub")}
               </p>
 
-              <div className={cx("ab-miniList", "ab-reveal", "ab-reveal-top")} style={{ marginTop: 14 }}>
+              <div className="ab-miniList" style={{ marginTop: 14 }}>
                 <div className="ab-miniItem">
                   <span className="ab-miniDot" aria-hidden="true" /> <span>{t("about.arch.bullets.0")}</span>
                 </div>
@@ -1237,7 +1265,7 @@ export default function About() {
                 </div>
               </div>
 
-              <div className={cx("ab-actions", "ab-reveal", "ab-reveal-bottom")} style={{ justifyContent: "flex-start" }}>
+              <div className="ab-actions" style={{ justifyContent: "flex-start" }}>
                 <Link to="/services" className="ab-btn">
                   {t("about.arch.ctaServices")} <ArrowRight size={18} />
                 </Link>
@@ -1270,8 +1298,15 @@ export default function About() {
           <div className={cx("ab-termPanel", "ab-reveal", "ab-reveal-bottom")}>
             <div className="ab-termGrid">
               <div style={{ display: "grid", gap: 12 }}>
-                {steps.map((s) => (
-                  <div key={s.n} className="ab-termLine">
+                {steps.map((s, idx) => (
+                  <div
+                    key={s.n}
+                    className={cx(
+                      "ab-termLine",
+                      "ab-reveal",
+                      idx % 2 === 0 ? "ab-reveal-left" : "ab-reveal-right"
+                    )}
+                  >
                     <div>
                       <div className="ab-k">
                         {t("about.process.stepLabel")} {s.n} / {s.title}
@@ -1294,7 +1329,7 @@ export default function About() {
                 ))}
               </div>
 
-              <div className="ab-termColR">
+              <div className={cx("ab-termColR", "ab-reveal", "ab-reveal-right")}>
                 <div className="ab-metric">
                   <div className="ab-mLabel">{t("about.process.metrics.timeToValue.label")}</div>
                   <div className="ab-mValue">
@@ -1355,8 +1390,10 @@ export default function About() {
           <div className="ab-head">
             <div className={cx("ab-kicker", "ab-reveal", "ab-reveal-top")}>{t("about.final.kicker")}</div>
             <h3 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")}>
-              {t("about.final.title.0")} <span className="ab-glowWord ab-gradient">{t("about.final.title.glowTime")}</span>{" "}
-              {t("about.final.title.1")} <span className="ab-glowWord ab-gradient">{t("about.final.title.glowBudget")}</span>{" "}
+              {t("about.final.title.0")}{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.final.title.glowTime")}</span>{" "}
+              {t("about.final.title.1")}{" "}
+              <span className="ab-glowWord ab-gradient">{t("about.final.title.glowBudget")}</span>{" "}
               {t("about.final.title.2")}
             </h3>
             <p className={cx("ab-p", "ab-reveal", "ab-reveal-top")} style={{ maxWidth: 860 }}>
@@ -1404,4 +1441,3 @@ export default function About() {
     </main>
   );
 }
- 
