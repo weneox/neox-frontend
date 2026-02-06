@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
-const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
+const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE; // ✅ no localhost fallback
 const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 const LS_TOKEN = "neox_admin_token";
 
@@ -66,6 +66,13 @@ export default function AdminMagic() {
         return;
       }
 
+      // ✅ fail-fast: prod-da localhost-a düşməsin
+      if (!API_BASE) {
+        setStatus("error");
+        setErr("VITE_API_BASE tapılmadı (Netlify env). Deploy-i cache-siz yenilə.");
+        return;
+      }
+
       setStatus("loading");
       setErr(null);
 
@@ -73,7 +80,6 @@ export default function AdminMagic() {
         const r = await fetch(`${API_BASE}/api/admin/magic/consume`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // backend only needs { ml }, extra fields are harmless
           body: JSON.stringify({ ml }),
         });
 
@@ -88,7 +94,6 @@ export default function AdminMagic() {
         const token = String(got || "").trim();
         if (!token) throw new Error("Backend token qaytarmadı.");
 
-        // ✅ persist admin session token
         try {
           localStorage.setItem(LS_TOKEN, token);
         } catch {}
@@ -96,7 +101,6 @@ export default function AdminMagic() {
         if (!alive) return;
         setStatus("ok");
 
-        // slight delay so storage settles + nicer UX
         timer = setTimeout(() => {
           nav(next, { replace: true });
         }, 50);
@@ -145,7 +149,7 @@ export default function AdminMagic() {
         </div>
 
         <div style={{ marginTop: 14, fontSize: 12, color: "rgba(255,255,255,.55)" }}>
-          API: <code style={S.code}>{API_BASE}</code>
+          API: <code style={S.code}>{API_BASE || "MISSING"}</code>
         </div>
       </div>
     </div>
