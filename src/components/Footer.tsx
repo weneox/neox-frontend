@@ -229,10 +229,11 @@ export default function Footer() {
         }
 
         /* =========================
-           ✅ LOGO WRAP (same premium feel)
+           ✅ LOGO WRAP (same premium feel) — SIZE TUNED
            ========================= */
         .neox-logoWrap{
-          --logoH: 28px; /* desktop */
+          /* əvvəl 28px idi → bir az kiçildirik */
+          --logoH: 26px; /* desktop */
           position:relative;
           display:inline-flex;
           align-items:center;
@@ -250,10 +251,10 @@ export default function Footer() {
           -webkit-tap-highlight-color: transparent;
         }
 
-        /* ✅ mobil: logo wrap daha balaca + səliqəli */
+        /* ✅ mobil: header 18px -> footer bir az böyük qalsın (21px) */
         @media (max-width: 920px){
           .neox-logoWrap{
-            --logoH: 22px;
+            --logoH: 21px;
             padding: 9px 11px;
             border-radius: 14px;
           }
