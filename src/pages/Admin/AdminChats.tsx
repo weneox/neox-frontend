@@ -7,6 +7,7 @@
 // ✅ FIX: fetchConversations + fetchThread now send admin_lang too
 // ✅ POLISH: autosize textarea + jump-to-bottom + better mobile wrap + better thread sizing
 // ✅ PRO ADD: search + unread badge + quick replies + copy message
+// ✅ CRITICAL FIX: fetchThread uses GET /api/admin/conversations/:id (NOT /messages) + robust parsing
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
@@ -102,7 +103,6 @@ function withQuery(url: string, params: Record<string, string>) {
   const base = typeof window !== "undefined" ? window.location.origin : "http://localhost";
   const u = new URL(url, base);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
-  // return as absolute if original looked absolute, else return relative
   const looksAbs = /^https?:\/\//i.test(url);
   return looksAbs ? u.toString() : u.pathname + (u.search || "") + (u.hash || "");
 }
@@ -188,7 +188,6 @@ async function copyText(txt: string) {
   try {
     await navigator.clipboard.writeText(t);
   } catch {
-    // fallback
     const ta = document.createElement("textarea");
     ta.value = t;
     ta.style.position = "fixed";
@@ -302,15 +301,7 @@ export default function AdminChats() {
     const s = q.trim().toLowerCase();
     if (!s) return convs;
     return convs.filter((c) => {
-      const a = [
-        c.id,
-        c.session_id,
-        c.page || "",
-        c.channel || "",
-        c.lead_id || "",
-        c.lang || "",
-        c.createdAt || "",
-      ]
+      const a = [c.id, c.session_id, c.page || "", c.channel || "", c.lead_id || "", c.lang || "", c.createdAt || ""]
         .join(" ")
         .toLowerCase();
       return a.includes(s);
@@ -347,7 +338,6 @@ export default function AdminChats() {
 
   function on401(msg?: string) {
     clearUI(msg || "Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
-    // ✅ single logout
     window.setTimeout(() => ctxLogout(), 200);
   }
 
@@ -429,7 +419,8 @@ export default function AdminChats() {
       const ac = new AbortController();
       threadAbortRef.current = ac;
 
-      const url = withQuery(`${API_BASE}/api/admin/conversations/${id}/messages`, {
+      // ✅ CRITICAL FIX: backend endpoint is /api/admin/conversations/:id (no /messages)
+      const url = withQuery(`${API_BASE}/api/admin/conversations/${id}`, {
         admin_lang: String(adminLang || "az"),
       });
 
@@ -449,12 +440,25 @@ export default function AdminChats() {
       }
 
       const j = await r.json().catch(() => ({} as any));
-      const list: Msg[] = (j as any).messages || [];
-      setMessages(list);
+
+      // ✅ robust shapes
+      const list: Msg[] =
+        (j as any).messages ||
+        (j as any).conversation?.messages ||
+        (j as any).data?.messages ||
+        [];
+
+      setMessages(Array.isArray(list) ? list : []);
       if (!silent) setErr(null);
 
+      // ✅ also merge conversation fields if backend returns updated conv
+      const convObj: any = (j as any).conversation || (j as any).conv || (j as any).data || null;
+      if (convObj?.id) {
+        setConvs((prev) => prev.map((c) => (c.id === convObj.id ? { ...c, ...convObj } : c)));
+      }
+
       // ✅ mark as read (client-side)
-      const lastTs = Math.max(0, ...list.map((m) => Number(m.ts || 0) || 0));
+      const lastTs = Math.max(0, ...(Array.isArray(list) ? list.map((m) => Number(m.ts || 0) || 0) : [0]));
       if (lastTs > 0) setLastReadTs(id, lastTs);
     } catch (e: any) {
       if (e?.name === "AbortError") return;
@@ -572,14 +576,12 @@ export default function AdminChats() {
 
       if (isMobile) setMobileView("thread");
 
-      // after sending, keep autoscroll enabled
       autoScrollLockRef.current = false;
       setShowJump(false);
 
       fetchConversations({ silent: true, keepActive: true });
       fetchThread(activeId, { silent: true });
 
-      // scroll to bottom after small paint
       window.setTimeout(() => scrollToBottom(), 50);
     } catch (e: any) {
       setErr(e?.message || "Send failed");
@@ -670,12 +672,7 @@ export default function AdminChats() {
             {err && <div style={S.err}>{err}</div>}
 
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              <input
-                value={tempToken}
-                onChange={(e) => setTempToken(e.target.value)}
-                placeholder="ADMIN TOKEN"
-                style={S.input}
-              />
+              <input value={tempToken} onChange={(e) => setTempToken(e.target.value)} placeholder="ADMIN TOKEN" style={S.input} />
               <button onClick={doLogin} style={S.btnPrimary}>
                 Daxil ol
               </button>
@@ -733,11 +730,7 @@ export default function AdminChats() {
               </button>
             )}
 
-            <button
-              onClick={() => fetchConversations({ silent: false, keepActive: true })}
-              style={S.btn}
-              disabled={loading}
-            >
+            <button onClick={() => fetchConversations({ silent: false, keepActive: true })} style={S.btn} disabled={loading}>
               Yenilə
             </button>
 
@@ -903,7 +896,6 @@ export default function AdminChats() {
 
                   {/* thread scroll */}
                   <div style={S.thread} ref={threadRef as any}>
-                    {/* jump-to-bottom when user scrolls up */}
                     {showJump && (
                       <button style={S.jumpBtn} onClick={scrollToBottom} title="Jump to latest">
                         ↓ Yeni mesajlara
@@ -967,7 +959,6 @@ export default function AdminChats() {
                                   </span>
                                 </div>
 
-                                {/* ✅ COPY */}
                                 <button
                                   onClick={() => copyText(primary)}
                                   style={S.copyBtn}
@@ -985,7 +976,6 @@ export default function AdminChats() {
                                   <div style={S.secondaryTag}>{secondaryTag}</div>
                                   <div style={S.secondaryText}>{secondary}</div>
 
-                                  {/* copy secondary too */}
                                   <div style={{ marginTop: 8 }}>
                                     <button onClick={() => copyText(secondary)} style={S.copyBtnSmall} title="Copy original">
                                       Copy original
@@ -1390,7 +1380,6 @@ const S: Record<string, any> = {
     fontSize: 11,
   },
 
-  // ✅ Translation block
   bubbleSecondary: {
     marginTop: 10,
     paddingTop: 10,
@@ -1421,7 +1410,6 @@ const S: Record<string, any> = {
     fontStyle: "italic",
   },
 
-  // ✅ quick replies row
   quickRow: {
     display: "flex",
     gap: 8,
