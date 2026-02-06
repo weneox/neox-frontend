@@ -46,6 +46,16 @@ function isLang(x: string | undefined | null): x is Lang {
   return !!x && (LANGS as readonly string[]).includes(x as any);
 }
 
+function getWindowScrollY() {
+  // iOS Safari üçün daha etibarlı
+  return (
+    window.scrollY ||
+    document.documentElement.scrollTop ||
+    (document.body && (document.body as any).scrollTop) ||
+    0
+  );
+}
+
 /* ===== Desktop language dropdown (single button) ===== */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
@@ -110,7 +120,7 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
 
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const [hdrp, setHdrp] = useState(0); // ✅ mobil blur üçün “hard” driver
+  const [hdrp, setHdrp] = useState(0); // mobil blur driver
   const [isMobile, setIsMobile] = useState(false);
 
   const [open, setOpen] = useState(false);
@@ -131,7 +141,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const rafPending = useRef(false);
   const lastPRef = useRef<number>(-1);
 
-  // ✅ matchMedia: mobil olub-olmadığını bilək
+  // matchMedia: mobil olub-olmadığını bilək
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 920px)");
     const apply = () => setIsMobile(!!mq.matches);
@@ -234,24 +244,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
     scrollElRef.current = sc;
 
     let y = 0;
-    if (sc === window)
-      y = window.scrollY || document.documentElement.scrollTop || (document.body && document.body.scrollTop) || 0;
+    if (sc === window) y = getWindowScrollY();
     else y = (sc as HTMLElement).scrollTop || 0;
 
     const p = clamp01(y / 180);
 
-    // CSS var yenə yaz (desktop üçün)
+    // desktop üçün CSS var
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
-    // ✅ MOBİL üçün state-driven (inline style) — override olunmur
-    if (Math.abs(p - lastPRef.current) > 0.002) {
+    // mobil üçün state-driven
+    if (Math.abs(p - lastPRef.current) > 0.001) {
       lastPRef.current = p;
       setHdrp(p);
       setScrolled(p > 0.02);
     }
   }, []);
 
-  // Scroll listener + rAF throttle
+  // Scroll listener + rAF throttle (+ iOS fallback)
   useEffect(() => {
     scrollElRef.current = getScrollableEl();
     ensureSentinel();
@@ -271,14 +280,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
     window.addEventListener("resize", onResize, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
+    // ✅ iOS bəzi hallarda document scroll event-i daha stabil olur
+    document.addEventListener("scroll", onScroll, { passive: true } as any);
 
     const sc = scrollElRef.current;
     if (sc && sc !== window) (sc as HTMLElement).addEventListener("scroll", onScroll, { passive: true });
 
+    // ✅ Fallback: mobil safari bəzən scroll event-i “qaçırır”
+    const tick = window.setInterval(() => {
+      schedule();
+    }, 180);
+
     return () => {
       window.removeEventListener("resize", onResize as any);
       window.removeEventListener("scroll", onScroll as any);
+      document.removeEventListener("scroll", onScroll as any);
       if (sc && sc !== window) (sc as HTMLElement).removeEventListener("scroll", onScroll as any);
+      window.clearInterval(tick);
 
       if (sentinelRef.current) {
         sentinelRef.current.remove();
@@ -397,24 +415,27 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </div>
   );
 
-  // ✅ MOBİL üçün “desktop kimi” blur/background — INLINE (override olunmur)
+  // ✅ Mobil blur / bg — desktop kimi davranış
   const mobileP = clamp01(hdrp);
-  const mobileBgAlpha = open ? 0.86 : 0.72 * mobileP; // scroll olduqca artsın, menyu açıqsa tam
-  const mobileBlurPx = open ? 16 : 2 + 14 * mobileP; // 2px → 16px
-  const mobileSat = open ? 1.35 : 1 + 0.35 * mobileP;
+
+  // Topda şəffaf qalsın, scroll olanda sürətlə “otursun”
+  const base = 0.03; // topda çox yüngül (yazı qarışmasın deyə)
+  const mobileBgAlpha = open ? 0.88 : base + 0.68 * mobileP; // 0.03 → 0.71
+  const mobileBlurPx = open ? 18 : 3 + 15 * mobileP; // 3px → 18px
+  const mobileSat = open ? 1.35 : 1 + 0.30 * mobileP;
 
   const headerInlineStyle: React.CSSProperties | undefined = isMobile
     ? {
         backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
         WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
         backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.08 : 0.06 * mobileP).toFixed(3)})`,
+        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.09 : 0.06 * mobileP).toFixed(3)})`,
       }
     : undefined;
 
-  // ✅ Logo ölçüləri (elit, sol, balaca)
-  const logoH = isMobile ? 16 : 28; // mobil: daha oxunaqlı, amma elit kiçik
-  const logoMaxW = isMobile ? "112px" : "156px";
+  // ✅ Logo ölçüsü (bir az böyük, amma elit)
+  const logoH = isMobile ? 18 : 28;
+  const logoMaxW = isMobile ? "124px" : "156px";
 
   return (
     <header
@@ -423,7 +444,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Minimal CSS: mobil logo sola + hard override ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -432,7 +452,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
 
-/* Mobil grid: center nav gizli */
+/* Mobil layout */
 @media (max-width: 920px){
   .site-header .header-grid{
     grid-template-columns: 1fr auto;
@@ -441,9 +461,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
   }
   .site-header .header-mid{ display:none !important; }
 
-  /* ✅ daha sola yaxın */
-  .site-header .header-left{ margin-left:-8px; }
-  .site-header .header-right{ gap: 8px; }
+  /* ✅ solda daha təmiz + vertikal oturuş */
+  .site-header .header-left{
+    margin-left:-6px;
+    display:flex;
+    align-items:center;
+  }
+  .site-header .header-right{
+    gap: 10px;
+    align-items:center;
+  }
   .site-header .nav-toggle{ margin-left: 2px; }
 }
 
@@ -457,13 +484,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
   min-width:0;
 }
 @media (max-width: 920px){
-  .brand-link{ max-width: calc(100vw - 168px); }
+  .brand-link{ max-width: calc(100vw - 176px); }
 }
 @media (max-width: 420px){
-  .brand-link{ max-width: calc(100vw - 156px); }
+  .brand-link{ max-width: calc(100vw - 162px); }
 }
 
-/* Brand wrapper */
 .headerBrand{
   position:relative;
   display:inline-flex;
@@ -490,12 +516,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
   filter:blur(12px);
 }
 
-/* ✅ MOBİL-də logonu "hard" ölçü ilə sıx */
+/* ✅ Mobil-də logo hard ölçü */
 @media (max-width: 920px){
   img.headerBrand__img{
-    height: 16px !important;
+    height: 18px !important;
     width: auto !important;
-    max-width: 112px !important;
+    max-width: 124px !important;
+    transform: translateY(1px) translateZ(0) !important; /* ✅ 1px aşağı: switcher/hamburger ilə eyni xətt */
   }
 }
           `,
@@ -517,7 +544,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 loading="eager"
                 decoding="async"
                 draggable={false}
-                // ✅ LOGO SIZE HARD OVERRIDE
                 style={{
                   height: logoH,
                   width: "auto",
@@ -526,7 +552,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   display: "block",
                   userSelect: "none",
                   filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
-                  transform: "translateZ(0)",
+                  transform: isMobile ? "translateY(1px) translateZ(0)" : "translateZ(0)",
                 }}
               />
             </span>
