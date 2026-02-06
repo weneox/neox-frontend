@@ -1,4 +1,5 @@
-// src/pages/Admin/AdminChats.tsx (FINAL — stable polling + auto-scroll + handoff rollback + focus=reply)
+// src/pages/Admin/AdminChats.tsx
+// MOBILE-READY — stacked list/thread + back button + sticky reply bar + keeps focus=reply + your polling logic intact
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
 
@@ -16,7 +17,6 @@ type Conv = {
   page?: string;
   channel?: string;
   lead_id?: string | null;
-
   handoff?: boolean;
 };
 
@@ -63,9 +63,31 @@ function buildAdminHeaders(token: string) {
   };
 }
 
+function useIsMobile(breakpoint = 900) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(`(max-width:${breakpoint}px)`).matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${breakpoint}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    if ((mq as any).addEventListener) mq.addEventListener("change", onChange);
+    else (mq as any).addListener?.(onChange);
+    return () => {
+      if ((mq as any).removeEventListener) mq.removeEventListener("change", onChange);
+      else (mq as any).removeListener?.(onChange);
+    };
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 export default function AdminChats() {
   const loc = useLocation();
   const { lang, chatId } = useLangAndChatId();
+  const isMobile = useIsMobile(900);
 
   const [token, setToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
   const [tempToken, setTempToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
@@ -81,6 +103,9 @@ export default function AdminChats() {
 
   const [handoffBusy, setHandoffBusy] = useState(false);
 
+  // mobile: list vs thread
+  const [mobileView, setMobileView] = useState<"list" | "thread">("list");
+
   const active = useMemo(() => convs.find((c) => c.id === activeId) || null, [convs, activeId]);
 
   const orderedMessages = useMemo(() => {
@@ -92,13 +117,30 @@ export default function AdminChats() {
   // ✅ reply input ref (for ?focus=reply)
   const replyInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Thread auto-scroll
+  // Thread auto-scroll (keep it gentle on mobile)
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollLockRef = useRef(false);
   useEffect(() => {
     const el = threadRef.current;
     if (!el) return;
+
+    // if user scrolled up, don't snap
+    if (autoScrollLockRef.current) return;
+
     el.scrollTop = el.scrollHeight;
   }, [orderedMessages.length]);
+
+  // detect manual scroll up (lock autoscroll)
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      autoScrollLockRef.current = !nearBottom;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll as any);
+  }, []);
 
   // Abort controllers
   const convAbortRef = useRef<AbortController | null>(null);
@@ -138,6 +180,7 @@ export default function AdminChats() {
     setMessages([]);
     setReply("");
     setErr(msg || null);
+    setMobileView("list");
   }
 
   function doLogin() {
@@ -169,12 +212,10 @@ export default function AdminChats() {
     const keepActive = opts?.keepActive ?? true;
     if (!token) return;
 
-    // ✅ prevent overlap
     if (convInflight.current) return;
     convInflight.current = true;
 
     try {
-      // abort previous
       try {
         convAbortRef.current?.abort();
       } catch {}
@@ -221,12 +262,10 @@ export default function AdminChats() {
     const silent = opts?.silent ?? true;
     if (!token || !id) return;
 
-    // ✅ prevent overlap
     if (threadInflight.current) return;
     threadInflight.current = true;
 
     try {
-      // abort previous
       try {
         threadAbortRef.current?.abort();
       } catch {}
@@ -270,7 +309,6 @@ export default function AdminChats() {
     setHandoffBusy(true);
     setErr(null);
 
-    // exact rollback
     const prevHandoff = !!active?.handoff;
 
     // optimistic UI
@@ -309,7 +347,8 @@ export default function AdminChats() {
             ok = true;
 
             const j = await r.json().catch(() => ({} as any));
-            const updated: Conv | undefined = (j as any).conversation || (j as any).conv || (j as any).data || undefined;
+            const updated: Conv | undefined =
+              (j as any).conversation || (j as any).conv || (j as any).data || undefined;
 
             if (updated?.id) {
               setConvs((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
@@ -375,6 +414,12 @@ export default function AdminChats() {
       // operator replied => handoff true
       setConvs((prev) => prev.map((c) => (c.id === activeId ? { ...c, handoff: true } : c)));
 
+      // after sending, keep thread view on mobile
+      if (isMobile) setMobileView("thread");
+
+      // autoscroll again (we're at bottom after sending)
+      autoScrollLockRef.current = false;
+
       fetchConversations({ silent: true, keepActive: true });
       fetchThread(activeId, { silent: true });
     } catch (e: any) {
@@ -398,6 +443,10 @@ export default function AdminChats() {
   useEffect(() => {
     if (!token || !activeId) return;
     fetchThread(activeId, { silent: false });
+
+    // on mobile, auto switch to thread when a chat is selected
+    if (isMobile) setMobileView("thread");
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeId]);
 
@@ -433,19 +482,26 @@ export default function AdminChats() {
     const focus = (qs.get("focus") || "").toLowerCase();
     if (focus !== "reply") return;
 
-    // give UI a moment (thread + input mounted)
+    // make sure we're on thread view on mobile
+    if (isMobile) setMobileView("thread");
+
     const t = window.setTimeout(() => {
       replyInputRef.current?.focus();
-    }, 180);
+    }, 220);
 
     return () => window.clearTimeout(t);
-  }, [loc.search, token, activeId, orderedMessages.length]);
+  }, [loc.search, token, activeId, isMobile, orderedMessages.length]);
+
+  // If switching to desktop, show both panels again
+  useEffect(() => {
+    if (!isMobile) setMobileView("list");
+  }, [isMobile]);
 
   // LOGIN
   if (!token) {
     return (
       <div style={S.page}>
-        <div style={S.shell}>
+        <div style={S.shellLogin}>
           <div style={S.cardLogin}>
             <div style={S.brandRow}>
               <div style={S.brandDot} />
@@ -488,26 +544,37 @@ export default function AdminChats() {
 
   const aiOff = !!active?.handoff;
 
+  const showList = !isMobile || mobileView === "list";
+  const showThread = !isMobile || mobileView === "thread";
+
   // MAIN
   return (
     <div style={S.page}>
       <div style={S.shell}>
         <div style={S.topbar}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 950 }}>Admin Chats</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 4 }}>
+            <div style={S.subLine}>
               Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route:{" "}
               <code style={S.code}>{loc.pathname}</code> <span style={{ opacity: 0.7 }}> • Auto: 6s</span>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={S.actions}>
             <Link to={`/${lang}/admin/leads`} style={S.btnLinkNav as any}>
               Leads
             </Link>
+
+            {isMobile && mobileView === "thread" && (
+              <button onClick={() => setMobileView("list")} style={S.btn} disabled={loading}>
+                ← List
+              </button>
+            )}
+
             <button onClick={() => fetchConversations({ silent: false, keepActive: true })} style={S.btn} disabled={loading}>
               Yenilə
             </button>
+
             <button onClick={logout} style={S.btnGhost}>
               Çıxış
             </button>
@@ -516,165 +583,185 @@ export default function AdminChats() {
 
         {err && <div style={S.err}>{err}</div>}
 
-        <div style={S.grid}>
-          {/* LEFT */}
-          <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}>Conversations</div>
-              <div style={S.badge}>{loading ? "..." : `${convs.length}`}</div>
-            </div>
+        <div style={isMobile ? S.stack : S.grid}>
+          {/* LEFT — Conversations */}
+          {showList && (
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}>Conversations</div>
+                <div style={S.badge}>{loading ? "..." : `${convs.length}`}</div>
+              </div>
 
-            <div style={S.list}>
-              {convs.length === 0 ? (
-                <div style={S.empty}>Hələ chat yoxdur.</div>
-              ) : (
-                convs.map((c) => {
-                  const isActive = c.id === activeId;
-                  const label = `SID: ${c.session_id?.slice?.(0, 8) || c.id.slice(0, 8)}`;
-                  const sub = `Lang: ${(c.lang || "az").toUpperCase()} • ${c.page || "—"}`;
-
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setActiveId(c.id)}
-                      style={{ ...S.item, ...(isActive ? S.itemActive : null) }}
-                      title={c.id}
-                    >
-                      <div style={S.itemRow}>
-                        <div style={S.itemName}>{label}</div>
-
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          {c.handoff ? <div style={S.pillAiOff}>AI OFF</div> : <div style={S.pillAiOn}>AI ON</div>}
-                          <div style={S.pill}>{String(c.channel || "WEB").toUpperCase()}</div>
-                        </div>
-                      </div>
-
-                      <div style={S.itemMeta}>{sub}</div>
-                      <div style={S.itemTime}>{formatDt(c.lastMessageAt || c.updatedAt || c.createdAt)}</div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT */}
-          <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}>Thread</div>
-
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {active ? (
-                  <>
-                    {aiOff ? <div style={S.badgeAiOff}>Operator Active</div> : <div style={S.badgeAiOn}>AI Active</div>}
-                    <div style={S.badgeDim}>{handoffBusy ? "..." : "Seçilib"}</div>
-                  </>
+              <div style={S.list}>
+                {convs.length === 0 ? (
+                  <div style={S.empty}>Hələ chat yoxdur.</div>
                 ) : (
-                  <div style={S.badgeDim}>—</div>
+                  convs.map((c) => {
+                    const isActiveItem = c.id === activeId;
+                    const label = `SID: ${c.session_id?.slice?.(0, 8) || c.id.slice(0, 8)}`;
+                    const sub = `Lang: ${(c.lang || "az").toUpperCase()} • ${c.page || "—"}`;
+
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setActiveId(c.id);
+                          if (isMobile) setMobileView("thread");
+                        }}
+                        style={{ ...S.item, ...(isActiveItem ? S.itemActive : null) }}
+                        title={c.id}
+                      >
+                        <div style={S.itemRow}>
+                          <div style={S.itemName}>{label}</div>
+
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            {c.handoff ? <div style={S.pillAiOff}>AI OFF</div> : <div style={S.pillAiOn}>AI ON</div>}
+                            <div style={S.pill}>{String(c.channel || "WEB").toUpperCase()}</div>
+                          </div>
+                        </div>
+
+                        <div style={S.itemMeta}>{sub}</div>
+                        <div style={S.itemTime}>{formatDt(c.lastMessageAt || c.updatedAt || c.createdAt)}</div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </div>
+          )}
 
-            {!active ? (
-              <div style={S.empty}>Soldan chat seç.</div>
-            ) : (
-              <div style={{ padding: 14, display: "grid", gap: 12 }}>
-                <div style={S.card}>
-                  <div style={S.kv}>
-                    <div style={S.k}>Session</div>
-                    <div style={S.v}>{active.session_id || "—"}</div>
-                  </div>
-                  <div style={S.kv}>
-                    <div style={S.k}>Lead</div>
-                    <div style={S.v}>{active.lead_id || "—"}</div>
-                  </div>
-                  <div style={S.kv}>
-                    <div style={S.k}>Dil</div>
-                    <div style={S.v}>{(active.lang || "az").toUpperCase()}</div>
-                  </div>
-                  <div style={S.kv}>
-                    <div style={S.k}>Son</div>
-                    <div style={S.v}>{formatDt(active.lastMessageAt || active.updatedAt || active.createdAt)}</div>
-                  </div>
+          {/* RIGHT — Thread */}
+          {showThread && (
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}>Thread</div>
 
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,.70)" }}>
-                      AI status:{" "}
-                      <b style={{ color: aiOff ? "rgba(255,120,120,.95)" : "rgba(140,255,200,.95)" }}>
-                        {aiOff ? "OFF (Operator)" : "ON"}
-                      </b>
-                    </div>
-
-                    <div style={{ flex: 1 }} />
-
-                    <button
-                      onClick={() => setConversationHandoff(!aiOff)}
-                      disabled={handoffBusy}
-                      style={aiOff ? S.btnAiOn : S.btnAiOff}
-                      title="AI ON/OFF (handoff)"
-                    >
-                      {handoffBusy ? "..." : aiOff ? "AI-ni aktiv et" : "Operator takeover (AI OFF)"}
-                    </button>
-                  </div>
-
-                  {aiOff && (
-                    <div style={S.noticeOff}>
-                      Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça
-                      bilərsən.
-                    </div>
-                  )}
-                </div>
-
-                <div style={S.thread} ref={threadRef as any}>
-                  {orderedMessages.length === 0 ? (
-                    <div style={{ padding: 10, color: "rgba(255,255,255,.65)" }}>Mesaj yoxdur.</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {active ? (
+                    <>
+                      {aiOff ? <div style={S.badgeAiOff}>Operator Active</div> : <div style={S.badgeAiOn}>AI Active</div>}
+                      <div style={S.badgeDim}>{handoffBusy ? "..." : "Seçilib"}</div>
+                    </>
                   ) : (
-                    orderedMessages.map((m) => {
-                      const isAdminReply =
-                        m.role === "assistant" && (m?.meta?.source === "admin_panel" || m.channel === "admin");
-                      const isUser = m.role === "user";
-                      const mine = isAdminReply;
-
-                      const roleLabel = isAdminReply ? "OPERATOR" : isUser ? "USER" : String(m.role || "").toUpperCase();
-
-                      return (
-                        <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
-                          <div style={{ ...S.bubble, ...(mine ? S.bubbleMine : S.bubbleUser) }}>
-                            <div style={S.bubbleRole}>{roleLabel}</div>
-                            <div style={S.bubbleText}>{m.content}</div>
-                            <div style={S.bubbleTime}>{formatDt(m.createdAt)}</div>
-                          </div>
-                        </div>
-                      );
-                    })
+                    <div style={S.badgeDim}>—</div>
                   )}
-                </div>
-
-                <div style={S.replyBox}>
-                  <input
-                    ref={replyInputRef}
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    placeholder="Operator reply yaz…"
-                    style={S.input}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendReply();
-                    }}
-                  />
-                  <button onClick={sendReply} style={S.btnPrimary} disabled={loading || !reply.trim()}>
-                    Göndər
-                  </button>
-
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>
-                    Tip: <code style={S.code}>Ctrl+Enter</code>
-                  </div>
                 </div>
               </div>
-            )}
-          </div>
+
+              {!active ? (
+                <div style={S.empty}>Soldan chat seç.</div>
+              ) : (
+                <div style={S.threadLayout}>
+                  {/* meta card */}
+                  <div style={S.card}>
+                    <div style={S.kv}>
+                      <div style={S.k}>Session</div>
+                      <div style={S.v}>{active.session_id || "—"}</div>
+                    </div>
+                    <div style={S.kv}>
+                      <div style={S.k}>Lead</div>
+                      <div style={S.v}>{active.lead_id || "—"}</div>
+                    </div>
+                    <div style={S.kv}>
+                      <div style={S.k}>Dil</div>
+                      <div style={S.v}>{(active.lang || "az").toUpperCase()}</div>
+                    </div>
+                    <div style={S.kv}>
+                      <div style={S.k}>Son</div>
+                      <div style={S.v}>{formatDt(active.lastMessageAt || active.updatedAt || active.createdAt)}</div>
+                    </div>
+
+                    <div style={S.metaRow}>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,.70)" }}>
+                        AI status:{" "}
+                        <b style={{ color: aiOff ? "rgba(255,120,120,.95)" : "rgba(140,255,200,.95)" }}>
+                          {aiOff ? "OFF (Operator)" : "ON"}
+                        </b>
+                      </div>
+
+                      <div style={{ flex: 1 }} />
+
+                      <button
+                        onClick={() => setConversationHandoff(!aiOff)}
+                        disabled={handoffBusy}
+                        style={aiOff ? S.btnAiOn : S.btnAiOff}
+                        title="AI ON/OFF (handoff)"
+                      >
+                        {handoffBusy ? "..." : aiOff ? "AI-ni aktiv et" : "Operator takeover (AI OFF)"}
+                      </button>
+                    </div>
+
+                    {aiOff && (
+                      <div style={S.noticeOff}>
+                        Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça
+                        bilərsən.
+                      </div>
+                    )}
+
+                    {isMobile && (
+                      <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button onClick={() => setMobileView("list")} style={S.btn} disabled={loading}>
+                          ← List
+                        </button>
+                        <button onClick={() => replyInputRef.current?.focus()} style={S.btn} title="Reply">
+                          Reply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* thread scroll */}
+                  <div style={S.thread} ref={threadRef as any}>
+                    {orderedMessages.length === 0 ? (
+                      <div style={{ padding: 10, color: "rgba(255,255,255,.65)" }}>Mesaj yoxdur.</div>
+                    ) : (
+                      orderedMessages.map((m) => {
+                        const isAdminReply =
+                          m.role === "assistant" && (m?.meta?.source === "admin_panel" || m.channel === "admin");
+                        const isUser = m.role === "user";
+                        const mine = isAdminReply;
+
+                        const roleLabel = isAdminReply ? "OPERATOR" : isUser ? "USER" : String(m.role || "").toUpperCase();
+
+                        return (
+                          <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                            <div style={{ ...S.bubble, ...(mine ? S.bubbleMine : S.bubbleUser) }}>
+                              <div style={S.bubbleRole}>{roleLabel}</div>
+                              <div style={S.bubbleText}>{m.content}</div>
+                              <div style={S.bubbleTime}>{formatDt(m.createdAt)}</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* sticky reply */}
+                  <div style={S.replyBar}>
+                    <input
+                      ref={replyInputRef}
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      placeholder="Operator reply yaz…"
+                      style={S.input}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendReply();
+                      }}
+                    />
+                    <button onClick={sendReply} style={S.btnPrimary} disabled={loading || !reply.trim()}>
+                      Göndər
+                    </button>
+                    <div style={S.replyTip}>
+                      Tip: <code style={S.code}>Ctrl+Enter</code>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.55)" }}>
+        <div style={S.footerLine}>
           token headers: <code style={S.code}>x-admin-token</code> / <code style={S.code}>Authorization</code> • API:{" "}
           <code style={S.code}>{API_BASE}</code> • preview: <code style={S.code}>{pickPreview(orderedMessages)}</code>
         </div>
@@ -685,19 +772,23 @@ export default function AdminChats() {
 
 const S: Record<string, any> = {
   page: {
-    minHeight: "100vh",
-    padding: 18,
+    minHeight: "100dvh",
+    padding: "14px",
+    paddingTop: "calc(14px + env(safe-area-inset-top))",
+    paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
     background:
       "radial-gradient(1200px 600px at 18% 8%, rgba(20,82,199,.22), transparent 58%), radial-gradient(900px 520px at 82% 18%, rgba(122,92,255,.16), transparent 55%), #05070f",
     color: "rgba(255,255,255,.92)",
     fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+    overflowX: "hidden",
   },
   shell: { maxWidth: 1180, margin: "0 auto", paddingTop: 14 },
+  shellLogin: { maxWidth: 1180, margin: "0 auto" },
 
   topbar: {
     display: "flex",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     alignItems: "center",
     padding: 14,
     borderRadius: 18,
@@ -706,9 +797,21 @@ const S: Record<string, any> = {
     boxShadow: "0 18px 60px rgba(0,0,0,.35)",
     marginBottom: 12,
     backdropFilter: "blur(10px)",
+    overflow: "hidden",
+  },
+  subLine: {
+    fontSize: 12,
+    color: "rgba(255,255,255,.65)",
+    marginTop: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
-  grid: { display: "grid", gridTemplateColumns: "420px 1fr", gap: 12 },
+  actions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+
+  grid: { display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: 12 },
+  stack: { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12 },
 
   panel: {
     borderRadius: 18,
@@ -717,7 +820,7 @@ const S: Record<string, any> = {
     boxShadow: "0 18px 60px rgba(0,0,0,.30)",
     overflow: "hidden",
     backdropFilter: "blur(10px)",
-    minHeight: "calc(100vh - 210px)",
+    minWidth: 0,
   },
   panelHead: {
     padding: "12px 14px",
@@ -773,7 +876,13 @@ const S: Record<string, any> = {
     textTransform: "uppercase",
   },
 
-  list: { maxHeight: "calc(100vh - 260px)", overflow: "auto" },
+  list: {
+    maxHeight: "calc(100dvh - 240px)",
+    overflowY: "auto",
+    overflowX: "hidden",
+    WebkitOverflowScrolling: "touch",
+  },
+
   item: {
     width: "100%",
     textAlign: "left",
@@ -786,8 +895,8 @@ const S: Record<string, any> = {
     transition: "background .15s ease, transform .15s ease",
   },
   itemActive: { background: "rgba(255,255,255,.05)", transform: "translateY(-1px)" },
-  itemRow: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" },
-  itemName: { fontWeight: 900, fontSize: 14, color: "rgba(255,255,255,.92)" },
+  itemRow: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", minWidth: 0 },
+  itemName: { fontWeight: 900, fontSize: 14, color: "rgba(255,255,255,.92)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   itemMeta: {
     marginTop: 6,
     fontSize: 12,
@@ -806,6 +915,7 @@ const S: Record<string, any> = {
     background: "rgba(20,82,199,.18)",
     color: "rgba(255,255,255,.86)",
     letterSpacing: ".12em",
+    whiteSpace: "nowrap",
   },
   pillAiOff: {
     fontSize: 10,
@@ -815,6 +925,7 @@ const S: Record<string, any> = {
     background: "rgba(255,90,90,.10)",
     color: "rgba(255,255,255,.86)",
     letterSpacing: ".12em",
+    whiteSpace: "nowrap",
   },
   pillAiOn: {
     fontSize: 10,
@@ -824,23 +935,29 @@ const S: Record<string, any> = {
     background: "rgba(140,255,200,.08)",
     color: "rgba(255,255,255,.86)",
     letterSpacing: ".12em",
+    whiteSpace: "nowrap",
   },
+
+  threadLayout: { padding: 14, display: "grid", gap: 12, minWidth: 0 },
 
   card: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,.10)",
     background: "rgba(0,0,0,.22)",
     padding: 12,
+    minWidth: 0,
   },
   kv: {
     display: "grid",
-    gridTemplateColumns: "120px 1fr",
+    gridTemplateColumns: "120px minmax(0, 1fr)",
     gap: 10,
     padding: "8px 0",
     borderBottom: "1px solid rgba(255,255,255,.06)",
   },
   k: { fontSize: 12, color: "rgba(255,255,255,.55)", letterSpacing: ".08em", textTransform: "uppercase" },
   v: { fontSize: 13, color: "rgba(255,255,255,.90)", overflow: "hidden", textOverflow: "ellipsis" },
+
+  metaRow: { display: "flex", gap: 10, alignItems: "center", marginTop: 10, flexWrap: "wrap" },
 
   noticeOff: {
     marginTop: 10,
@@ -853,33 +970,46 @@ const S: Record<string, any> = {
     lineHeight: 1.4,
   },
 
+  // Thread scroll: bigger on mobile, but bounded
   thread: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,.10)",
     background: "rgba(0,0,0,.18)",
     padding: 12,
-    height: "44vh",
+    height: "min(52dvh, 520px)",
     overflow: "auto",
     display: "grid",
     gap: 10,
+    WebkitOverflowScrolling: "touch",
   },
+
   bubble: {
     maxWidth: "78%",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,.10)",
     padding: 10,
+    minWidth: 0,
   },
-  bubbleMine: {
-    background: "linear-gradient(135deg, rgba(20,82,199,.26), rgba(122,92,255,.16))",
-  },
-  bubbleUser: {
-    background: "rgba(255,255,255,.05)",
-  },
+  bubbleMine: { background: "linear-gradient(135deg, rgba(20,82,199,.26), rgba(122,92,255,.16))" },
+  bubbleUser: { background: "rgba(255,255,255,.05)" },
   bubbleRole: { fontSize: 10, letterSpacing: ".16em", opacity: 0.75, marginBottom: 6 },
-  bubbleText: { whiteSpace: "pre-wrap", lineHeight: 1.45 },
+  bubbleText: { whiteSpace: "pre-wrap", lineHeight: 1.45, wordBreak: "break-word" },
   bubbleTime: { marginTop: 8, fontSize: 11, opacity: 0.55 },
 
-  replyBox: { display: "grid", gap: 10, alignItems: "center" },
+  // Sticky reply bar inside panel area
+  replyBar: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,.10)",
+    background: "rgba(0,0,0,.22)",
+    padding: 12,
+    display: "grid",
+    gap: 10,
+    position: "sticky",
+    bottom: 0,
+    zIndex: 2,
+    backdropFilter: "blur(8px)",
+  },
+  replyTip: { fontSize: 12, color: "rgba(255,255,255,.55)" },
 
   input: {
     width: "100%",
@@ -889,6 +1019,7 @@ const S: Record<string, any> = {
     background: "rgba(255,255,255,.04)",
     color: "rgba(255,255,255,.92)",
     outline: "none",
+    maxWidth: "100%",
   },
 
   btn: {
@@ -975,7 +1106,7 @@ const S: Record<string, any> = {
     boxShadow: "0 18px 60px rgba(0,0,0,.45)",
     padding: 18,
     backdropFilter: "blur(10px)",
-    margin: "12vh auto 0",
+    margin: "12dvh auto 0",
   },
   brandRow: { display: "flex", alignItems: "center", gap: 10 },
   brandDot: {
@@ -992,4 +1123,6 @@ const S: Record<string, any> = {
     fontSize: 12,
     color: "rgba(255,255,255,.78)",
   },
+
+  footerLine: { marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.55)" },
 };
