@@ -412,6 +412,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
       }
     : undefined;
 
+  // ✅ Logo ölçüləri (elit, sol, balaca)
+  const logoH = isMobile ? 16 : 28; // mobil: daha oxunaqlı, amma elit kiçik
+  const logoMaxW = isMobile ? "112px" : "156px";
+
   return (
     <header
       ref={headerRef}
@@ -419,7 +423,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Minimal CSS: logo ultra-small + sol künc ===== */}
+      {/* ===== Minimal CSS: mobil logo sola + hard override ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -436,7 +440,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
     align-items:center;
   }
   .site-header .header-mid{ display:none !important; }
-  .site-header .header-left{ margin-left:-4px; } /* ✅ daha sola */
+
+  /* ✅ daha sola yaxın */
+  .site-header .header-left{ margin-left:-8px; }
   .site-header .header-right{ gap: 8px; }
   .site-header .nav-toggle{ margin-left: 2px; }
 }
@@ -446,15 +452,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
   display:inline-flex;
   align-items:center;
   justify-content:flex-start;
-  padding: 5px 0;
+  padding: 4px 0;
   line-height:0;
   min-width:0;
 }
 @media (max-width: 920px){
-  .brand-link{ max-width: calc(100vw - 170px); }
+  .brand-link{ max-width: calc(100vw - 168px); }
 }
 @media (max-width: 420px){
-  .brand-link{ max-width: calc(100vw - 160px); }
+  .brand-link{ max-width: calc(100vw - 156px); }
 }
 
 /* Brand wrapper */
@@ -472,7 +478,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   max-width: 100%;
 }
 
-/* Aura (yüngül) */
+/* Aura (çox yüngül) */
 .headerBrand__aura{
   position:absolute;
   inset:-8px;
@@ -480,8 +486,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
   background:
     radial-gradient(closest-side at 40% 50%, rgba(47,184,255,.10), transparent 65%),
     radial-gradient(closest-side at 70% 55%, rgba(42,125,255,.07), transparent 70%);
-  opacity:.12;
+  opacity:.10;
   filter:blur(12px);
+}
+
+/* ✅ MOBİL-də logonu "hard" ölçü ilə sıx */
+@media (max-width: 920px){
+  img.headerBrand__img{
+    height: 16px !important;
+    width: auto !important;
+    max-width: 112px !important;
+  }
 }
           `,
         }}
@@ -502,16 +517,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 loading="eager"
                 decoding="async"
                 draggable={false}
-                // ✅ LOGO SIZE HARD OVERRIDE (bunu heç nə əzə bilməz)
+                // ✅ LOGO SIZE HARD OVERRIDE
                 style={{
-                  height: isMobile ? 14 : 28, // ✅ mobil daha da elit kiçik
+                  height: logoH,
                   width: "auto",
-                  maxWidth: isMobile ? "118px" : "156px",
+                  maxWidth: logoMaxW,
                   objectFit: "contain",
                   display: "block",
                   userSelect: "none",
-                  filter:
-                    "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
+                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
                   transform: "translateZ(0)",
                 }}
               />
