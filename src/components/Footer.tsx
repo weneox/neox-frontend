@@ -38,24 +38,12 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* BRAND */}
           <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center gap-3 mb-4">
-              {/* ✅ LOGO (your PNG) */}
-              <Link
-                to={withLang("/", lang)}
-                className="neox-logoWrap"
-                aria-label="NEOX"
-                data-wg-notranslate
-              >
-                {/* glint + aura layers */}
+            <div className="flex items-center gap-3 mb-4 neox-foot-brandRow">
+              {/* LOGO */}
+              <Link to={withLang("/", lang)} className="neox-logoWrap" aria-label="NEOX" data-wg-notranslate>
                 <span className="neox-logoAura" aria-hidden="true" />
                 <span className="neox-logoGlint" aria-hidden="true" />
-
-                <img
-                  src="/image/neox-logo.png"
-                  alt="NEOX"
-                  className="neox-logoImg"
-                  draggable={false}
-                />
+                <img src="/image/neox-logo.png" alt="NEOX" className="neox-logoImg" draggable={false} />
               </Link>
 
               <span className="neox-foot-badge">{t("footer.brand.badge")}</span>
@@ -65,11 +53,7 @@ export default function Footer() {
 
             {/* CONTACT */}
             <div className="neox-foot-contact mt-6" aria-label={t("footer.contact.aria")}>
-              <a
-                className="neox-foot-contactItem"
-                href={`mailto:${email}`}
-                aria-label={t("footer.contact.emailAria")}
-              >
+              <a className="neox-foot-contactItem" href={`mailto:${email}`} aria-label={t("footer.contact.emailAria")}>
                 <span className="neox-foot-ic" aria-hidden="true">
                   <Mail className="w-4 h-4" aria-hidden="true" />
                 </span>
@@ -89,7 +73,7 @@ export default function Footer() {
             </div>
 
             {/* SOCIAL */}
-            <div className="flex gap-3 mt-6" aria-label={t("footer.social.aria")}>
+            <div className="flex gap-3 mt-6 neox-foot-socialRow" aria-label={t("footer.social.aria")}>
               <a href="#" className="neox-social" aria-label={t("footer.social.twitter")}>
                 <Twitter className="w-5 h-5" aria-hidden="true" />
               </a>
@@ -105,7 +89,7 @@ export default function Footer() {
           {/* LINKS */}
           <div>
             <h3 className="neox-foot-title">{t("footer.company.title")}</h3>
-            <ul className="space-y-3">
+            <ul className="space-y-3 neox-foot-linksCol">
               <li>
                 <Link to={withLang("/about", lang)} className="neox-foot-link">
                   {t("footer.company.links.about")}
@@ -126,7 +110,7 @@ export default function Footer() {
 
           <div>
             <h3 className="neox-foot-title">{t("footer.resources.title")}</h3>
-            <ul className="space-y-3">
+            <ul className="space-y-3 neox-foot-linksCol">
               <li>
                 <Link to={withLang("/blog", lang)} className="neox-foot-link">
                   {t("footer.resources.links.blog")}
@@ -160,7 +144,7 @@ export default function Footer() {
           border-top:1px solid rgba(255,255,255,.08);
         }
 
-        /* ✅ Default underline (a { text-decoration }) söndür — amma custom underline qalacaq */
+        /* Default underline söndür (custom underline qalacaq) */
         .neox-footer a,
         .neox-footer a:hover,
         .neox-footer a:focus,
@@ -191,9 +175,64 @@ export default function Footer() {
         }
 
         /* =========================
-           ✅ NEOX LOGO WRAP (NEW)
+           ✅ MOBİL SƏLİQƏ TUNING
+           ========================= */
+        .neox-foot-brandRow{ flex-wrap: wrap; row-gap: 10px; }
+        .neox-foot-socialRow{ flex-wrap: wrap; }
+        .neox-foot-linksCol{ margin: 0; padding: 0; }
+
+        @media (max-width: 920px){
+          .neox-footer .container{
+            padding-top: 44px !important;
+            padding-bottom: 44px !important;
+          }
+
+          /* Mobil grid: sütunlar arası daha səliqəli */
+          .neox-footer .grid{
+            row-gap: 28px;
+          }
+
+          /* Link sütunları: başlıq + linklər daha yaxın */
+          .neox-foot-title{ margin-bottom: 10px; }
+          .neox-foot-link{ padding: 6px 0; }
+
+          /* Contact chip-lər: full-width, daha rahat */
+          .neox-foot-contact{
+            display:flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: stretch;
+          }
+          .neox-foot-contactItem{
+            width: 100%;
+            justify-content: flex-start;
+            padding: 12px 14px;
+          }
+
+          /* Social: daha sıx */
+          .neox-social{
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+          }
+        }
+
+        @media (max-width: 420px){
+          .neox-footer .container{
+            padding-top: 38px !important;
+            padding-bottom: 38px !important;
+          }
+          .neox-foot-badge{
+            padding: 6px 9px;
+            letter-spacing: .14em;
+          }
+        }
+
+        /* =========================
+           ✅ LOGO WRAP (same premium feel)
            ========================= */
         .neox-logoWrap{
+          --logoH: 28px; /* desktop */
           position:relative;
           display:inline-flex;
           align-items:center;
@@ -211,6 +250,22 @@ export default function Footer() {
           -webkit-tap-highlight-color: transparent;
         }
 
+        /* ✅ mobil: logo wrap daha balaca + səliqəli */
+        @media (max-width: 920px){
+          .neox-logoWrap{
+            --logoH: 22px;
+            padding: 9px 11px;
+            border-radius: 14px;
+          }
+        }
+        @media (max-width: 420px){
+          .neox-logoWrap{
+            --logoH: 20px;
+            padding: 8px 10px;
+            border-radius: 14px;
+          }
+        }
+
         .neox-logoWrap:hover{
           transform:translateY(-2px);
           border-color:rgba(47,184,255,.28);
@@ -221,7 +276,6 @@ export default function Footer() {
             inset 0 0 0 1px rgba(47,184,255,.08);
         }
 
-        /* soft aura (subtle, not ring) */
         .neox-logoAura{
           position:absolute;
           inset:-18px;
@@ -233,11 +287,8 @@ export default function Footer() {
           filter:blur(10px);
           transition:opacity .22s ease;
         }
-        .neox-logoWrap:hover .neox-logoAura{
-          opacity:.75;
-        }
+        .neox-logoWrap:hover .neox-logoAura{ opacity:.75; }
 
-        /* hologram glint on hover */
         .neox-logoGlint{
           position:absolute;
           inset:-40% -30%;
@@ -262,18 +313,17 @@ export default function Footer() {
           100%{ transform:translateX(70%) rotate(8deg); }
         }
 
-        /* ✅ actual logo image sizing */
         .neox-logoImg{
           display:block;
-          height:28px;
+          height: var(--logoH);
           width:auto;
           max-width:180px;
           object-fit:contain;
           user-select:none;
+          transform:translateZ(0);
           filter:
             drop-shadow(0 8px 22px rgba(0,0,0,.55))
             drop-shadow(0 0 18px rgba(47,184,255,.10));
-          /* subtle pulse = “iris alive” feel, but super gentle */
           animation: neoxIrisPulse 6.4s ease-in-out infinite;
           will-change: filter, transform;
         }
@@ -293,18 +343,8 @@ export default function Footer() {
           }
         }
 
-        /* reduce motion */
-        @media (prefers-reduced-motion:reduce){
-          .neox-logoImg{ animation:none !important; }
-          .neox-logoWrap,
-          .neox-logoAura,
-          .neox-logoGlint{ transition:none !important; }
-          .neox-logoWrap:hover .neox-logoGlint{ animation:none !important; }
-          *{transition:none!important}
-        }
-
         /* =========================
-           ORIGINAL FOOTER STYLES
+           Footer text + chips
            ========================= */
         .neox-foot-badge{
           font-size:11px;
@@ -314,6 +354,7 @@ export default function Footer() {
           background:rgba(47,184,255,.10);
           color:rgba(255,255,255,.8);
           letter-spacing:.18em;
+          white-space: nowrap;
         }
 
         .neox-footer-text{
@@ -328,7 +369,6 @@ export default function Footer() {
           flex-wrap:wrap;
         }
 
-        /* ✅ Mail/nomrə chip: underline yoxdur (nə default, nə pseudo) */
         .neox-foot-contactItem{
           position:relative;
           display:inline-flex;
@@ -344,8 +384,9 @@ export default function Footer() {
           transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
           overflow:hidden;
           -webkit-tap-highlight-color: transparent;
+          max-width: 100%;
         }
-        .neox-foot-contactItem::after{ content:none !important; } /* extra safety */
+        .neox-foot-contactItem::after{ content:none !important; }
 
         .neox-foot-contactItem::before{
           content:"";
@@ -369,9 +410,7 @@ export default function Footer() {
             0 18px 55px rgba(0,0,0,.62),
             0 0 0 1px rgba(47,184,255,.18);
         }
-        .neox-foot-contactItem:hover::before{
-          opacity:.9;
-        }
+        .neox-foot-contactItem:hover::before{ opacity:.9; }
 
         .neox-foot-contactItem:focus-visible{
           outline:none;
@@ -397,6 +436,9 @@ export default function Footer() {
           color:rgba(255,255,255,.92);
           text-decoration:none !important;
           white-space:nowrap;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          min-width: 0;
         }
 
         .neox-social{
@@ -420,6 +462,7 @@ export default function Footer() {
           font-weight:800;
           color:rgba(255,255,255,.95);
           margin-bottom:12px;
+          letter-spacing: .02em;
         }
 
         .neox-foot-link{
@@ -431,7 +474,7 @@ export default function Footer() {
           transition:color .2s ease, transform .2s ease;
         }
 
-        /* ✅ Linklərdə soldan-sağa xətt QALSIN */
+        /* Link underline anim (qalsın) */
         .neox-foot-link::after{
           content:"";
           position:absolute;
@@ -455,9 +498,7 @@ export default function Footer() {
           color:#fff;
           transform:translateY(-1px);
         }
-        .neox-foot-link:hover::after{
-          transform:scaleX(1);
-        }
+        .neox-foot-link:hover::after{ transform:scaleX(1); }
 
         .neox-foot-divider{
           border-top:1px solid rgba(255,255,255,.08);
@@ -466,6 +507,15 @@ export default function Footer() {
           color:rgba(255,255,255,.55);
           font-size:13px;
           letter-spacing:.02em;
+        }
+
+        /* reduce motion */
+        @media (prefers-reduced-motion:reduce){
+          .neox-logoImg{ animation:none !important; }
+          .neox-logoWrap,
+          .neox-logoAura,
+          .neox-logoGlint{ transition:none !important; }
+          .neox-logoWrap:hover .neox-logoGlint{ animation:none !important; }
         }
       `}</style>
     </footer>
