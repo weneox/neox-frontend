@@ -26,11 +26,25 @@ function normalizeBase(v: any) {
 
 /**
  * ✅ IMPORTANT:
- * - If VITE_API_BASE exists -> use it (Railway URL)
- * - If not -> same-origin ("") so calls go to /api/... on current domain
- * This prevents any accidental localhost in production.
+ * Cloudflare Pages-də bəzən build zamanı VITE_API_BASE boş gələ bilər.
+ * Bu halda API_BASE "" olur və app same-origin (/api/...) çağırır,
+ * Pages isə HTML qaytarır -> JSON parse partlayır.
+ *
+ * Fix:
+ * - Əgər VITE_API_BASE varsa -> onu istifadə et
+ * - Əgər yoxdursa:
+ *    - localhost-da -> local dev API
+ *    - prod domenlərdə -> Railway prod API
  */
-const API_BASE = normalizeBase((import.meta as any)?.env?.VITE_API_BASE || "");
+const ENV_API_BASE = normalizeBase((import.meta as any)?.env?.VITE_API_BASE || "");
+const PROD_API = "https://neox-backend-production.up.railway.app";
+const DEV_API = "http://localhost:5050";
+
+const API_BASE =
+  ENV_API_BASE ||
+  (typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+    ? DEV_API
+    : PROD_API);
 
 /* ------------------ small hooks ------------------ */
 function useIsMobile(breakpoint = 900) {
@@ -160,7 +174,7 @@ function AdminLoginCard() {
         return setErr(`Xəta: ${lastStatus} ${String(lastText || "").trim()}`.trim());
       }
     } catch {
-      return setErr("Backend-ə qoşulmaq olmur. VITE_API_BASE düz deyil?");
+      return setErr("Backend-ə qoşulmaq olmur. API_BASE düz deyil?");
     } finally {
       setLoading(false);
     }
@@ -548,7 +562,7 @@ const S: Record<string, any> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    padding: "13px 12px", // ✅ touch target a bit larger
+    padding: "13px 12px",
     borderRadius: 14,
     textDecoration: "none",
     color: "rgba(255,255,255,.78)",
