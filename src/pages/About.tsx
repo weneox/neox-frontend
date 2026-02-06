@@ -256,20 +256,71 @@ export default function About() {
           --ab-glow3: rgba(42,125,255,.16);
         }
 
+        /* ✅ iOS/Safari üçün daha stabil overflow fix (sağdakı qara xətt) */
         html, body{
           background:#000 !important;
           margin:0;
           padding:0;
           width:100%;
-          overflow-x: clip;
+          max-width:100%;
+          overflow-x: hidden;
+        }
+        #root{
+          width:100%;
+          max-width:100%;
+          overflow-x: hidden;
         }
 
-        /* ✅ ən vacib: overlay heç vaxt kontenti örtməsin */
+        /* ✅ HEADER MOBILE FIX (About səhifəsində üst bar dolma qazanını düzəldir) */
+        @media (max-width: 860px){
+          /* header daxilində hər şeyin dar ekranda sığması */
+          header, #root header{
+            max-width: 100%;
+            overflow-x: hidden;
+          }
+
+          /* çox vaxt header-in içində 1 container + flex row olur */
+          header *{
+            min-width: 0;
+            max-width: 100%;
+          }
+
+          /* pill/breadcrumb tipli elementlər: wrap + full width */
+          :is(header, #root header) :is(.neo-crumb, .neo-breadcrumb, .neo-pill, .neo-kickerPill, .breadcrumb, .crumb, .pill){
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          /* header-in əsas row-u flex isə, wrap veririk */
+          :is(header, #root header) :is(.neo-header-row, .neo-topbar-grid, .neo-topbar, .header-row, .header-inner, .nav-row, .nav-inner){
+            flex-wrap: wrap !important;
+            row-gap: 10px !important;
+          }
+
+          /* pill sətiri altına düşəndə tam səliqəli görünsün */
+          :is(header, #root header) :is(.neo-crumb, .neo-breadcrumb, .breadcrumb, .crumb){
+            width: 100% !important;
+            display: flex !important;
+            justify-content: flex-start !important;
+          }
+          :is(header, #root header) :is(.neo-crumbPill, .breadcrumb-pill, .crumb-pill, .pill){
+            width: 100% !important;
+            max-width: 520px !important;
+          }
+
+          /* sağ tərəfdəki controls (lang + menu) sıxılmasın */
+          :is(header, #root header) :is(.neo-controls, .controls, .right, .nav-right){
+            flex: 0 0 auto !important;
+            gap: 10px !important;
+          }
+        }
+
+        /* ✅ overlay heç vaxt kontenti örtməsin */
         .ab-page{
           position: relative;
           isolation: isolate;
           color: var(--ab-text);
-          overflow-x: clip;
+          overflow-x: hidden;
           word-break: break-word;
           overflow-wrap: anywhere;
           text-rendering: geometricPrecision;
@@ -1404,4 +1455,3 @@ export default function About() {
     </main>
   );
 }
- 
