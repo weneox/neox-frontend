@@ -498,10 +498,12 @@ function ConnectorOverlay({
   enabled,
   rootRef,
   lite,
+  mobile,
 }: {
   enabled: boolean;
   rootRef: React.RefObject<HTMLDivElement>;
   lite?: boolean;
+  mobile?: boolean;
 }) {
   const [paths, setPaths] = useState<Array<{ id: string; d: string; a: P2; b: P2 }>>([]);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
@@ -520,7 +522,9 @@ function ConnectorOverlay({
     const pick = (sel: string) => rootRef.current?.querySelector<HTMLElement>(sel) ?? null;
 
     const snap = (n: number) => Math.round(n * 2) / 2;
-    const THROTTLE_MS = lite ? 160 : 90;
+
+    // ✅ mobile-də daha yumşaq throttle (sabit FPS + az CPU)
+    const THROTTLE_MS = mobile ? 180 : lite ? 160 : 90;
 
     const clear = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -557,8 +561,20 @@ function ConnectorOverlay({
       const bx = snap(br.left + br.width / 2 - rr.left);
       const by = snap(br.top + br.height / 2 - rr.top);
 
-      const midY = snap(ay + (by - ay) * 0.45);
-      const d = `M ${ax} ${ay} L ${ax} ${midY} L ${bx} ${midY} L ${bx} ${by}`;
+      // ✅ MOBILE: bloklar alt-alta olduğuna görə, əsasən "düz aşağı" xətt kimi.
+      // Əgər x fərqi çoxdursa, çox yüngül "L" (elbow) saxlayırıq ki, yenə də təmiz görünsün.
+      const dx = Math.abs(ax - bx);
+      const midY = snap(ay + (by - ay) * 0.5);
+
+      const d =
+        mobile && dx < 10
+          ? `M ${ax} ${ay} L ${ax} ${by}`
+          : mobile
+            ? `M ${ax} ${ay} L ${ax} ${midY} L ${bx} ${midY} L ${bx} ${by}`
+            : (() => {
+                const midY2 = snap(ay + (by - ay) * 0.45);
+                return `M ${ax} ${ay} L ${ax} ${midY2} L ${bx} ${midY2} L ${bx} ${by}`;
+              })();
 
       const last = lastRef.current;
       if (last && last.w === ww && last.h === hh && last.d === d) return;
@@ -593,7 +609,7 @@ function ConnectorOverlay({
       window.removeEventListener("resize", schedule);
       clear();
     };
-  }, [enabled, rootRef, lite]);
+  }, [enabled, rootRef, lite, mobile]);
 
   if (!enabled || paths.length === 0) return null;
 
@@ -625,7 +641,8 @@ function ConnectorOverlay({
             <stop offset="1" stopColor="rgba(42,125,255,.95)" />
           </linearGradient>
 
-          {!lite && (
+          {/* ✅ mobile + lite-də filteri söndürürük (performans + daha təmiz) */}
+          {!lite && !mobile && (
             <filter id="neoGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="1.05" result="blur" />
               <feColorMatrix
@@ -647,12 +664,12 @@ function ConnectorOverlay({
           const b = p.b;
 
           return (
-            <g key={p.id} {...(!lite ? { filter: "url(#neoGlow)" } : {})}>
+            <g key={p.id} {...(!lite && !mobile ? { filter: "url(#neoGlow)" } : {})}>
               <path
                 d={p.d}
                 fill="none"
                 stroke="rgba(47,184,255,.12)"
-                strokeWidth={lite ? 5 : 7}
+                strokeWidth={mobile ? 5.5 : lite ? 5 : 7}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -660,12 +677,13 @@ function ConnectorOverlay({
                 d={p.d}
                 fill="none"
                 stroke="url(#neoLineGrad)"
-                strokeWidth={lite ? 2.8 : 3.25}
+                strokeWidth={mobile ? 3.1 : lite ? 2.8 : 3.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
 
-              {!lite && (
+              {/* ✅ mobile-də dash animasiyasını yüngülləşdiririk */}
+              {!lite && !mobile && (
                 <path
                   d={p.d}
                   fill="none"
@@ -679,15 +697,29 @@ function ConnectorOverlay({
               )}
 
               <g>
-                <circle cx={a.x} cy={a.y} r={lite ? 11 : 14} fill="rgba(47,184,255,.10)" />
-                <circle cx={a.x} cy={a.y} r={lite ? 6.4 : 7.2} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.88)" strokeWidth={2} />
-                <circle cx={a.x} cy={a.y} r={lite ? 2.9 : 3.2} fill="rgba(255,255,255,.92)" />
+                <circle cx={a.x} cy={a.y} r={mobile ? 12 : lite ? 11 : 14} fill="rgba(47,184,255,.10)" />
+                <circle
+                  cx={a.x}
+                  cy={a.y}
+                  r={mobile ? 6.8 : lite ? 6.4 : 7.2}
+                  fill="rgba(0,0,0,0)"
+                  stroke="rgba(170,225,255,.88)"
+                  strokeWidth={2}
+                />
+                <circle cx={a.x} cy={a.y} r={mobile ? 3.1 : lite ? 2.9 : 3.2} fill="rgba(255,255,255,.92)" />
               </g>
 
               <g>
-                <circle cx={b.x} cy={b.y} r={lite ? 11 : 14} fill="rgba(42,125,255,.12)" />
-                <circle cx={b.x} cy={b.y} r={lite ? 6.8 : 7.6} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.92)" strokeWidth={2} />
-                <circle cx={b.x} cy={b.y} r={lite ? 3 : 3.4} fill="rgba(255,255,255,.95)" />
+                <circle cx={b.x} cy={b.y} r={mobile ? 12 : lite ? 11 : 14} fill="rgba(42,125,255,.12)" />
+                <circle
+                  cx={b.x}
+                  cy={b.y}
+                  r={mobile ? 7.2 : lite ? 6.8 : 7.6}
+                  fill="rgba(0,0,0,0)"
+                  stroke="rgba(170,225,255,.92)"
+                  strokeWidth={2}
+                />
+                <circle cx={b.x} cy={b.y} r={mobile ? 3.2 : lite ? 3 : 3.4} fill="rgba(255,255,255,.95)" />
               </g>
             </g>
           );
@@ -1396,8 +1428,11 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
-  const overlayEnabled = !reduced && !isMobile;
+  // ✅ əvvəl: !reduced && !isMobile
+  // İndi: mobil-də də göstəririk (reduced motion-dan başqa)
+  const overlayEnabled = !reduced;
 
+  // ✅ mobile-də lite + filter off (zaten)
   const overlayLite = useMemo(() => {
     if (isMobile || reduced) return true;
     const hc = typeof navigator !== "undefined" ? ((navigator as any).hardwareConcurrency || 4) : 4;
@@ -1496,7 +1531,9 @@ export default function Home() {
         <div style={{ position: "relative", zIndex: 2 }}>
           <SocialAutomationSectionMemo reducedMotion={reduced} isMobile={isMobile} t={t} lang={lang} />
         </div>
-        <ConnectorOverlayMemo enabled={overlayEnabled} rootRef={flowRef} lite={overlayLite} />
+
+        {/* ✅ mobile=true veririk ki xətt “düz aşağı” kimi davransın */}
+        <ConnectorOverlayMemo enabled={overlayEnabled} rootRef={flowRef} lite={overlayLite} mobile={isMobile} />
       </div>
     </main>
   );
