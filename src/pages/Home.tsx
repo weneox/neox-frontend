@@ -18,6 +18,7 @@ function getLangFromPath(pathname: string): Lang {
 }
 
 function withLang(path: string, lang: Lang) {
+  // path: "/contact" və ya "contact"
   const p = path.startsWith("/") ? path : `/${path}`;
   return `/${lang}${p}`;
 }
@@ -38,7 +39,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/* ---------------- Media ---------------- */
+/* ---------------- Media (perf safe) ---------------- */
 function useMedia(query: string, initial = false) {
   const [v, setV] = useState(initial);
   useEffect(() => {
@@ -61,7 +62,77 @@ function useScrollTopOnMount() {
   }, []);
 }
 
-/* ---------------- Reveal IO (cheap) ---------------- */
+/* ---------------- Premium wheel scroll (PERF SAFE) ---------------- */
+function usePremiumWheelScroll(enabled: boolean) {
+  const rafRef = useRef<number | null>(null);
+  const targetRef = useRef<number>(0);
+  const currentRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (prefersReduced) return;
+    if (window.innerWidth < 980) return;
+
+    const fine = window.matchMedia?.("(pointer: fine)")?.matches;
+    const hover = window.matchMedia?.("(hover: hover)")?.matches;
+    if (!fine || !hover) return;
+
+    const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+    const DIST_MULT = 1.25;
+    const DAMPING = 0.14;
+    const MAX_STEP = 1500;
+
+    const onWheel = (e: WheelEvent) => {
+      const raw = e.deltaY;
+      if (Math.abs(raw) < 18) return;
+      if (Math.abs((e as any).deltaX || 0) > Math.abs(raw)) return;
+
+      e.preventDefault();
+
+      const step = clamp(raw * DIST_MULT, -MAX_STEP, MAX_STEP);
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+
+      targetRef.current = clamp((targetRef.current || window.scrollY) + step, 0, maxScroll);
+
+      if (rafRef.current) return;
+
+      currentRef.current = window.scrollY;
+
+      const tick = () => {
+        const cur = currentRef.current;
+        const tgt = targetRef.current;
+        const next = cur + (tgt - cur) * DAMPING;
+
+        if (Math.abs(tgt - next) < 0.75) {
+          window.scrollTo(0, tgt);
+          currentRef.current = tgt;
+          rafRef.current = null;
+          return;
+        }
+
+        window.scrollTo(0, next);
+        currentRef.current = next;
+        rafRef.current = requestAnimationFrame(tick);
+      };
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    targetRef.current = window.scrollY;
+    window.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener("wheel", onWheel as any);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [enabled]);
+}
+
+/* ---------------- Reveal IO (PERF SAFE) ---------------- */
 function useRevealIO(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
@@ -78,7 +149,7 @@ function useRevealIO(enabled: boolean) {
           }
         }
       },
-      { threshold: 0.12, rootMargin: "0px 0px -14% 0px" }
+      { threshold: 0.14, rootMargin: "0px 0px -12% 0px" }
     );
 
     els.forEach((el) => io.observe(el));
@@ -86,16 +157,10 @@ function useRevealIO(enabled: boolean) {
   }, [enabled]);
 }
 
-/* ========================= SOCIAL DEMO (FPS MAX) =========================
-   BIG CHANGE:
-   - NO per-character setState.
-   - We simulate "typing" as a CSS shimmer + 3 dots.
-   - We only add full messages at intervals.
-*/
+/* ========================= SOCIAL DEMO ========================= */
 type SocialMsg = { from: "client" | "ai"; text: string };
 type Plat = "WHATSAPP" | "FACEBOOK" | "INSTAGRAM";
 
-/** ultra-light bubble */
 const MsgBubble = memo(function MsgBubble({
   side,
   from,
@@ -121,24 +186,14 @@ const MsgBubble = memo(function MsgBubble({
         className={[
           "neo-social-bubble",
           from === "ai" ? "is-ai" : "is-client",
-          isTyping ? "is-typing" : "",
+          isTyping ? "is-typing is-typewrite" : "",
           isWA ? "neo-wa-bubble" : "",
         ].join(" ")}
       >
         <div className="neo-social-who">{who}</div>
-
         <div className="neo-social-text">
-          {isTyping ? (
-            <span className="neo-typingDots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-          ) : (
-            text
-          )}
+          {text} {isTyping && <span className="neo-caret" aria-hidden="true" />}
         </div>
-
         <div className="neo-social-time">{isTyping ? typingLabel : nowLabel}</div>
       </div>
     </div>
@@ -171,6 +226,7 @@ function SocialThread({
 
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState<"client" | "ai" | null>(null);
+  const [typingText, setTypingText] = useState("");
 
   const timersRef = useRef<number[]>([]);
   const clearAll = () => {
@@ -179,7 +235,7 @@ function SocialThread({
   };
 
   const rand = (a: number, b: number) => a + Math.random() * (b - a);
-  const jitter = (ms: number, j = 220) => Math.max(200, Math.floor(ms + rand(-j, j)));
+  const jitter = (ms: number, j = 240) => Math.max(200, Math.floor(ms + rand(-j, j)));
 
   const MAX_VISIBLE = useMemo(() => (platform === "WHATSAPP" ? 4 : 5), [platform]);
   const startIndex = Math.max(0, count - MAX_VISIBLE);
@@ -189,62 +245,58 @@ function SocialThread({
     return all.slice(-MAX_VISIBLE);
   }, [script, count, MAX_VISIBLE]);
 
-  // Pre-render list once per "shown" change (typing does NOT re-render this list)
-  const renderedShown = useMemo(() => {
-    return shown.map((m, i) => {
-      const side = m.from === "ai" ? "right" : "left";
-      const who = m.from === "client" ? clientName : agentName;
-      const idx = startIndex + i;
-      return (
-        <MsgBubble
-          key={`${platform}-${idx}`}
-          side={side}
-          from={m.from}
-          who={who}
-          text={m.text}
-          isTyping={false}
-          isWA={isWA}
-          typingLabel={typingLabel}
-          nowLabel={nowLabel}
-        />
-      );
-    });
-  }, [shown, startIndex, platform, clientName, agentName, isWA, typingLabel, nowLabel]);
-
   useEffect(() => {
     clearAll();
 
     if (!active) {
       setCount(0);
       setTyping(null);
+      setTypingText("");
       return () => clearAll();
     }
 
     if (count >= script.length) {
-      // reset loop
-      const tReset = window.setTimeout(() => {
+      const t = window.setTimeout(() => {
         setTyping(null);
+        setTypingText("");
         setCount(0);
-      }, jitter(1400, 360));
-      timersRef.current.push(tReset);
+      }, jitter(1500, 420));
+      timersRef.current.push(t);
       return () => clearAll();
     }
 
     const next = script[count];
 
-    // 1) show typing indicator briefly
-    const tTyping = window.setTimeout(() => {
+    const tStart = window.setTimeout(() => {
       setTyping(next.from);
-    }, jitter(420, 180));
+      setTypingText("");
 
-    // 2) commit message as a whole (no per-char)
-    const typingDur = Math.min(1100, Math.max(420, Math.floor(next.text.length * 18)));
-    const tCommit = window.setTimeout(() => {
-      setTyping(null);
-      setCount((c) => c + 1);
-    }, jitter(420 + typingDur + baseSpeedMs * 0.2, 240));
+      let i = 0;
+      const perChar = () => Math.max(12, Math.floor(rand(16, 28)));
 
-    timersRef.current.push(tTyping, tCommit);
+      const tick = () => {
+        i++;
+        setTypingText(next.text.slice(0, i));
+
+        if (i < next.text.length) {
+          const t = window.setTimeout(tick, perChar());
+          timersRef.current.push(t);
+          return;
+        }
+
+        const tCommit = window.setTimeout(() => {
+          setCount((c) => c + 1);
+          setTyping(null);
+          setTypingText("");
+        }, jitter(320, 160));
+        timersRef.current.push(tCommit);
+      };
+
+      const tFirst = window.setTimeout(tick, jitter(baseSpeedMs, 220));
+      timersRef.current.push(tFirst);
+    }, jitter(520, 220));
+
+    timersRef.current.push(tStart);
     return () => clearAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, script, baseSpeedMs, active]);
@@ -266,7 +318,7 @@ function SocialThread({
 
     return (
       <div className={`neo-pill neo-pill--logo neo-pill-${platformLower}`} aria-label={alt} title={alt}>
-        <img className="neo-pill-logo" src={src} alt={alt} loading="lazy" decoding="async" />
+        <img className="neo-pill-logo" src={src} alt={alt} />
       </div>
     );
   };
@@ -281,7 +333,24 @@ function SocialThread({
       </div>
 
       <div className="neo-social-card-body" role="log" aria-label={ariaLabel}>
-        {renderedShown}
+        {shown.map((m, i) => {
+          const side = m.from === "ai" ? "right" : "left";
+          const who = m.from === "client" ? clientName : agentName;
+          const idx = startIndex + i;
+          return (
+            <MsgBubble
+              key={`${platform}-${idx}`}
+              side={side}
+              from={m.from}
+              who={who}
+              text={m.text}
+              isTyping={false}
+              isWA={isWA}
+              typingLabel={typingLabel}
+              nowLabel={nowLabel}
+            />
+          );
+        })}
 
         {typing && (
           <MsgBubble
@@ -289,7 +358,7 @@ function SocialThread({
             side={typing === "ai" ? "right" : "left"}
             from={typing}
             who={typing === "client" ? clientName : agentName}
-            text=""
+            text={typingText.length ? typingText : "…"}
             isTyping={true}
             isWA={isWA}
             typingLabel={typingLabel}
@@ -303,7 +372,7 @@ function SocialThread({
 const SocialThreadMemo = memo(SocialThread);
 
 /* ========================= PIPELINE DIAGRAM ========================= */
-const PipelineDiagramMemo = memo(function PipelineDiagram({
+function PipelineDiagram({
   reduced,
   platform,
   t,
@@ -313,10 +382,8 @@ const PipelineDiagramMemo = memo(function PipelineDiagram({
   t: (key: string, opts?: any) => any;
 }) {
   const src = useMemo(() => {
-    if (platform === "WHATSAPP")
-      return { k: "wa", name: t("home.pipeline.platforms.whatsapp"), icon: "/image/photo.1.webp" };
-    if (platform === "FACEBOOK")
-      return { k: "ms", name: t("home.pipeline.platforms.messenger"), icon: "/image/photo.2.png" };
+    if (platform === "WHATSAPP") return { k: "wa", name: t("home.pipeline.platforms.whatsapp"), icon: "/image/photo.1.webp" };
+    if (platform === "FACEBOOK") return { k: "ms", name: t("home.pipeline.platforms.messenger"), icon: "/image/photo.2.png" };
     return { k: "ig", name: t("home.pipeline.platforms.instagram"), icon: "/image/photo.3.png" };
   }, [platform, t]);
 
@@ -324,14 +391,55 @@ const PipelineDiagramMemo = memo(function PipelineDiagram({
     <div className={`neo-pipe ${reduced ? "neo-pipe--still" : ""}`} aria-hidden="true">
       <div className="neo-pipe-row neo-pipe-row--src" style={{ display: "flex", justifyContent: "center" }}>
         <div style={{ position: "relative", display: "inline-flex", justifyContent: "center" }}>
-          <div className={`neo-pipe-pill neo-pipe-pill--${src.k}`}>
-            <span className="neo-pipe-icon">
-              <img src={src.icon} alt={String(src.name)} style={{ width: 18, height: 18 }} loading="lazy" decoding="async" />
+          <div
+            className={`neo-pipe-pill neo-pipe-pill--${src.k}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "12px 14px",
+              borderRadius: 18,
+              width: "fit-content",
+              maxWidth: "fit-content",
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(255,255,255,.10)",
+              boxShadow: "0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06)",
+            }}
+          >
+            <span
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                display: "grid",
+                placeItems: "center",
+                background: "rgba(255,255,255,.06)",
+                border: "1px solid rgba(255,255,255,.10)",
+                flex: "0 0 auto",
+              }}
+            >
+              <img src={src.icon} alt={String(src.name)} style={{ width: 18, height: 18 }} />
             </span>
-            <span className="neo-pipe-name">{src.name}</span>
+            <span style={{ fontWeight: 720, letterSpacing: ".01em" }}>{src.name}</span>
           </div>
 
-          <span data-connector="in-active" aria-hidden="true" className="neo-connectorDot" />
+          <span
+            data-connector="in-active"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: -8,
+              width: 12,
+              height: 12,
+              transform: "translateX(-50%)",
+              borderRadius: 999,
+              background: "rgba(255,255,255,.95)",
+              boxShadow: "0 0 0 2px rgba(47,184,255,.30), 0 0 24px rgba(47,184,255,.55)",
+              pointerEvents: "none",
+              zIndex: 5,
+            }}
+          />
         </div>
       </div>
 
@@ -380,20 +488,20 @@ const PipelineDiagramMemo = memo(function PipelineDiagram({
       </div>
     </div>
   );
-});
+}
+const PipelineDiagramMemo = memo(PipelineDiagram);
 
-/* ========================= CONNECTOR OVERLAY (FPS MAX) =========================
-   - Removed SVG blur filters + removed dash animation
-   - Throttled harder
-   - Recalc only when needed
-*/
+/* ========================= CONNECTOR OVERLAY (MAX FPS) ========================= */
 type P2 = { x: number; y: number };
-const ConnectorOverlayMemo = memo(function ConnectorOverlay({
+
+function ConnectorOverlay({
   enabled,
   rootRef,
+  lite,
 }: {
   enabled: boolean;
   rootRef: React.RefObject<HTMLDivElement>;
+  lite?: boolean;
 }) {
   const [paths, setPaths] = useState<Array<{ id: string; d: string; a: P2; b: P2 }>>([]);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
@@ -411,8 +519,8 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
 
     const pick = (sel: string) => rootRef.current?.querySelector<HTMLElement>(sel) ?? null;
 
-    const snap = (n: number) => Math.round(n); // integer snap = cheaper
-    const THROTTLE_MS = 160;
+    const snap = (n: number) => Math.round(n * 2) / 2;
+    const THROTTLE_MS = lite ? 160 : 90;
 
     const clear = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -456,6 +564,7 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
       if (last && last.w === ww && last.h === hh && last.d === d) return;
 
       lastRef.current = { w: ww, h: hh, d };
+
       setSize((s) => (s.w === ww && s.h === hh ? s : { w: ww, h: hh }));
       setPaths([{ id: "tablet-to-pipe", d, a: { x: ax, y: ay }, b: { x: bx, y: by } }]);
     };
@@ -470,8 +579,8 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
     };
 
     schedule();
-    const t1 = window.setTimeout(schedule, 140);
-    const t2 = window.setTimeout(schedule, 360);
+    const t1 = window.setTimeout(schedule, 110);
+    const t2 = window.setTimeout(schedule, 320);
 
     window.addEventListener("resize", schedule);
 
@@ -484,7 +593,7 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
       window.removeEventListener("resize", schedule);
       clear();
     };
-  }, [enabled, rootRef]);
+  }, [enabled, rootRef, lite]);
 
   if (!enabled || paths.length === 0) return null;
 
@@ -507,14 +616,30 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
         height="100%"
         viewBox={`0 0 ${size.w} ${size.h}`}
         preserveAspectRatio="none"
-        style={{ display: "block" }}
+        style={{ display: "block", shapeRendering: "geometricPrecision" }}
       >
         <defs>
           <linearGradient id="neoLineGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="rgba(255,255,255,.90)" />
-            <stop offset="0.5" stopColor="rgba(47,184,255,.95)" />
+            <stop offset="0" stopColor="rgba(255,255,255,.92)" />
+            <stop offset="0.45" stopColor="rgba(47,184,255,.95)" />
             <stop offset="1" stopColor="rgba(42,125,255,.95)" />
           </linearGradient>
+
+          {!lite && (
+            <filter id="neoGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.05" result="blur" />
+              <feColorMatrix
+                in="blur"
+                type="matrix"
+                values=" 1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 .20 0"
+                result="glow"
+              />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          )}
         </defs>
 
         {paths.map((p) => {
@@ -522,37 +647,47 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
           const b = p.b;
 
           return (
-            <g key={p.id}>
-              {/* soft underglow (cheap) */}
+            <g key={p.id} {...(!lite ? { filter: "url(#neoGlow)" } : {})}>
               <path
                 d={p.d}
                 fill="none"
-                stroke="rgba(47,184,255,.10)"
-                strokeWidth={5}
+                stroke="rgba(47,184,255,.12)"
+                strokeWidth={lite ? 5 : 7}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              {/* main line */}
               <path
                 d={p.d}
                 fill="none"
                 stroke="url(#neoLineGrad)"
-                strokeWidth={2.8}
+                strokeWidth={lite ? 2.8 : 3.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
 
-              {/* endpoints */}
+              {!lite && (
+                <path
+                  d={p.d}
+                  fill="none"
+                  stroke="rgba(220,250,255,.62)"
+                  strokeWidth={2.0}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="10 18"
+                  style={{ animation: "neoFlowDash 1.15s linear infinite", opacity: 0.56 }}
+                />
+              )}
+
               <g>
-                <circle cx={a.x} cy={a.y} r={10} fill="rgba(47,184,255,.10)" />
-                <circle cx={a.x} cy={a.y} r={6.2} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.88)" strokeWidth={2} />
-                <circle cx={a.x} cy={a.y} r={2.8} fill="rgba(255,255,255,.92)" />
+                <circle cx={a.x} cy={a.y} r={lite ? 11 : 14} fill="rgba(47,184,255,.10)" />
+                <circle cx={a.x} cy={a.y} r={lite ? 6.4 : 7.2} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.88)" strokeWidth={2} />
+                <circle cx={a.x} cy={a.y} r={lite ? 2.9 : 3.2} fill="rgba(255,255,255,.92)" />
               </g>
 
               <g>
-                <circle cx={b.x} cy={b.y} r={10} fill="rgba(42,125,255,.12)" />
-                <circle cx={b.x} cy={b.y} r={6.6} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.92)" strokeWidth={2} />
-                <circle cx={b.x} cy={b.y} r={2.9} fill="rgba(255,255,255,.95)" />
+                <circle cx={b.x} cy={b.y} r={lite ? 11 : 14} fill="rgba(42,125,255,.12)" />
+                <circle cx={b.x} cy={b.y} r={lite ? 6.8 : 7.6} fill="rgba(0,0,0,0)" stroke="rgba(170,225,255,.92)" strokeWidth={2} />
+                <circle cx={b.x} cy={b.y} r={lite ? 3 : 3.4} fill="rgba(255,255,255,.95)" />
               </g>
             </g>
           );
@@ -560,16 +695,11 @@ const ConnectorOverlayMemo = memo(function ConnectorOverlay({
       </svg>
     </div>
   );
-});
+}
+const ConnectorOverlayMemo = memo(ConnectorOverlay);
 
 /* ========================= SMM / OPS DIAGRAMS ========================= */
-const SmmAutomationDiagramMemo = memo(function SmmAutomationDiagram({
-  reduced,
-  t,
-}: {
-  reduced: boolean;
-  t: (k: string, o?: any) => any;
-}) {
+function SmmAutomationDiagram({ reduced, t }: { reduced: boolean; t: (k: string, o?: any) => any }) {
   return (
     <div className={`neo-diagramcard ${reduced ? "is-still" : ""}`} aria-hidden="true">
       <div className="neo-diag-top">
@@ -640,15 +770,10 @@ const SmmAutomationDiagramMemo = memo(function SmmAutomationDiagram({
       </div>
     </div>
   );
-});
+}
+const SmmAutomationDiagramMemo = memo(SmmAutomationDiagram);
 
-const OpsAutomationDiagramMemo = memo(function OpsAutomationDiagram({
-  reduced,
-  t,
-}: {
-  reduced: boolean;
-  t: (k: string, o?: any) => any;
-}) {
+function OpsAutomationDiagram({ reduced, t }: { reduced: boolean; t: (k: string, o?: any) => any }) {
   return (
     <div className={`neo-diagramcard neo-diagramcard--ops ${reduced ? "is-still" : ""}`} aria-hidden="true">
       <div className="neo-opsline">
@@ -701,10 +826,11 @@ const OpsAutomationDiagramMemo = memo(function OpsAutomationDiagram({
       </div>
     </div>
   );
-});
+}
+const OpsAutomationDiagramMemo = memo(OpsAutomationDiagram);
 
 /* ========================= SOCIAL + PIPELINE + SMM + OPS + FINAL CTA ========================= */
-const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
+function SocialAutomationSection({
   reducedMotion = false,
   isMobile = false,
   t,
@@ -730,7 +856,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
         const i = order.indexOf(p);
         return order[(i + 1) % order.length];
       });
-    }, 3600);
+    }, 3400);
     return () => window.clearInterval(tmr);
   }, [order, reducedMotion]);
 
@@ -781,8 +907,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
                 <span className="neo-plusWhite" aria-hidden="true">
                   +
                 </span>{" "}
-                {t("home.social.title.p2")} <span className="neo-gradient">{t("home.social.title.grad2")}</span>{" "}
-                {t("home.social.title.p3")}
+                {t("home.social.title.p2")} <span className="neo-gradient">{t("home.social.title.grad2")}</span> {t("home.social.title.p3")}
               </h2>
 
               <p className="neo-p neo-p--lead reveal reveal-top" style={{ marginBottom: 18 }}>
@@ -799,7 +924,15 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
               </div>
             </header>
 
-            <div style={{ width: "100%", maxWidth: BOX, justifySelf: isMobile ? "start" : "end", marginTop: isMobile ? 10 : 0, minWidth: 0 }}>
+            <div
+              style={{
+                width: "100%",
+                maxWidth: BOX,
+                justifySelf: isMobile ? "start" : "end",
+                marginTop: isMobile ? 10 : 0,
+                minWidth: 0,
+              }}
+            >
               <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 0 }}>
                 <div className="neo-tabletCard neo-tabletCard--premium" style={{ width: "100%", height: "100%" } as React.CSSProperties}>
                   <div className="neo-tabletTop" aria-hidden="true">
@@ -816,7 +949,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
                       <SocialThreadMemo
                         platform={platform}
                         script={visibleScript}
-                        baseSpeedMs={900}
+                        baseSpeedMs={920}
                         clientName={meta.clientName}
                         agentName={t("home.social.agentName")}
                         active={!reducedMotion}
@@ -836,7 +969,23 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
                   <div className="neo-tabletShine" aria-hidden="true" />
                 </div>
 
-                <span data-connector="tablet-out" aria-hidden="true" className="neo-connectorDot neo-connectorDot--tablet" />
+                <span
+                  data-connector="tablet-out"
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: -10,
+                    width: 12,
+                    height: 12,
+                    transform: "translateX(-50%)",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,.92)",
+                    boxShadow: "0 0 0 2px rgba(47,184,255,.26), 0 0 26px rgba(47,184,255,.55)",
+                    pointerEvents: "none",
+                    zIndex: 5,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -858,8 +1007,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
               </div>
 
               <h3 className="neo-h3 neo-h3--tight reveal reveal-top">
-                {t("home.pipeline.title.p1")} <span className="neo-gradient">{t("home.pipeline.title.grad")}</span>{" "}
-                {t("home.pipeline.title.p2")}
+                {t("home.pipeline.title.p1")} <span className="neo-gradient">{t("home.pipeline.title.grad")}</span> {t("home.pipeline.title.p2")}
               </h3>
 
               <p className="neo-p neo-p--tight reveal reveal-top">{t("home.pipeline.copy")}</p>
@@ -924,8 +1072,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
               </div>
 
               <h3 className="neo-h3 reveal reveal-top">
-                {t("home.ops.title.p1")} <span className="neo-gradient">{t("home.ops.title.grad")}</span>{" "}
-                {t("home.ops.title.p2")}
+                {t("home.ops.title.p1")} <span className="neo-gradient">{t("home.ops.title.grad")}</span> {t("home.ops.title.p2")}
               </h3>
 
               <p className="neo-p reveal reveal-top">{t("home.ops.copy")}</p>
@@ -956,9 +1103,8 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
             </div>
 
             <h3 className="neo-h2 neo-h2-premium" style={{ marginTop: 12 }}>
-              {t("home.final.title.p1")} <span className="neo-gradient">{t("home.final.title.grad1")}</span>{" "}
-              {t("home.final.title.p2")} <span className="neo-gradient">{t("home.final.title.grad2")}</span>{" "}
-              {t("home.final.title.p3")}
+              {t("home.final.title.p1")} <span className="neo-gradient">{t("home.final.title.grad1")}</span> {t("home.final.title.p2")}{" "}
+              <span className="neo-gradient">{t("home.final.title.grad2")}</span> {t("home.final.title.p3")}
             </h3>
 
             <p className="neo-p neo-p--lead reveal reveal-top" style={{ maxWidth: 920, margin: "12px auto 0" }}>
@@ -978,8 +1124,7 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
             <div className="neo-finalBlock neo-finalBlock--b">
               <div className="neo-finalBlockTop">{t("home.final.blocks.b.top")}</div>
               <div className="neo-finalBlockMid">
-                {t("home.final.blocks.b.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.b.mid.grad")}</span>{" "}
-                {t("home.final.blocks.b.mid.p2")}
+                {t("home.final.blocks.b.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.b.mid.grad")}</span> {t("home.final.blocks.b.mid.p2")}
               </div>
               <div className="neo-finalBlockBot">{t("home.final.blocks.b.bot")}</div>
             </div>
@@ -987,14 +1132,16 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
             <div className="neo-finalBlock neo-finalBlock--c">
               <div className="neo-finalBlockTop">{t("home.final.blocks.c.top")}</div>
               <div className="neo-finalBlockMid">
-                {t("home.final.blocks.c.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.c.mid.grad")}</span>{" "}
-                {t("home.final.blocks.c.mid.p2")}
+                {t("home.final.blocks.c.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.c.mid.grad")}</span> {t("home.final.blocks.c.mid.p2")}
               </div>
               <div className="neo-finalBlockBot">{t("home.final.blocks.c.bot")}</div>
             </div>
           </div>
 
-          <div className="neo-finalSystem-actions reveal reveal-top" style={{ marginTop: 18, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <div
+            className="neo-finalSystem-actions reveal reveal-top"
+            style={{ marginTop: 18, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
+          >
             <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
               {t("home.final.cta.primary")}
             </Link>
@@ -1011,14 +1158,10 @@ const SocialAutomationSectionMemo = memo(function SocialAutomationSection({
       </section>
     </>
   );
-});
+}
+const SocialAutomationSectionMemo = memo(SocialAutomationSection);
 
-/* ========================= HOME CSS (FPS MAX) =========================
-   - removed heavy blur transitions
-   - reduced shadows
-   - added content-visibility for below-fold sections
-   - typing dots pure CSS
-*/
+/* ========================= HOME CSS (updated) ========================= */
 const HOME_CSS = `
   .neox-home.neox-home--black{ background:#000 !important; }
   .neox-home{
@@ -1037,7 +1180,7 @@ const HOME_CSS = `
   .neo-plusWhite{
     color: rgba(255,255,255,.92);
     font-weight: 720;
-    text-shadow: 0 10px 24px rgba(0,0,0,.55);
+    text-shadow: 0 10px 30px rgba(0,0,0,.6);
   }
 
   .neo-kickerPill{
@@ -1045,12 +1188,11 @@ const HOME_CSS = `
     padding:10px 14px; border-radius:999px;
     border:1px solid rgba(255,255,255,.12);
     background: rgba(255,255,255,.03);
-    box-shadow: 0 10px 34px rgba(0,0,0,.52);
+    box-shadow: 0 14px 52px rgba(0,0,0,.60);
     width: fit-content;
     max-width: 100%;
   }
   .neo-kickerPill--fit{ padding: 9px 12px; }
-
   .neo-kickerPillText{
     font-size:12px; font-weight:460; letter-spacing:.14em;
     text-transform:uppercase; color: rgba(255,255,255,.74);
@@ -1069,7 +1211,7 @@ const HOME_CSS = `
     border: 1px solid rgba(255,255,255,.12) !important;
     background: rgba(255,255,255,.03) !important;
     color: rgba(255,255,255,.92) !important;
-    box-shadow: 0 10px 34px rgba(0,0,0,.52) !important;
+    box-shadow: 0 14px 52px rgba(0,0,0,.58) !important;
     border-radius: 999px !important;
   }
   .neo-btn--unified.neo-btn-primary{
@@ -1100,21 +1242,29 @@ const HOME_CSS = `
   .neo-sub{ font-weight:420; color: rgba(255,255,255,.74); max-width: 980px; margin: 14px auto 0; }
   .neo-heroCopyGap{ margin-bottom: 18px !important; }
 
-  /* CHEAP enter: only opacity + transform (NO blur/filter) */
   .neo-hero-stagger{
     opacity:0;
-    transform: translate3d(0, 12px, 0);
-    transition: opacity .55s ease, transform .70s cubic-bezier(.2,.9,.2,1);
-    will-change: transform, opacity;
+    transform: translate3d(0, 14px, 0);
+    filter: blur(6px);
+    transition: opacity .72s ease, transform .85s cubic-bezier(.2,.9,.2,1), filter .85s ease;
+    will-change: transform, opacity, filter;
   }
-  .neo-page-enter .neo-hero-stagger{ opacity:1; transform: translate3d(0,0,0); }
-  .neo-hero-stagger.s1{ transition-delay:.06s; }
-  .neo-hero-stagger.s2{ transition-delay:.12s; }
-  .neo-hero-stagger.s3{ transition-delay:.18s; }
-  .neo-hero-stagger.s4{ transition-delay:.24s; }
+  .neo-page-enter .neo-hero-stagger{ opacity:1; transform: translate3d(0,0,0); filter: blur(0); }
+  .neo-hero-stagger.s1{ transition-delay:.08s; }
+  .neo-hero-stagger.s2{ transition-delay:.16s; }
+  .neo-hero-stagger.s3{ transition-delay:.24s; }
+  .neo-hero-stagger.s4{ transition-delay:.32s; }
 
+  @media (max-width: 860px){
+    .neo-hero-stagger{ transform: translate3d(0, 10px, 0); filter: blur(5px); transition-duration:.65s; }
+    .neo-hero-stagger.s1{ transition-delay:.05s; }
+    .neo-hero-stagger.s2{ transition-delay:.11s; }
+    .neo-hero-stagger.s3{ transition-delay:.17s; }
+    .neo-hero-stagger.s4{ transition-delay:.23s; }
+    .neo-heroCopyGap{ margin-bottom: 16px !important; }
+  }
   @media (prefers-reduced-motion: reduce){
-    .neo-hero-stagger{ transition:none !important; opacity:1 !important; transform:none !important; }
+    .neo-hero-stagger{ transition:none !important; opacity:1 !important; transform:none !important; filter:none !important; }
   }
 
   .neo-afterHeroSpacer{ height: clamp(110px, 14vh, 180px); background:#000; }
@@ -1131,10 +1281,10 @@ const HOME_CSS = `
     display:inline-flex; width:max-content; white-space:nowrap;
     transform: translate3d(0,0,0);
     will-change: transform;
-    animation: neoHomeMarquee 26s linear infinite;
+    animation: neoHomeMarquee 24s linear infinite;
     padding-left: 16px;
   }
-  @media (max-width: 860px){ .neo-stripTrack{ animation-duration: 32s; } }
+  @media (max-width: 860px){ .neo-stripTrack{ animation-duration: 30s; } }
   @media (prefers-reduced-motion: reduce){ .neo-stripTrack{ animation:none !important; } }
 
   .neo-stripWord{
@@ -1146,67 +1296,8 @@ const HOME_CSS = `
     text-transform: uppercase;
     flex: 0 0 auto;
   }
-
-  /* content-visibility => HUGE fps gain on long sections */
-  .neo-social, .neo-pipeline, .neo-splitsec, .neo-finalSystem{
-    content-visibility: auto;
-    contain-intrinsic-size: 900px;
-  }
-
-  /* pipeline bits */
-  .neo-pipe-pill{
-    display:inline-flex;
-    align-items:center;
-    gap:12px;
-    padding:12px 14px;
-    border-radius:18px;
-    background: rgba(255,255,255,.04);
-    border: 1px solid rgba(255,255,255,.10);
-    box-shadow: 0 12px 34px rgba(0,0,0,.54), inset 0 1px 0 rgba(255,255,255,.06);
-  }
-  .neo-pipe-icon{
-    width:34px; height:34px; border-radius:12px;
-    display:grid; place-items:center;
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.10);
-    flex:0 0 auto;
-  }
-  .neo-pipe-name{ font-weight: 720; letter-spacing: .01em; }
-
-  /* connector dots */
-  .neo-connectorDot{
-    position:absolute;
-    left:50%;
-    width:12px;
-    height:12px;
-    transform: translateX(-50%);
-    border-radius:999px;
-    background: rgba(255,255,255,.95);
-    box-shadow: 0 0 0 2px rgba(47,184,255,.24), 0 0 18px rgba(47,184,255,.40);
-    pointer-events:none;
-    z-index:5;
-  }
-  .neo-connectorDot{ top:-8px; }
-  .neo-connectorDot--tablet{ bottom:-10px; top:auto; }
-
-  /* typing dots (no JS) */
-  .neo-typingDots{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    transform: translate3d(0,0,0);
-  }
-  .neo-typingDots i{
-    width:6px; height:6px; border-radius:999px;
-    background: rgba(255,255,255,.70);
-    opacity:.45;
-    animation: neoDot 1.05s ease-in-out infinite;
-  }
-  .neo-typingDots i:nth-child(2){ animation-delay: .12s; }
-  .neo-typingDots i:nth-child(3){ animation-delay: .24s; }
-
-  @media (prefers-reduced-motion: reduce){
-    .neo-typingDots i{ animation:none !important; opacity:.65; }
+  @media (max-width: 860px){
+    .neo-stripWord{ font-size: 13px; padding: 0 14px; letter-spacing: .20em; }
   }
 
   /* final blocks */
@@ -1221,12 +1312,12 @@ const HOME_CSS = `
     border-radius: 22px;
     border: 1px solid rgba(255,255,255,.10);
     background: linear-gradient(180deg, rgba(255,255,255,.032), rgba(255,255,255,.018));
-    box-shadow: 0 12px 40px rgba(0,0,0,.56);
+    box-shadow: 0 16px 56px rgba(0,0,0,.62);
     padding: 16px;
     position: relative;
     overflow: hidden;
     transform: translate3d(0,0,0) scale(1);
-    transition: transform .18s ease, border-color .18s ease;
+    transition: transform .20s ease, filter .20s ease, border-color .20s ease;
     will-change: transform;
   }
   .neo-finalBlock::before{
@@ -1234,15 +1325,16 @@ const HOME_CSS = `
     position:absolute; inset:-40% -30%;
     opacity:0;
     transform: translate3d(-10px,0,0);
-    transition: opacity .18s ease, transform .18s ease;
+    transition: opacity .22s ease, transform .22s ease;
     background:
       radial-gradient(520px 220px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
       radial-gradient(520px 220px at 80% 0%, rgba(47,184,255,.10), transparent 70%);
     pointer-events:none;
   }
   .neo-finalBlock:hover{
-    transform: translate3d(0,-10px,0) scale(1.02);
+    transform: translate3d(0,-12px,0) scale(1.03);
     border-color: rgba(47,184,255,.22);
+    filter: saturate(1.06);
   }
   .neo-finalBlock:hover::before{ opacity:1; transform: translate3d(0,0,0); }
 
@@ -1268,15 +1360,13 @@ const HOME_CSS = `
     font-weight: 450;
   }
 
-  /* marquee */
+  /* SAGDAN SOLA (right -> left): 0 => -50% */
   @keyframes neoHomeMarquee{
     from{ transform: translate3d(0,0,0); }
     to{ transform: translate3d(-50%,0,0); }
   }
-  @keyframes neoDot{
-    0%, 100%{ transform: translateY(0); opacity:.38; }
-    50%{ transform: translateY(-2px); opacity:.85; }
-  }
+
+  @keyframes neoFlowDash{ to{ stroke-dashoffset:-140; } }
 `;
 
 /* ========================= HOME ========================= */
@@ -1288,6 +1378,9 @@ export default function Home() {
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
   useScrollTopOnMount();
+
+  // səndə false idi -> saxladım
+  usePremiumWheelScroll(false);
   useRevealIO(!reduced);
 
   const [enter, setEnter] = useState(false);
@@ -1303,12 +1396,15 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
-  // FPS MAX RULES:
-  // - Overlay only on big desktop, and no expensive filters
-  const overlayEnabled = !reduced && !isMobile && window.innerWidth >= 1100;
+  const overlayEnabled = !reduced && !isMobile;
 
-  // Hero background intensity lower = smoother
-  const heroIntensity = reduced || isMobile ? 0 : 0.78;
+  const overlayLite = useMemo(() => {
+    if (isMobile || reduced) return true;
+    const hc = typeof navigator !== "undefined" ? ((navigator as any).hardwareConcurrency || 4) : 4;
+    return hc <= 8;
+  }, [isMobile, reduced]);
+
+  const heroIntensity = reduced || isMobile ? 0 : 1.05;
 
   return (
     <main
@@ -1400,9 +1496,8 @@ export default function Home() {
         <div style={{ position: "relative", zIndex: 2 }}>
           <SocialAutomationSectionMemo reducedMotion={reduced} isMobile={isMobile} t={t} lang={lang} />
         </div>
-        <ConnectorOverlayMemo enabled={overlayEnabled} rootRef={flowRef} />
+        <ConnectorOverlayMemo enabled={overlayEnabled} rootRef={flowRef} lite={overlayLite} />
       </div>
     </main>
   );
 }
- 
