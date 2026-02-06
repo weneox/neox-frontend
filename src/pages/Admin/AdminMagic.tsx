@@ -1,10 +1,11 @@
-// src/pages/Admin/AdminMagic.tsx
+// src/pages/Admin/AdminMagic.tsx (FINAL)
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
-const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE; // ✅ no localhost fallback
-const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 const LS_TOKEN = "neox_admin_token";
+
+// ✅ Set your production backend here (safe fallback when Netlify env fails)
+const PROD_BACKEND = "https://neox-backend-production.up.railway.app";
 
 type ConsumeResp = {
   ok?: boolean;
@@ -41,6 +42,29 @@ function safeNextPath(nextRaw: string | null | undefined, lang: string) {
   return n;
 }
 
+// ✅ resolves API base robustly (env > prod fallback > local)
+function resolveApiBase(): string {
+  const env = String((import.meta as any)?.env?.VITE_API_BASE || "").trim();
+  if (env) return env.replace(/\/+$/, "");
+
+  const host =
+    typeof window !== "undefined" && window.location?.hostname ? window.location.hostname : "";
+
+  // If running on production host or netlify preview -> use prod backend
+  if (
+    host &&
+    (host === "weneox.com" ||
+      host === "www.weneox.com" ||
+      host.endsWith(".netlify.app") ||
+      host.includes("netlify"))
+  ) {
+    return PROD_BACKEND;
+  }
+
+  // local dev fallback
+  return "http://localhost:5050";
+}
+
 export default function AdminMagic() {
   const { lang: langParam } = useParams<{ lang?: string }>();
   const lang = getLangFromParams(langParam);
@@ -51,6 +75,8 @@ export default function AdminMagic() {
   const qs = useMemo(() => new URLSearchParams(loc.search), [loc.search]);
   const ml = (qs.get("ml") || qs.get("token") || "").trim();
   const next = safeNextPath(qs.get("next"), lang);
+
+  const API_BASE = useMemo(() => resolveApiBase(), []);
 
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [err, setErr] = useState<string | null>(null);
@@ -63,13 +89,6 @@ export default function AdminMagic() {
       if (!ml) {
         setStatus("error");
         setErr("Magic link token (ml) tapılmadı.");
-        return;
-      }
-
-      // ✅ fail-fast: prod-da localhost-a düşməsin
-      if (!API_BASE) {
-        setStatus("error");
-        setErr("VITE_API_BASE tapılmadı (Netlify env). Deploy-i cache-siz yenilə.");
         return;
       }
 
@@ -103,11 +122,22 @@ export default function AdminMagic() {
 
         timer = setTimeout(() => {
           nav(next, { replace: true });
-        }, 50);
+        }, 80);
       } catch (e: any) {
         if (!alive) return;
         setStatus("error");
-        setErr(e?.message || "Magic link işləmədi.");
+
+        const msg = String(e?.message || "Magic link işləmədi.").trim();
+
+        // helpful hint if it's still pointing to localhost somewhere
+        if (msg.toLowerCase().includes("failed to fetch")) {
+          setErr(
+            msg +
+              " — API-yə qoşula bilmədi. Netlify build köhnə ola bilər: Deploy project WITHOUT cache et."
+          );
+        } else {
+          setErr(msg);
+        }
       }
     }
 
@@ -117,14 +147,14 @@ export default function AdminMagic() {
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [ml, next, nav]);
+  }, [ml, next, nav, API_BASE]);
 
   return (
     <div style={S.page}>
       <div style={S.card}>
         <div style={S.brandRow}>
           <div style={S.dot} />
-          <div style={S.brand}>NEOX Admin</div>
+          <div style={S.brand}>NEOX ADMIN</div>
         </div>
 
         <div style={{ marginTop: 10, fontSize: 22, fontWeight: 950 }}>
@@ -149,7 +179,7 @@ export default function AdminMagic() {
         </div>
 
         <div style={{ marginTop: 14, fontSize: 12, color: "rgba(255,255,255,.55)" }}>
-          API: <code style={S.code}>{API_BASE || "MISSING"}</code>
+          API: <code style={S.code}>{API_BASE}</code>
         </div>
       </div>
     </div>
