@@ -5123,9 +5123,9 @@ body::before{
   z-index: 1;
   filter: drop-shadow(0 6px 14px rgba(0,0,0,.55));
 }
-.neo-plogo__icon[data-p="WHATSAPP"]{ background-image:url("/photo.1.webp"); }
-.neo-plogo__icon[data-p="FACEBOOK"]{ background-image:url("/photo.2.png"); }
-.neo-plogo__icon[data-p="INSTAGRAM"]{ background-image:url("/photo.3.png"); }
+.neo-plogo__icon[data-p="WHATSAPP"]{ background-image: url("/image/photo.1.webp"); }
+.neo-plogo__icon[data-p="FACEBOOK"]{ background-image: url("/image/photo.2.png"); }
+.neo-plogo__icon[data-p="INSTAGRAM"]{ background-image: url("/image/photo.3.png"); }
 
 /* DOT */
 .neo-autoDot{
