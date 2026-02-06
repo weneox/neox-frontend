@@ -225,6 +225,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
     const p = clamp01(y / 180);
 
+    // ✅ həm desktop, həm mobil eyni effekt üçün: scroll progress CSS var
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
     if (Math.abs(p - lastPRef.current) > 0.002) {
@@ -396,30 +397,45 @@ export default function Header({ introReady }: { introReady: boolean }) {
   return (
     <header
       ref={headerRef}
-      className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
+      className={cx(
+        "site-header",
+        introReady && "site-header--in",
+        scrolled && "is-scrolled",
+        open && "is-open",
+        !scrolled && "is-top" // ✅ yuxarıda olanda (hero)
+      )}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ FIX: Mobil-də logo solda, küncdə və BALACA + override (başqa CSS böyütsə də!) */}
+      {/* ✅ Mobil-də də: yuxarıda şəffaf, aşağıda blur glass */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* Header-də link underline çıxart */
+/* link underline off */
 .site-header a,
 .site-header a:hover,
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
 
-/* Dəyişənlər */
+/* Layout vars (logo ölçüsü sən bəyəndiyin kimi saxlanıldı) */
 .site-header{
-  --logoH: 28px;     /* desktop */
+  --logoH: 28px;   /* desktop */
   --hdrPadY: 16px;
   --hdrPadX: 14px;
+
+  /* scroll progress var: 0 (top) → 1 (scrolled) */
+  --hdrp: 0;
+
+  /* glass tuning */
+  --glassA: calc(.00 + (var(--hdrp) * .70));  /* overlay opacity */
+  --blur:  calc(0px + (var(--hdrp) * 12px));  /* blur */
+  --sat:   calc(100% + (var(--hdrp) * 55%));  /* saturation */
+  --bdA:   calc(.00 + (var(--hdrp) * .16));   /* border alpha */
 }
 
-/* ✅ Mobil: küncə yaxın + daha balaca */
+/* Mobil logo ölçüsü (bəyəndiyin kimi) */
 @media (max-width: 920px){
   .site-header{
-    --logoH: 18px;   /* ✅ burda əsas ölçü */
+    --logoH: 18px;
     --hdrPadY: 8px;
     --hdrPadX: 10px;
   }
@@ -432,7 +448,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   }
 }
 
-/* Header inner spacing */
+/* Header inner padding */
 .site-header .header-inner{
   padding-top: var(--hdrPadY);
   padding-bottom: var(--hdrPadY);
@@ -440,24 +456,44 @@ export default function Header({ introReady }: { introReady: boolean }) {
   padding-right: var(--hdrPadX);
 }
 
-/* ✅ LEFT: küncə yapışdır, boşluğu az et */
+/* ✅ GLASS BACKGROUND (mobil+desktop eyni) */
+.site-header{
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: rgba(0,0,0, var(--glassA)); /* topda 0, scroll-da artır */
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  border-bottom: 1px solid rgba(255,255,255, var(--bdA));
+  transition: background .18s ease, border-color .18s ease, -webkit-backdrop-filter .18s ease, backdrop-filter .18s ease;
+}
+
+/* Top state: tam şəffaf + border yox (hero üstündə) */
+.site-header.is-top{
+  background: rgba(0,0,0,0);
+  border-bottom-color: rgba(255,255,255,0);
+  -webkit-backdrop-filter: blur(0px) saturate(100%);
+  backdrop-filter: blur(0px) saturate(100%);
+}
+
+/* LEFT align */
 .site-header .header-left{
   display:flex;
   align-items:flex-start;
   justify-content:flex-start;
 }
 
-/* Brand link: tap target qalır, amma logo kiçik görünür */
+/* Brand link */
 .brand-link{
   display:inline-flex;
   align-items:flex-start;
   justify-content:flex-start;
-  padding: 2px 0;        /* ✅ daha az */
+  padding: 2px 0;
   line-height:0;
   max-width: 55vw;
 }
 
-/* Logo wrap — pill yox */
+/* Logo wrap */
 .headerBrand{
   position:relative;
   display:inline-flex;
@@ -475,7 +511,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 }
 .headerBrand:hover{ transform:translateY(-1px); }
 
-/* Aura (mobil-də çox yüngül, istəsən tam da söndürə bilərik) */
+/* aura */
 .headerBrand__aura{
   position:absolute;
   inset:-10px;
@@ -498,10 +534,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
   .headerBrand:hover .headerBrand__aura{ opacity:.13; }
 }
 
-/* Glint tam ləğv */
 .headerBrand__glint{ display:none !important; }
 
-/* ✅ ƏN VACİB: başqa CSS height verirsə belə, bunu basdırırıq */
+/* ✅ force logo size */
 .headerBrand__img{
   display:block !important;
   height: var(--logoH) !important;
@@ -515,8 +550,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     drop-shadow(0 6px 16px rgba(0,0,0,.42))
     drop-shadow(0 0 10px rgba(47,184,255,.05));
 }
-
-/* ✅ Mobil: logo daha da qısaldılsa belə, en də limitlensin */
 @media (max-width: 920px){
   .headerBrand__img{ max-width: 120px !important; }
 }
@@ -524,15 +557,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
   .headerBrand__img{ max-width: 105px !important; }
 }
 
-/* Sağ tərəf sıxlığı */
+/* right spacing */
 @media (max-width: 920px){
   .site-header .header-right{ gap: 10px; }
   .site-header .nav-toggle{ margin-left: 2px; }
-  /* Lang düyməsi çox böyüməsin */
   .site-header .langMenu__btn{ padding: 8px 10px; }
 }
 
 @media (prefers-reduced-motion:reduce){
+  .site-header{ transition:none !important; }
   .headerBrand,
   .headerBrand__aura{ transition:none !important; }
 }
