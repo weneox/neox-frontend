@@ -1,4 +1,4 @@
-// src/pages/Admin/AdminChats.tsx (FINAL — stable polling + auto-scroll + handoff rollback exact)
+// src/pages/Admin/AdminChats.tsx (FINAL — stable polling + auto-scroll + handoff rollback + focus=reply)
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
 
@@ -41,9 +41,12 @@ function formatDt(iso?: string) {
   return d.toLocaleString();
 }
 
-function useLangPath() {
-  const { lang } = useParams<{ lang?: string }>();
-  return (lang || "az").toLowerCase();
+function useLangAndChatId() {
+  const { lang, id } = useParams<{ lang?: string; id?: string }>();
+  return {
+    lang: (lang || "az").toLowerCase(),
+    chatId: (id || "").trim() || null,
+  };
 }
 
 function pickPreview(ms: Msg[]) {
@@ -62,7 +65,7 @@ function buildAdminHeaders(token: string) {
 
 export default function AdminChats() {
   const loc = useLocation();
-  const lang = useLangPath();
+  const { lang, chatId } = useLangAndChatId();
 
   const [token, setToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
   const [tempToken, setTempToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
@@ -85,6 +88,9 @@ export default function AdminChats() {
     arr.sort((a, b) => (Number(a.ts || 0) || 0) - (Number(b.ts || 0) || 0));
     return arr;
   }, [messages]);
+
+  // ✅ reply input ref (for ?focus=reply)
+  const replyInputRef = useRef<HTMLInputElement | null>(null);
 
   // Thread auto-scroll
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +152,18 @@ export default function AdminChats() {
     clearAuth(null);
   }
 
+  // ✅ sync between tabs (if token changes elsewhere)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== LS_TOKEN) return;
+      const v = e.newValue || "";
+      setToken(v);
+      setTempToken(v);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   async function fetchConversations(opts?: { silent?: boolean; keepActive?: boolean }) {
     const silent = opts?.silent ?? false;
     const keepActive = opts?.keepActive ?? true;
@@ -186,6 +204,7 @@ export default function AdminChats() {
       setConvs(list);
 
       setActiveId((prev) => {
+        if (chatId && list.some((x) => x.id === chatId)) return chatId;
         if (keepActive && prev && list.some((x) => x.id === prev)) return prev;
         return list[0]?.id || null;
       });
@@ -406,6 +425,22 @@ export default function AdminChats() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // ✅ focus=reply support (for magic link)
+  useEffect(() => {
+    if (!token || !activeId) return;
+
+    const qs = new URLSearchParams(loc.search);
+    const focus = (qs.get("focus") || "").toLowerCase();
+    if (focus !== "reply") return;
+
+    // give UI a moment (thread + input mounted)
+    const t = window.setTimeout(() => {
+      replyInputRef.current?.focus();
+    }, 180);
+
+    return () => window.clearTimeout(t);
+  }, [loc.search, token, activeId, orderedMessages.length]);
+
   // LOGIN
   if (!token) {
     return (
@@ -425,7 +460,12 @@ export default function AdminChats() {
             {err && <div style={S.err}>{err}</div>}
 
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              <input value={tempToken} onChange={(e) => setTempToken(e.target.value)} placeholder="ADMIN TOKEN" style={S.input} />
+              <input
+                value={tempToken}
+                onChange={(e) => setTempToken(e.target.value)}
+                placeholder="ADMIN TOKEN"
+                style={S.input}
+              />
               <button onClick={doLogin} style={S.btnPrimary}>
                 Daxil ol
               </button>
@@ -456,8 +496,8 @@ export default function AdminChats() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 950 }}>Admin Chats</div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 4 }}>
-              Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route: <code style={S.code}>{loc.pathname}</code>{" "}
-              <span style={{ opacity: 0.7 }}> • Auto: 6s</span>
+              Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route:{" "}
+              <code style={S.code}>{loc.pathname}</code> <span style={{ opacity: 0.7 }}> • Auto: 6s</span>
             </div>
           </div>
 
@@ -579,7 +619,8 @@ export default function AdminChats() {
 
                   {aiOff && (
                     <div style={S.noticeOff}>
-                      Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça bilərsən.
+                      Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça
+                      bilərsən.
                     </div>
                   )}
                 </div>
@@ -589,7 +630,8 @@ export default function AdminChats() {
                     <div style={{ padding: 10, color: "rgba(255,255,255,.65)" }}>Mesaj yoxdur.</div>
                   ) : (
                     orderedMessages.map((m) => {
-                      const isAdminReply = m.role === "assistant" && (m?.meta?.source === "admin_panel" || m.channel === "admin");
+                      const isAdminReply =
+                        m.role === "assistant" && (m?.meta?.source === "admin_panel" || m.channel === "admin");
                       const isUser = m.role === "user";
                       const mine = isAdminReply;
 
@@ -610,6 +652,7 @@ export default function AdminChats() {
 
                 <div style={S.replyBox}>
                   <input
+                    ref={replyInputRef}
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Operator reply yaz…"

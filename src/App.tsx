@@ -21,6 +21,7 @@ import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminLeads from "./pages/Admin/AdminLeads";
 import AdminChats from "./pages/Admin/AdminChats";
 import AdminStub from "./pages/Admin/AdminStub";
+import AdminMagic from "./pages/Admin/AdminMagic"; // ✅ NEW
 
 // i18n
 import { LANGS, DEFAULT_LANG, type Lang } from "./i18n/lang";
@@ -115,9 +116,15 @@ function WithLayout() {
 function AdminOnlyGate({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
   const lang = getLangFromPath(loc.pathname) || DEFAULT_LANG;
-  const isAdmin =
-    loc.pathname.startsWith(`/${lang}/admin`) || loc.pathname.startsWith("/admin");
-  return <>{children}{/* burada widget əlavə ETMİRİK */}{isAdmin ? null : null}</>;
+  const isAdmin = loc.pathname.startsWith(`/${lang}/admin`) || loc.pathname.startsWith("/admin");
+  return <>{children}{isAdmin ? null : null}</>;
+}
+
+/** ✅ langsız /admin/magic -> /:lang/admin/magic (query/hash saxlanır) */
+function AdminMagicRedirect({ toLang }: { toLang: Lang }) {
+  const loc = useLocation();
+  const next = `/${toLang}/admin/magic${loc.search}${loc.hash}`;
+  return <Navigate to={next} replace />;
 }
 
 export default function App() {
@@ -171,16 +178,23 @@ export default function App() {
             {/* root -> auto lang */}
             <Route path="/" element={<Navigate to={`/${rootLang}`} replace />} />
 
+            {/* ✅ MAGIC (langsız) — bunu yuxarıda saxla ki /admin/* udmasın */}
+            <Route path="/admin/magic" element={<AdminMagicRedirect toLang={rootLang} />} />
+
             {/* ✅ lang-sız admin route-lar -> auto lang admin */}
             <Route path="/admin" element={<Navigate to={`/${rootLang}/admin`} replace />} />
             <Route path="/admin/*" element={<Navigate to={`/${rootLang}/admin`} replace />} />
 
             <Route path="/:lang" element={<LangGate />}>
+              {/* ✅ MAGIC (langlı) — AdminLayout-dan KƏNAR (auth-guard bloklamasın) */}
+              <Route path="admin/magic" element={<AdminMagic />} />
+
               {/* ✅ ADMIN (Layout YOX — öz AdminLayout var) */}
               <Route path="admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="leads" replace />} />
                 <Route path="leads" element={<AdminLeads />} />
                 <Route path="chats" element={<AdminChats />} />
+                <Route path="chats/:id" element={<AdminChats />} />
                 <Route path="blog" element={<AdminStub title="Blog (coming next)" />} />
                 <Route path="products" element={<AdminStub title="Shop / Products (coming next)" />} />
                 <Route path="media" element={<AdminStub title="Media (coming next)" />} />
