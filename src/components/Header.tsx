@@ -124,8 +124,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const headerRef = useRef<HTMLElement | null>(null);
   const scrollElRef = useRef<HTMLElement | Window | null>(null);
-  const rafRef = useRef<number | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const rafPending = useRef(false);
+  const lastPRef = useRef<number>(-1);
 
   const withLang = useCallback(
     (to: string) => {
@@ -163,6 +165,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [t]
   );
 
+  // Header height → CSS var
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -221,35 +224,45 @@ export default function Header({ introReady }: { introReady: boolean }) {
     else y = (sc as HTMLElement).scrollTop || 0;
 
     const p = clamp01(y / 180);
+
+    // DOM write yalnız dəyişəndə
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
-    setScrolled(p > 0.02);
+
+    // state update yalnız dəyişəndə
+    if (Math.abs(p - lastPRef.current) > 0.002) {
+      lastPRef.current = p;
+      setScrolled(p > 0.02);
+    }
   }, []);
 
+  // Scroll listener + rAF throttle (daha yüngül)
   useEffect(() => {
     scrollElRef.current = getScrollableEl();
     ensureSentinel();
     computeScrolled();
 
-    const tick = () => {
-      computeScrolled();
-      rafRef.current = window.requestAnimationFrame(tick);
+    const schedule = () => {
+      if (rafPending.current) return;
+      rafPending.current = true;
+      requestAnimationFrame(() => {
+        rafPending.current = false;
+        computeScrolled();
+      });
     };
-    rafRef.current = window.requestAnimationFrame(tick);
 
-    const on = () => computeScrolled();
-    window.addEventListener("resize", on, { passive: true });
-    window.addEventListener("scroll", on, { passive: true });
+    const onResize = () => schedule();
+    const onScroll = () => schedule();
+
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     const sc = scrollElRef.current;
-    if (sc && sc !== window) (sc as HTMLElement).addEventListener("scroll", on, { passive: true });
+    if (sc && sc !== window) (sc as HTMLElement).addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
-      window.removeEventListener("resize", on as any);
-      window.removeEventListener("scroll", on as any);
-      if (sc && sc !== window) (sc as HTMLElement).removeEventListener("scroll", on as any);
-
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+      window.removeEventListener("resize", onResize as any);
+      window.removeEventListener("scroll", onScroll as any);
+      if (sc && sc !== window) (sc as HTMLElement).removeEventListener("scroll", onScroll as any);
 
       if (sentinelRef.current) {
         sentinelRef.current.remove();
@@ -374,16 +387,47 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ Logo: balacala + pill LƏĞV + üstündən gedən işıq (glint) LƏĞV — çox yüngül hissiyat */}
+      {/* ===== Header tuning (logo + mobile sizing) ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* Header-də link underline çıxart (logo/cta da səliqəli) */
+/* Header-də link underline çıxart */
 .site-header a,
 .site-header a:hover,
 .site-header a:focus,
-.site-header a:active{
-  text-decoration:none;
+.site-header a:active{ text-decoration:none; }
+
+/* ✅ Mobil optimizasiya üçün dəyişənlər */
+.site-header{
+  --logoH: 28px;         /* desktop default */
+  --hdrPadY: 18px;       /* desktop default */
+}
+@media (max-width: 920px){
+  .site-header{
+    --logoH: 22px;       /* ✅ mobil: daha balaca */
+    --hdrPadY: 12px;     /* ✅ mobil: daha sıx */
+  }
+}
+@media (max-width: 380px){
+  .site-header{
+    --logoH: 20px;       /* çox balaca ekranlar */
+    --hdrPadY: 10px;
+  }
+}
+
+/* Header inner spacing-i sıx (layout səliqəli) */
+.site-header .header-inner{
+  padding-top: var(--hdrPadY);
+  padding-bottom: var(--hdrPadY);
+}
+
+/* Brand link: mobilde klik sahəsi böyük qalsın, amma logo balaca görünsün */
+.brand-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding: 6px 0;        /* tap target */
+  line-height:0;
 }
 
 /* ===== Header logo wrap — pill YOX ===== */
@@ -404,7 +448,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 }
 .headerBrand:hover{ transform:translateY(-1px); }
 
-/* ✅ ÇOX YÜNGÜL aura (istəsən 0 da edə bilərik) */
+/* ✅ ÇOX YÜNGÜL aura (mobilde daha da yüngül) */
 .headerBrand__aura{
   position:absolute;
   inset:-10px;
@@ -412,19 +456,28 @@ export default function Header({ introReady }: { introReady: boolean }) {
   background:
     radial-gradient(closest-side at 40% 50%, rgba(47,184,255,.10), transparent 65%),
     radial-gradient(closest-side at 70% 55%, rgba(42,125,255,.07), transparent 70%);
-  opacity:.20;              /* ✅ çox yüngül */
+  opacity:.20;
   filter:blur(14px);
   transition:opacity .22s ease;
 }
 .headerBrand:hover .headerBrand__aura{ opacity:.28; }
 
+@media (max-width: 920px){
+  .headerBrand__aura{
+    inset:-8px;
+    filter:blur(12px);
+    opacity:.16;
+  }
+  .headerBrand:hover .headerBrand__aura{ opacity:.20; }
+}
+
 /* ✅ Üstündən gedən işıq (glint) TAM LƏĞV */
 .headerBrand__glint{ display:none !important; }
 
-/* ✅ Logo daha balaca + super yüngül kölgə */
+/* ✅ Logo ölçüsü: dəyişənlə idarə olunur */
 .headerBrand__img{
   display:block;
-  height:28px;
+  height: var(--logoH);
   width:auto;
   object-fit:contain;
   user-select:none;
@@ -432,6 +485,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
     drop-shadow(0 6px 16px rgba(0,0,0,.42))
     drop-shadow(0 0 10px rgba(47,184,255,.06));
   transform:translateZ(0);
+}
+
+/* Mobil grid: orta nav çox vaxt gizlidir, sağ tərəfdə sıxlıq olur → aralıqları azaldırıq */
+@media (max-width: 920px){
+  .site-header .header-right{
+    gap: 10px;
+  }
+  .site-header .nav-toggle{
+    margin-left: 4px;
+  }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -448,7 +511,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           <Link to={`/${lang}`} className="brand-link" aria-label="NEOX" data-wg-notranslate>
             <span className="headerBrand" aria-hidden="true">
               <span className="headerBrand__aura" aria-hidden="true" />
-              {/* glint intentionally removed */}
               <img
                 className="headerBrand__img"
                 src="/image/neox-logo.png"
