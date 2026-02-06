@@ -1,4 +1,6 @@
-// src/pages/Admin/AdminLeads.tsx  (MOBILE-READY — stacked list/detail + no sideways scroll)
+// src/pages/Admin/AdminLeads.tsx
+// (MOBILE-READY — stacked list/detail + no sideways scroll)
+// ✅ FIX: API_BASE only from adminContext (NO localhost fallback)
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAdmin } from "./adminContext";
@@ -73,11 +75,13 @@ function useIsMobile(breakpoint = 900) {
 
 export default function AdminLeads() {
   const loc = useLocation();
+
+  // ✅ use admin context for apiBase + token + logout
   const { apiBase: apiBaseRaw, token, logout } = useAdmin();
 
   const isMobile = useIsMobile(900);
 
-  // normalize API base (remove trailing /)
+  // ✅ normalize API base (remove trailing /)
   const API_BASE = useMemo(() => String(apiBaseRaw || "").replace(/\/+$/, ""), [apiBaseRaw]);
 
   const [loading, setLoading] = useState(false);
@@ -304,7 +308,7 @@ export default function AdminLeads() {
                   <div style={S.emptyPad}>Hələ lead yoxdur.</div>
                 ) : (
                   leads.map((l) => {
-                    const active = l.id === selectedId;
+                    const activeRow = l.id === selectedId;
                     const st = ((l.status as LeadStatus) || "new") as LeadStatus;
 
                     return (
@@ -314,7 +318,7 @@ export default function AdminLeads() {
                           setSelectedId(l.id);
                           if (isMobile) setMobileView("detail");
                         }}
-                        style={{ ...S.item, ...(active ? S.itemActive : null) }}
+                        style={{ ...S.item, ...(activeRow ? S.itemActive : null) }}
                       >
                         <div style={S.itemRow}>
                           <div style={S.itemName}>{l.name || "— Adsız"}</div>
@@ -416,7 +420,7 @@ export default function AdminLeads() {
 
         <div style={S.footerNote}>
           token header: <code style={S.codeMini}>x-admin-token</code> / <code style={S.codeMini}>Authorization</code> • API:{" "}
-          <code style={S.codeMini}>{API_BASE}</code>
+          <code style={S.codeMini}>{API_BASE || "(same-origin)"}</code>
         </div>
       </div>
     </div>
@@ -454,7 +458,14 @@ const S: Record<string, any> = {
     overflow: "hidden",
   },
   topTitle: { fontSize: 18, fontWeight: 950, letterSpacing: ".02em" },
-  topSub: { fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  topSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,.65)",
+    marginTop: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
 
   actions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
@@ -522,8 +533,22 @@ const S: Record<string, any> = {
   },
   itemActive: { background: "rgba(255,255,255,.05)", transform: "translateY(-1px)" },
   itemRow: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", minWidth: 0 },
-  itemName: { fontWeight: 900, fontSize: 14, color: "rgba(255,255,255,.92)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  itemMeta: { marginTop: 6, fontSize: 12, color: "rgba(255,255,255,.64)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  itemName: {
+    fontWeight: 900,
+    fontSize: 14,
+    color: "rgba(255,255,255,.92)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  itemMeta: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "rgba(255,255,255,.64)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
   itemTime: { marginTop: 6, fontSize: 11, color: "rgba(255,255,255,.46)" },
 
   pill: (st: LeadStatus) => {
@@ -545,7 +570,13 @@ const S: Record<string, any> = {
   },
 
   detailWrap: { padding: 14, display: "grid", gap: 12, minWidth: 0 },
-  card: { borderRadius: 16, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.22)", padding: 12, minWidth: 0 },
+  card: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,.10)",
+    background: "rgba(0,0,0,.22)",
+    padding: 12,
+    minWidth: 0,
+  },
 
   kvRow: {
     display: "grid",
@@ -560,7 +591,6 @@ const S: Record<string, any> = {
   message: { marginTop: 8, whiteSpace: "pre-wrap", lineHeight: 1.45, color: "rgba(255,255,255,.86)" },
 
   controls: { display: "flex", gap: 12, flexWrap: "wrap" },
-
   detailActions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 },
 
   input: {

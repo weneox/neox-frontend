@@ -1,11 +1,10 @@
 // src/pages/Admin/AdminChats.tsx
-// MOBILE-READY — stacked list/thread + back button + sticky reply bar + keeps focus=reply + your polling logic intact
+// MOBILE-READY — stacked list/thread + back button + sticky reply bar
+// ✅ FIX: API_BASE + token from adminContext (NO localhost fallback)
+// ✅ FIX: remove duplicated localStorage auth flow (single source of truth)
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
-
-const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
-const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
-const LS_TOKEN = "neox_admin_token";
+import { useAdmin } from "./adminContext";
 
 type Conv = {
   id: string;
@@ -89,8 +88,18 @@ export default function AdminChats() {
   const { lang, chatId } = useLangAndChatId();
   const isMobile = useIsMobile(900);
 
-  const [token, setToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
-  const [tempToken, setTempToken] = useState(() => localStorage.getItem(LS_TOKEN) || "");
+  // ✅ single source of truth
+  const { apiBase: apiBaseRaw, token, setToken, logout: ctxLogout } = useAdmin();
+
+  // ✅ normalize api base (remove trailing slash). "" => same-origin
+  const API_BASE = useMemo(() => String(apiBaseRaw || "").replace(/\/+$/, ""), [apiBaseRaw]);
+
+  // login draft
+  const [tempToken, setTempToken] = useState(() => token || "");
+
+  useEffect(() => {
+    setTempToken(token || "");
+  }, [token]);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -117,16 +126,14 @@ export default function AdminChats() {
   // ✅ reply input ref (for ?focus=reply)
   const replyInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Thread auto-scroll (keep it gentle on mobile)
+  // Thread auto-scroll
   const threadRef = useRef<HTMLDivElement | null>(null);
   const autoScrollLockRef = useRef(false);
+
   useEffect(() => {
     const el = threadRef.current;
     if (!el) return;
-
-    // if user scrolled up, don't snap
     if (autoScrollLockRef.current) return;
-
     el.scrollTop = el.scrollHeight;
   }, [orderedMessages.length]);
 
@@ -169,12 +176,8 @@ export default function AdminChats() {
     threadInflight.current = false;
   }
 
-  function clearAuth(msg?: string | null) {
+  function clearUI(msg?: string | null) {
     stopAllNetworking();
-
-    localStorage.removeItem(LS_TOKEN);
-    setToken("");
-    setTempToken("");
     setConvs([]);
     setActiveId(null);
     setMessages([]);
@@ -183,29 +186,23 @@ export default function AdminChats() {
     setMobileView("list");
   }
 
+  function on401(msg?: string) {
+    clearUI(msg || "Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
+    // ✅ single logout
+    window.setTimeout(() => ctxLogout(), 200);
+  }
+
   function doLogin() {
     const t = tempToken.trim();
     if (!t) return setErr("Token yaz.");
-    localStorage.setItem(LS_TOKEN, t);
     setToken(t);
     setErr(null);
   }
 
   function logout() {
-    clearAuth(null);
+    clearUI(null);
+    ctxLogout();
   }
-
-  // ✅ sync between tabs (if token changes elsewhere)
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== LS_TOKEN) return;
-      const v = e.newValue || "";
-      setToken(v);
-      setTempToken(v);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
 
   async function fetchConversations(opts?: { silent?: boolean; keepActive?: boolean }) {
     const silent = opts?.silent ?? false;
@@ -230,10 +227,7 @@ export default function AdminChats() {
         signal: ac.signal,
       });
 
-      if (r.status === 401) {
-        clearAuth("Token səhvdir. Yenidən daxil ol.");
-        return;
-      }
+      if (r.status === 401) return on401("Token səhvdir. Yenidən daxil ol.");
 
       if (!r.ok) {
         const t = await r.text().catch(() => "");
@@ -277,10 +271,7 @@ export default function AdminChats() {
         signal: ac.signal,
       });
 
-      if (r.status === 401) {
-        clearAuth("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
-        return;
-      }
+      if (r.status === 401) return on401("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
 
       if (!r.ok) {
         if (!silent) {
@@ -338,10 +329,7 @@ export default function AdminChats() {
             body: JSON.stringify(a.body ?? {}),
           });
 
-          if (r.status === 401) {
-            clearAuth("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
-            return;
-          }
+          if (r.status === 401) return on401("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
 
           if (r.ok) {
             ok = true;
@@ -394,10 +382,7 @@ export default function AdminChats() {
         body: JSON.stringify({ content: text }),
       });
 
-      if (r.status === 401) {
-        clearAuth("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
-        return;
-      }
+      if (r.status === 401) return on401("Token vaxtı bitib və ya səhvdir. Yenidən daxil ol.");
 
       if (!r.ok) {
         const t = await r.text().catch(() => "");
@@ -414,10 +399,9 @@ export default function AdminChats() {
       // operator replied => handoff true
       setConvs((prev) => prev.map((c) => (c.id === activeId ? { ...c, handoff: true } : c)));
 
-      // after sending, keep thread view on mobile
       if (isMobile) setMobileView("thread");
 
-      // autoscroll again (we're at bottom after sending)
+      // after sending, keep autoscroll enabled
       autoScrollLockRef.current = false;
 
       fetchConversations({ silent: true, keepActive: true });
@@ -432,23 +416,19 @@ export default function AdminChats() {
   // Boot: when token appears
   useEffect(() => {
     if (!token) return;
-
+    clearUI(null);
     fetchConversations({ silent: false, keepActive: true });
-
     return () => stopAllNetworking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, API_BASE]);
 
   // When active changes, load thread
   useEffect(() => {
     if (!token || !activeId) return;
     fetchThread(activeId, { silent: false });
-
-    // on mobile, auto switch to thread when a chat is selected
     if (isMobile) setMobileView("thread");
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activeId]);
+  }, [token, activeId, API_BASE]);
 
   // Poll (uses latest activeId)
   const activeIdRef = useRef<string | null>(null);
@@ -472,7 +452,7 @@ export default function AdminChats() {
       pollRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, API_BASE]);
 
   // ✅ focus=reply support (for magic link)
   useEffect(() => {
@@ -482,7 +462,6 @@ export default function AdminChats() {
     const focus = (qs.get("focus") || "").toLowerCase();
     if (focus !== "reply") return;
 
-    // make sure we're on thread view on mobile
     if (isMobile) setMobileView("thread");
 
     const t = window.setTimeout(() => {
@@ -527,7 +506,7 @@ export default function AdminChats() {
               </button>
 
               <div style={{ fontSize: 12, color: "rgba(255,255,255,.55)" }}>
-                Backend test: <code style={S.code}>{API_BASE}/health</code>
+                Backend test: <code style={S.code}>{API_BASE || "(same-origin)"}/health</code>
               </div>
             </div>
 
@@ -571,7 +550,11 @@ export default function AdminChats() {
               </button>
             )}
 
-            <button onClick={() => fetchConversations({ silent: false, keepActive: true })} style={S.btn} disabled={loading}>
+            <button
+              onClick={() => fetchConversations({ silent: false, keepActive: true })}
+              style={S.btn}
+              disabled={loading}
+            >
               Yenilə
             </button>
 
@@ -763,7 +746,7 @@ export default function AdminChats() {
 
         <div style={S.footerLine}>
           token headers: <code style={S.code}>x-admin-token</code> / <code style={S.code}>Authorization</code> • API:{" "}
-          <code style={S.code}>{API_BASE}</code> • preview: <code style={S.code}>{pickPreview(orderedMessages)}</code>
+          <code style={S.code}>{API_BASE || "(same-origin)"}</code> • preview: <code style={S.code}>{pickPreview(orderedMessages)}</code>
         </div>
       </div>
     </div>
@@ -970,7 +953,6 @@ const S: Record<string, any> = {
     lineHeight: 1.4,
   },
 
-  // Thread scroll: bigger on mobile, but bounded
   thread: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,.10)",
@@ -996,7 +978,6 @@ const S: Record<string, any> = {
   bubbleText: { whiteSpace: "pre-wrap", lineHeight: 1.45, wordBreak: "break-word" },
   bubbleTime: { marginTop: 8, fontSize: 11, opacity: 0.55 },
 
-  // Sticky reply bar inside panel area
   replyBar: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,.10)",

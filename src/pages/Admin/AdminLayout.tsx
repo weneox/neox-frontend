@@ -20,8 +20,17 @@ function withLang(path: string, lang: Lang) {
   return `/${lang}${p}`;
 }
 
-const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
-const API_BASE = String(API_BASE_RAW).replace(/\/+$/, "");
+function normalizeBase(v: any) {
+  return String(v || "").trim().replace(/\/+$/, "");
+}
+
+/**
+ * ✅ IMPORTANT:
+ * - If VITE_API_BASE exists -> use it (Railway URL)
+ * - If not -> same-origin ("") so calls go to /api/... on current domain
+ * This prevents any accidental localhost in production.
+ */
+const API_BASE = normalizeBase((import.meta as any)?.env?.VITE_API_BASE || "");
 
 /* ------------------ small hooks ------------------ */
 function useIsMobile(breakpoint = 900) {
@@ -34,7 +43,6 @@ function useIsMobile(breakpoint = 900) {
     const mq = window.matchMedia(`(max-width:${breakpoint}px)`);
     const onChange = () => setIsMobile(mq.matches);
     onChange();
-    // Safari fallback
     if ((mq as any).addEventListener) mq.addEventListener("change", onChange);
     else (mq as any).addListener?.(onChange);
     return () => {
@@ -53,6 +61,10 @@ function AdminLoginCard() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    setTemp(token || "");
+  }, [token]);
+
   async function doLogin() {
     const t = temp.trim();
     if (!t) return setErr("Token yaz.");
@@ -61,7 +73,10 @@ function AdminLoginCard() {
     setErr(null);
 
     try {
-      const r = await fetch(`${String(apiBase).replace(/\/+$/, "")}/api/leads`, {
+      const base = normalizeBase(apiBase); // "" => same-origin
+      const url = `${base}/api/leads`;
+
+      const r = await fetch(url, {
         headers: { "x-admin-token": t, Authorization: `Bearer ${t}` },
       });
 
@@ -71,7 +86,7 @@ function AdminLoginCard() {
         return setErr(`Xəta: ${r.status} ${txt || ""}`.trim());
       }
     } catch {
-      return setErr("Backend-ə qoşulmaq olmur. API_BASE düz deyil?");
+      return setErr("Backend-ə qoşulmaq olmur. VITE_API_BASE düz deyil?");
     } finally {
       setLoading(false);
     }
@@ -108,9 +123,12 @@ function AdminLoginCard() {
             </button>
 
             <div style={S.tip}>
-              Backend test: <code style={S.codeMini}>{apiBase}/health</code>
+              Backend test:{" "}
+              <code style={S.codeMini}>
+                {(normalizeBase(apiBase) || "(same-origin)")}/health
+              </code>
               <span style={{ opacity: 0.7 }}> • API_BASE: </span>
-              <code style={S.codeMini}>{apiBase}</code>
+              <code style={S.codeMini}>{normalizeBase(apiBase) || "(same-origin)"}</code>
             </div>
           </div>
         </div>
@@ -132,21 +150,17 @@ function AdminScaffold() {
   const isMobile = useIsMobile(900);
   const { token, logout } = useAdmin();
 
-  // mobile drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // close drawer on route change
   useEffect(() => {
     setDrawerOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.pathname]);
 
-  // close drawer when switching to desktop
   useEffect(() => {
     if (!isMobile) setDrawerOpen(false);
   }, [isMobile]);
 
-  // escape closes drawer
   useEffect(() => {
     if (!drawerOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -231,7 +245,11 @@ function AdminScaffold() {
           {isMobile && (
             <>
               <div
-                style={{ ...S.drawerOverlay, opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? "auto" : "none" }}
+                style={{
+                  ...S.drawerOverlay,
+                  opacity: drawerOpen ? 1 : 0,
+                  pointerEvents: drawerOpen ? "auto" : "none",
+                }}
                 onClick={() => setDrawerOpen(false)}
               />
               <aside
@@ -301,7 +319,7 @@ export default function AdminLayout() {
 /* ------------------ styles ------------------ */
 const S: Record<string, any> = {
   page: {
-    minHeight: "100dvh", // ✅ better mobile viewport
+    minHeight: "100dvh",
     paddingTop: "calc(14px + env(safe-area-inset-top))",
     paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
     paddingLeft: "calc(14px + env(safe-area-inset-left))",
@@ -310,7 +328,7 @@ const S: Record<string, any> = {
       "radial-gradient(1200px 600px at 18% 8%, rgba(20,82,199,.22), transparent 58%), radial-gradient(900px 520px at 82% 18%, rgba(122,92,255,.16), transparent 55%), #05070f",
     color: "rgba(255,255,255,.92)",
     fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
-    overflowX: "hidden", // ✅ kill sideways scroll
+    overflowX: "hidden",
   },
 
   shellCenter: { maxWidth: 980, margin: "0 auto", paddingTop: 30, display: "grid", placeItems: "center" },
@@ -332,8 +350,22 @@ const S: Record<string, any> = {
   },
 
   topTitleRow: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
-  topTitle: { fontSize: 18, fontWeight: 950, letterSpacing: ".02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  topSub: { fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  topTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: ".02em",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  topSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,.65)",
+    marginTop: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
 
   topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
@@ -393,13 +425,8 @@ const S: Record<string, any> = {
     background: "rgba(0,0,0,.10)",
   },
 
-  content: {
-    minHeight: 200,
-    minWidth: 0, // ✅ allow content to shrink without overflow
-    overflowX: "hidden",
-  },
+  content: { minHeight: 200, minWidth: 0, overflowX: "hidden" },
 
-  /* Drawer */
   drawerOverlay: {
     position: "fixed",
     inset: 0,
@@ -452,7 +479,6 @@ const S: Record<string, any> = {
     cursor: "pointer",
   },
 
-  /* LOGIN */
   loginCard: {
     width: "min(560px, 92vw)",
     borderRadius: 20,
@@ -485,6 +511,7 @@ const S: Record<string, any> = {
     fontSize: 12,
     color: "rgba(255,255,255,.78)",
   },
+
   loginTitle: { marginTop: 6, fontSize: 26, fontWeight: 980, letterSpacing: ".01em" },
   loginSub: { marginTop: 2, fontSize: 13, color: "rgba(255,255,255,.65)" },
   tip: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,.55)" },
