@@ -225,15 +225,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
     const p = clamp01(y / 180);
 
+    // DOM write yalnız dəyişəndə
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
+    // state update yalnız dəyişəndə
     if (Math.abs(p - lastPRef.current) > 0.002) {
       lastPRef.current = p;
       setScrolled(p > 0.02);
     }
   }, []);
 
-  // Scroll listener + rAF throttle
+  // Scroll listener + rAF throttle (daha yüngül)
   useEffect(() => {
     scrollElRef.current = getScrollableEl();
     ensureSentinel();
@@ -283,12 +285,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [closeMobile]);
 
-  // Body scroll lock (yalnız mobil overlay açıqkən)
+  // Body scroll lock
   useEffect(() => {
-    if (!open) return;
     const root = document.documentElement;
     const prev = root.style.overflow;
-    root.style.overflow = "hidden";
+    if (open) root.style.overflow = "hidden";
+    else root.style.overflow = "";
     return () => {
       root.style.overflow = prev;
     };
@@ -310,13 +312,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     <div className={cx("nav-overlay", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
       <button className="nav-overlay__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
 
-      <div
-        id={panelId}
-        className={cx("nav-sheet", softOpen && "is-open")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menyu"
-      >
+      <div id={panelId} className={cx("nav-sheet", softOpen && "is-open")} role="dialog" aria-modal="true" aria-label="Menyu">
         <div className="nav-sheet__bg" aria-hidden="true" />
         <div className="nav-sheet__noise" aria-hidden="true" />
 
@@ -334,15 +330,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         <div className="nav-sheet__list">
           {links.map((l, i) => {
             const Icon =
-              l.to === "/"
-                ? Home
-                : l.to === "/about"
-                  ? Info
-                  : l.to === "/services"
-                    ? Sparkles
-                    : l.to === "/use-cases"
-                      ? Layers
-                      : BookOpen;
+              l.to === "/" ? Home : l.to === "/about" ? Info : l.to === "/services" ? Sparkles : l.to === "/use-cases" ? Layers : BookOpen;
 
             return (
               <NavLink
@@ -399,63 +387,50 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ===== Header tuning (MOBİL üçün maksimum səliqə + logo ölçüsü) ===== */}
+      {/* ===== Header tuning (logo + mobile sizing) ===== */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* Link underline çıxart */
+/* Header-də link underline çıxart */
 .site-header a,
 .site-header a:hover,
 .site-header a:focus,
 .site-header a:active{ text-decoration:none; }
 
-/* Header dəyişənləri (desktop → mobile) */
+/* ✅ Mobil optimizasiya üçün dəyişənlər */
 .site-header{
-  --hdrPadY: 16px;
-  --hdrPadX: 14px;
-  --logoH: 28px;            /* desktop */
-  --rightGap: 12px;
+  --logoH: 28px;         /* desktop default */
+  --hdrPadY: 18px;       /* desktop default */
 }
-
-/* Tablet/Mobil */
 @media (max-width: 920px){
   .site-header{
-    --hdrPadY: 10px;
-    --hdrPadX: 12px;
-    --logoH: 20px;          /* ✅ mobil logo: daha balaca */
-    --rightGap: 10px;
+    --logoH: 22px;       /* ✅ mobil: daha balaca */
+    --hdrPadY: 12px;     /* ✅ mobil: daha sıx */
   }
 }
-
-/* Çox balaca ekran */
 @media (max-width: 380px){
   .site-header{
-    --hdrPadY: 9px;
-    --hdrPadX: 10px;
-    --logoH: 18px;          /* ✅ extra small */
-    --rightGap: 8px;
+    --logoH: 20px;       /* çox balaca ekranlar */
+    --hdrPadY: 10px;
   }
 }
 
-/* Header inner spacing */
+/* Header inner spacing-i sıx (layout səliqəli) */
 .site-header .header-inner{
   padding-top: var(--hdrPadY);
   padding-bottom: var(--hdrPadY);
-  padding-left: var(--hdrPadX);
-  padding-right: var(--hdrPadX);
 }
 
-/* Brand link — klik sahəsi böyük, logo balaca görünsün */
+/* Brand link: mobilde klik sahəsi böyük qalsın, amma logo balaca görünsün */
 .brand-link{
   display:inline-flex;
   align-items:center;
   justify-content:flex-start;
-  padding: 6px 0;           /* tap target */
-  line-height: 0;
-  min-height: 40px;         /* mobil rahat klik */
+  padding: 6px 0;        /* tap target */
+  line-height:0;
 }
 
-/* Logo wrap (pill yox) */
+/* ===== Header logo wrap — pill YOX ===== */
 .headerBrand{
   position:relative;
   display:inline-flex;
@@ -467,13 +442,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
   background:transparent;
   box-shadow:none;
   overflow:visible;
-  transform: translateY(0);
-  transition: transform .18s ease;
+  transform:translateY(0);
+  transition:transform .22s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.headerBrand:hover{ transform: translateY(-1px); }
+.headerBrand:hover{ transform:translateY(-1px); }
 
-/* Çox yüngül aura */
+/* ✅ ÇOX YÜNGÜL aura (mobilde daha da yüngül) */
 .headerBrand__aura{
   position:absolute;
   inset:-10px;
@@ -481,54 +456,47 @@ export default function Header({ introReady }: { introReady: boolean }) {
   background:
     radial-gradient(closest-side at 40% 50%, rgba(47,184,255,.10), transparent 65%),
     radial-gradient(closest-side at 70% 55%, rgba(42,125,255,.07), transparent 70%);
-  opacity:.16;
-  filter: blur(14px);
-  transition: opacity .18s ease;
+  opacity:.20;
+  filter:blur(14px);
+  transition:opacity .22s ease;
 }
-.headerBrand:hover .headerBrand__aura{ opacity:.22; }
+.headerBrand:hover .headerBrand__aura{ opacity:.28; }
 
-/* Mobil aura daha yüngül */
 @media (max-width: 920px){
   .headerBrand__aura{
     inset:-8px;
-    filter: blur(12px);
-    opacity:.12;
+    filter:blur(12px);
+    opacity:.16;
   }
-  .headerBrand:hover .headerBrand__aura{ opacity:.16; }
+  .headerBrand:hover .headerBrand__aura{ opacity:.20; }
 }
 
-/* Glint tam ləğv */
+/* ✅ Üstündən gedən işıq (glint) TAM LƏĞV */
 .headerBrand__glint{ display:none !important; }
 
-/* Logo ölçüsü */
+/* ✅ Logo ölçüsü: dəyişənlə idarə olunur */
 .headerBrand__img{
   display:block;
   height: var(--logoH);
   width:auto;
   object-fit:contain;
   user-select:none;
-  transform: translateZ(0);
   filter:
     drop-shadow(0 6px 16px rgba(0,0,0,.42))
-    drop-shadow(0 0 10px rgba(47,184,255,.05));
+    drop-shadow(0 0 10px rgba(47,184,255,.06));
+  transform:translateZ(0);
 }
 
-/* Sağ tərəf sıxlığı */
-.site-header .header-right{
-  gap: var(--rightGap);
-}
-
-/* Mobil: nav toggle + lang düyməsi çox böyüməsin */
+/* Mobil grid: orta nav çox vaxt gizlidir, sağ tərəfdə sıxlıq olur → aralıqları azaldırıq */
 @media (max-width: 920px){
-  .site-header .langMenu__btn{
-    padding: 8px 10px;
+  .site-header .header-right{
+    gap: 10px;
   }
   .site-header .nav-toggle{
-    margin-left: 2px;
+    margin-left: 4px;
   }
 }
 
-/* Prefer reduced motion */
 @media (prefers-reduced-motion:reduce){
   .headerBrand,
   .headerBrand__aura{ transition:none !important; }
@@ -597,3 +565,4 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </header>
   );
 }
+ 
