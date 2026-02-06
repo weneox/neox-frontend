@@ -5,6 +5,9 @@
 // ✅ NEW: Translation-aware message rendering (adminLang from AdminContext)
 // ✅ NEW: sendReply includes admin_lang for backend auto-translation pipeline
 // ✅ FIX: fetchConversations + fetchThread now send admin_lang too
+// ✅ POLISH: autosize textarea + jump-to-bottom + better mobile wrap + better thread sizing
+// ✅ PRO ADD: search + unread badge + quick replies + copy message
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, Link } from "react-router-dom";
 import { useAdmin } from "./adminContext";
@@ -20,6 +23,9 @@ type Conv = {
   channel?: string;
   lead_id?: string | null;
   handoff?: boolean;
+
+  // ✅ optional from backend (if later you add it)
+  unread_count?: number;
 };
 
 type Msg = {
@@ -121,6 +127,81 @@ function pickAdminTranslation(meta: any, adminLang: string) {
   return "";
 }
 
+/* ------------------ textarea autosize ------------------ */
+function useAutosizeTextarea(ref: React.RefObject<HTMLTextAreaElement>, value: string, maxPx = 180) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    const next = Math.min(el.scrollHeight, maxPx);
+    el.style.height = `${Math.max(44, next)}px`;
+  }, [ref, value, maxPx]);
+}
+
+/* ------------------ unread helpers ------------------ */
+const LS_LAST_READ = "neox_admin_last_read_ts_v1";
+function readMap(): Record<string, number> {
+  try {
+    const j = JSON.parse(localStorage.getItem(LS_LAST_READ) || "{}");
+    if (!j || typeof j !== "object") return {};
+    const out: Record<string, number> = {};
+    for (const k of Object.keys(j)) out[k] = Number((j as any)[k] || 0) || 0;
+    return out;
+  } catch {
+    return {};
+  }
+}
+function writeMap(m: Record<string, number>) {
+  try {
+    localStorage.setItem(LS_LAST_READ, JSON.stringify(m));
+  } catch {}
+}
+function getLastReadTs(convId: string) {
+  const m = readMap();
+  return Number(m[convId] || 0) || 0;
+}
+function setLastReadTs(convId: string, ts: number) {
+  const m = readMap();
+  m[convId] = Number(ts || 0) || 0;
+  writeMap(m);
+}
+
+// ✅ for list item: get a ts from conv timestamps
+function convLastTs(c: Conv) {
+  const iso = c.lastMessageAt || c.updatedAt || c.createdAt;
+  const t = new Date(iso || "").getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/* ------------------ quick replies ------------------ */
+const QUICK_REPLIES = [
+  "Salam! Sizə necə kömək edə bilərəm?",
+  "Qiymətlər və paketlər barədə məlumat göndərirəm.",
+  "Demo üçün uyğun vaxtınızı yazın, zəhmət olmasa.",
+  "Əlaqə nömrənizi paylaşa bilərsiniz?",
+  "Təşəkkürlər! Tezliklə geri dönəcəyik.",
+];
+
+async function copyText(txt: string) {
+  const t = String(txt || "").trim();
+  if (!t) return;
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch {
+    // fallback
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } catch {}
+    document.body.removeChild(ta);
+  }
+}
+
 export default function AdminChats() {
   const loc = useLocation();
   const { routeLang, chatId } = useLangAndChatId();
@@ -140,10 +221,7 @@ export default function AdminChats() {
 
   // login draft
   const [tempToken, setTempToken] = useState(() => token || "");
-
-  useEffect(() => {
-    setTempToken(token || "");
-  }, [token]);
+  useEffect(() => setTempToken(token || ""), [token]);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -168,11 +246,21 @@ export default function AdminChats() {
   }, [messages]);
 
   // ✅ reply input ref (for ?focus=reply)
-  const replyInputRef = useRef<HTMLInputElement | null>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement | null>(null);
+  useAutosizeTextarea(replyInputRef, reply, 180);
 
   // Thread auto-scroll
   const threadRef = useRef<HTMLDivElement | null>(null);
   const autoScrollLockRef = useRef(false);
+  const [showJump, setShowJump] = useState(false);
+
+  const scrollToBottom = () => {
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    autoScrollLockRef.current = false;
+    setShowJump(false);
+  };
 
   useEffect(() => {
     const el = threadRef.current;
@@ -185,10 +273,14 @@ export default function AdminChats() {
   useEffect(() => {
     const el = threadRef.current;
     if (!el) return;
+
     const onScroll = () => {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
       autoScrollLockRef.current = !nearBottom;
+      setShowJump(!nearBottom);
     };
+
+    onScroll();
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll as any);
   }, []);
@@ -203,6 +295,27 @@ export default function AdminChats() {
 
   // Poll interval
   const pollRef = useRef<number | null>(null);
+
+  // ✅ search
+  const [q, setQ] = useState("");
+  const filteredConvs = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return convs;
+    return convs.filter((c) => {
+      const a = [
+        c.id,
+        c.session_id,
+        c.page || "",
+        c.channel || "",
+        c.lead_id || "",
+        c.lang || "",
+        c.createdAt || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return a.includes(s);
+    });
+  }, [q, convs]);
 
   function stopAllNetworking() {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -228,6 +341,8 @@ export default function AdminChats() {
     setReply("");
     setErr(msg || null);
     setMobileView("list");
+    setShowJump(false);
+    autoScrollLockRef.current = false;
   }
 
   function on401(msg?: string) {
@@ -337,6 +452,10 @@ export default function AdminChats() {
       const list: Msg[] = (j as any).messages || [];
       setMessages(list);
       if (!silent) setErr(null);
+
+      // ✅ mark as read (client-side)
+      const lastTs = Math.max(0, ...list.map((m) => Number(m.ts || 0) || 0));
+      if (lastTs > 0) setLastReadTs(id, lastTs);
     } catch (e: any) {
       if (e?.name === "AbortError") return;
       if (!silent) setErr(e?.message || "Thread fetch failed");
@@ -387,8 +506,7 @@ export default function AdminChats() {
             ok = true;
 
             const j = await r.json().catch(() => ({} as any));
-            const updated: Conv | undefined =
-              (j as any).conversation || (j as any).conv || (j as any).data || undefined;
+            const updated: Conv | undefined = (j as any).conversation || (j as any).conv || (j as any).data || undefined;
 
             if (updated?.id) {
               setConvs((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
@@ -456,9 +574,13 @@ export default function AdminChats() {
 
       // after sending, keep autoscroll enabled
       autoScrollLockRef.current = false;
+      setShowJump(false);
 
       fetchConversations({ silent: true, keepActive: true });
       fetchThread(activeId, { silent: true });
+
+      // scroll to bottom after small paint
+      window.setTimeout(() => scrollToBottom(), 50);
     } catch (e: any) {
       setErr(e?.message || "Send failed");
     } finally {
@@ -586,10 +708,17 @@ export default function AdminChats() {
         <div style={S.topbar}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 950 }}>Admin Chats</div>
-            <div style={S.subLine}>
-              Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b> • Route:{" "}
-              <code style={S.code}>{loc.pathname}</code> <span style={{ opacity: 0.7 }}> • Auto: 6s</span>{" "}
-              <span style={{ opacity: 0.7 }}> • AdminLang: {String(adminLang || "az").toUpperCase()}</span>
+
+            {/* ✅ mobile wrap */}
+            <div style={S.subWrap}>
+              <span>
+                Token: <b style={{ color: "rgba(255,255,255,.92)" }}>ON</b>
+              </span>
+              <span>
+                • Route: <code style={S.code}>{loc.pathname}</code>
+              </span>
+              <span style={{ opacity: 0.75 }}>• Auto: 6s</span>
+              <span style={{ opacity: 0.75 }}>• AdminLang: {String(adminLang || "az").toUpperCase()}</span>
             </div>
           </div>
 
@@ -626,17 +755,39 @@ export default function AdminChats() {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}>Conversations</div>
-                <div style={S.badge}>{loading ? "..." : `${convs.length}`}</div>
+                <div style={S.badge}>{loading ? "..." : `${filteredConvs.length}`}</div>
+              </div>
+
+              {/* ✅ SEARCH */}
+              <div style={S.searchBar}>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Axtar: session/page/channel/lang/lead…"
+                  style={S.searchInput}
+                />
+                {q.trim() ? (
+                  <button onClick={() => setQ("")} style={S.searchClear} title="Clear">
+                    ✕
+                  </button>
+                ) : null}
               </div>
 
               <div style={S.list}>
-                {convs.length === 0 ? (
-                  <div style={S.empty}>Hələ chat yoxdur.</div>
+                {filteredConvs.length === 0 ? (
+                  <div style={S.empty}>{q.trim() ? "Uyğun chat tapılmadı." : "Hələ chat yoxdur."}</div>
                 ) : (
-                  convs.map((c) => {
+                  filteredConvs.map((c) => {
                     const isActiveItem = c.id === activeId;
                     const label = `SID: ${c.session_id?.slice?.(0, 8) || c.id.slice(0, 8)}`;
                     const sub = `Lang: ${(c.lang || "az").toUpperCase()} • ${c.page || "—"}`;
+
+                    // ✅ UNREAD badge (backend unread_count if exists, else client fallback)
+                    const unreadFromBackend = typeof c.unread_count === "number" ? Math.max(0, c.unread_count) : null;
+                    const lastRead = getLastReadTs(c.id);
+                    const lastTs = convLastTs(c);
+                    const unreadClient = lastTs > lastRead ? 1 : 0;
+                    const unread = unreadFromBackend != null ? unreadFromBackend : unreadClient;
 
                     return (
                       <button
@@ -652,6 +803,7 @@ export default function AdminChats() {
                           <div style={S.itemName}>{label}</div>
 
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            {unread ? <div style={S.unreadBadge}>{unread}</div> : null}
                             {c.handoff ? <div style={S.pillAiOff}>AI OFF</div> : <div style={S.pillAiOn}>AI ON</div>}
                             <div style={S.pill}>{String(c.channel || "WEB").toUpperCase()}</div>
                           </div>
@@ -730,8 +882,7 @@ export default function AdminChats() {
 
                     {aiOff && (
                       <div style={S.noticeOff}>
-                        Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça
-                        bilərsən.
+                        Operator takeover aktivdir — widgetdə AI cavabları dayanacaq. İstəsən “AI-ni aktiv et” ilə geri aça bilərsən.
                       </div>
                     )}
 
@@ -743,12 +894,22 @@ export default function AdminChats() {
                         <button onClick={() => replyInputRef.current?.focus()} style={S.btn} title="Reply">
                           Reply
                         </button>
+                        <button onClick={scrollToBottom} style={S.btn} title="Bottom">
+                          ↓ Bottom
+                        </button>
                       </div>
                     )}
                   </div>
 
                   {/* thread scroll */}
                   <div style={S.thread} ref={threadRef as any}>
+                    {/* jump-to-bottom when user scrolls up */}
+                    {showJump && (
+                      <button style={S.jumpBtn} onClick={scrollToBottom} title="Jump to latest">
+                        ↓ Yeni mesajlara
+                      </button>
+                    )}
+
                     {orderedMessages.length === 0 ? (
                       <div style={{ padding: 10, color: "rgba(255,255,255,.65)" }}>Mesaj yoxdur.</div>
                     ) : (
@@ -759,7 +920,6 @@ export default function AdminChats() {
                         const mine = isAdminReply;
 
                         const roleLabel = isAdminReply ? "OPERATOR" : isUser ? "USER" : String(m.role || "").toUpperCase();
-
                         const userLang = normLang(m.lang) || normLang(active?.lang) || "az";
 
                         // ---- translation-aware rendering ----
@@ -793,19 +953,29 @@ export default function AdminChats() {
                             primary = String(m.content || "");
                           }
 
-                          // show operator language tag (adminLang)
-                          // userLang tag is shown on secondary if exists
                           void origLang;
                         }
 
                         return (
                           <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
                             <div style={{ ...S.bubble, ...(mine ? S.bubbleMine : S.bubbleUser) }}>
-                              <div style={S.bubbleRole}>
-                                {roleLabel}
-                                <span style={{ opacity: 0.65, marginLeft: 10 }}>
-                                  · {isAdminReply ? String(adminLang || "az").toUpperCase() : userLang.toUpperCase()}
-                                </span>
+                              <div style={S.bubbleRoleRow}>
+                                <div style={S.bubbleRole}>
+                                  {roleLabel}
+                                  <span style={{ opacity: 0.65, marginLeft: 10 }}>
+                                    · {isAdminReply ? String(adminLang || "az").toUpperCase() : userLang.toUpperCase()}
+                                  </span>
+                                </div>
+
+                                {/* ✅ COPY */}
+                                <button
+                                  onClick={() => copyText(primary)}
+                                  style={S.copyBtn}
+                                  title="Copy message"
+                                  aria-label="Copy message"
+                                >
+                                  Copy
+                                </button>
                               </div>
 
                               <div style={S.bubbleText}>{primary}</div>
@@ -814,6 +984,13 @@ export default function AdminChats() {
                                 <div style={S.bubbleSecondary}>
                                   <div style={S.secondaryTag}>{secondaryTag}</div>
                                   <div style={S.secondaryText}>{secondary}</div>
+
+                                  {/* copy secondary too */}
+                                  <div style={{ marginTop: 8 }}>
+                                    <button onClick={() => copyText(secondary)} style={S.copyBtnSmall} title="Copy original">
+                                      Copy original
+                                    </button>
+                                  </div>
                                 </div>
                               ) : null}
 
@@ -825,23 +1002,49 @@ export default function AdminChats() {
                     )}
                   </div>
 
+                  {/* ✅ QUICK REPLIES */}
+                  <div style={S.quickRow}>
+                    {QUICK_REPLIES.map((t) => (
+                      <button
+                        key={t}
+                        style={S.quickChip}
+                        onClick={() => {
+                          setReply(t);
+                          window.setTimeout(() => replyInputRef.current?.focus(), 0);
+                        }}
+                        title="Insert quick reply"
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* sticky reply */}
                   <div style={S.replyBar}>
-                    <input
+                    <textarea
                       ref={replyInputRef}
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
                       placeholder={`Operator reply yaz… (${String(adminLang || "az").toUpperCase()})`}
-                      style={S.input}
+                      style={S.textarea}
+                      rows={1}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendReply();
+                        if (e.key === "Enter" && !e.shiftKey && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          sendReply();
+                        }
                       }}
                     />
-                    <button onClick={sendReply} style={S.btnPrimary} disabled={loading || !reply.trim()}>
-                      Göndər
-                    </button>
-                    <div style={S.replyTip}>
-                      Tip: <code style={S.code}>Ctrl+Enter</code>
+                    <div style={S.replyRow}>
+                      <button onClick={sendReply} style={S.btnPrimary} disabled={loading || !reply.trim()}>
+                        Göndər
+                      </button>
+                      <button onClick={scrollToBottom} style={S.btn} title="Bottom">
+                        ↓
+                      </button>
+                      <div style={S.replyTip}>
+                        Tip: <code style={S.code}>Ctrl+Enter</code> • Yeni sətir: <code style={S.code}>Shift+Enter</code>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -860,6 +1063,7 @@ export default function AdminChats() {
   );
 }
 
+/* ------------------ styles ------------------ */
 const S: Record<string, any> = {
   page: {
     minHeight: "100dvh",
@@ -872,6 +1076,7 @@ const S: Record<string, any> = {
     fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
     overflowX: "hidden",
   },
+
   shell: { maxWidth: 1180, margin: "0 auto", paddingTop: 14 },
   shellLogin: { maxWidth: 1180, margin: "0 auto" },
 
@@ -889,13 +1094,16 @@ const S: Record<string, any> = {
     backdropFilter: "blur(10px)",
     overflow: "hidden",
   },
-  subLine: {
+
+  subWrap: {
+    marginTop: 6,
     fontSize: 12,
     color: "rgba(255,255,255,.65)",
-    marginTop: 4,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    rowGap: 6,
+    minWidth: 0,
   },
 
   actions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
@@ -912,6 +1120,7 @@ const S: Record<string, any> = {
     backdropFilter: "blur(10px)",
     minWidth: 0,
   },
+
   panelHead: {
     padding: "12px 14px",
     display: "flex",
@@ -920,6 +1129,7 @@ const S: Record<string, any> = {
     borderBottom: "1px solid rgba(255,255,255,.08)",
     background: "rgba(0,0,0,.14)",
   },
+
   panelTitle: {
     fontSize: 13,
     fontWeight: 900,
@@ -936,6 +1146,7 @@ const S: Record<string, any> = {
     background: "rgba(255,255,255,.05)",
     color: "rgba(255,255,255,.80)",
   },
+
   badgeDim: {
     fontSize: 12,
     padding: "3px 10px",
@@ -955,6 +1166,7 @@ const S: Record<string, any> = {
     letterSpacing: ".10em",
     textTransform: "uppercase",
   },
+
   badgeAiOn: {
     fontSize: 11,
     padding: "4px 10px",
@@ -966,8 +1178,37 @@ const S: Record<string, any> = {
     textTransform: "uppercase",
   },
 
+  // ✅ Search bar
+  searchBar: {
+    padding: 10,
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    borderBottom: "1px solid rgba(255,255,255,.06)",
+    background: "rgba(0,0,0,.10)",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.92)",
+    outline: "none",
+  },
+  searchClear: {
+    height: 40,
+    minWidth: 40,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.88)",
+    cursor: "pointer",
+  },
+
   list: {
-    maxHeight: "calc(100dvh - 240px)",
+    maxHeight: "calc(100dvh - 300px)",
     overflowY: "auto",
     overflowX: "hidden",
     WebkitOverflowScrolling: "touch",
@@ -984,8 +1225,11 @@ const S: Record<string, any> = {
     borderBottom: "1px solid rgba(255,255,255,.06)",
     transition: "background .15s ease, transform .15s ease",
   },
+
   itemActive: { background: "rgba(255,255,255,.05)", transform: "translateY(-1px)" },
+
   itemRow: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", minWidth: 0 },
+
   itemName: {
     fontWeight: 900,
     fontSize: 14,
@@ -994,6 +1238,7 @@ const S: Record<string, any> = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+
   itemMeta: {
     marginTop: 6,
     fontSize: 12,
@@ -1002,7 +1247,18 @@ const S: Record<string, any> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
+
   itemTime: { marginTop: 6, fontSize: 11, color: "rgba(255,255,255,.46)" },
+
+  unreadBadge: {
+    fontSize: 11,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,90,90,.28)",
+    background: "rgba(255,90,90,.12)",
+    color: "rgba(255,255,255,.92)",
+    fontWeight: 900,
+  },
 
   pill: {
     fontSize: 10,
@@ -1014,6 +1270,7 @@ const S: Record<string, any> = {
     letterSpacing: ".12em",
     whiteSpace: "nowrap",
   },
+
   pillAiOff: {
     fontSize: 10,
     padding: "4px 10px",
@@ -1024,6 +1281,7 @@ const S: Record<string, any> = {
     letterSpacing: ".12em",
     whiteSpace: "nowrap",
   },
+
   pillAiOn: {
     fontSize: 10,
     padding: "4px 10px",
@@ -1044,6 +1302,7 @@ const S: Record<string, any> = {
     padding: 12,
     minWidth: 0,
   },
+
   kv: {
     display: "grid",
     gridTemplateColumns: "120px minmax(0, 1fr)",
@@ -1051,6 +1310,7 @@ const S: Record<string, any> = {
     padding: "8px 0",
     borderBottom: "1px solid rgba(255,255,255,.06)",
   },
+
   k: { fontSize: 12, color: "rgba(255,255,255,.55)", letterSpacing: ".08em", textTransform: "uppercase" },
   v: { fontSize: 13, color: "rgba(255,255,255,.90)", overflow: "hidden", textOverflow: "ellipsis" },
 
@@ -1068,15 +1328,30 @@ const S: Record<string, any> = {
   },
 
   thread: {
+    position: "relative",
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,.10)",
     background: "rgba(0,0,0,.18)",
     padding: 12,
-    height: "min(52dvh, 520px)",
+    height: "min(56dvh, 560px)",
     overflow: "auto",
     display: "grid",
     gap: 10,
     WebkitOverflowScrolling: "touch",
+  },
+
+  jumpBtn: {
+    position: "sticky",
+    top: 10,
+    justifySelf: "center",
+    zIndex: 5,
+    padding: "8px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(10,12,22,.72)",
+    color: "rgba(255,255,255,.88)",
+    cursor: "pointer",
+    backdropFilter: "blur(8px)",
   },
 
   bubble: {
@@ -1086,11 +1361,34 @@ const S: Record<string, any> = {
     padding: 10,
     minWidth: 0,
   },
+
   bubbleMine: { background: "linear-gradient(135deg, rgba(20,82,199,.26), rgba(122,92,255,.16))" },
   bubbleUser: { background: "rgba(255,255,255,.05)" },
-  bubbleRole: { fontSize: 10, letterSpacing: ".16em", opacity: 0.75, marginBottom: 6 },
+
+  bubbleRoleRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6 },
+  bubbleRole: { fontSize: 10, letterSpacing: ".16em", opacity: 0.75 },
   bubbleText: { whiteSpace: "pre-wrap", lineHeight: 1.45, wordBreak: "break-word" },
   bubbleTime: { marginTop: 8, fontSize: 11, opacity: 0.55 },
+
+  copyBtn: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.86)",
+    cursor: "pointer",
+    fontSize: 11,
+    fontWeight: 850,
+  },
+  copyBtnSmall: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.10)",
+    background: "rgba(255,255,255,.03)",
+    color: "rgba(255,255,255,.76)",
+    cursor: "pointer",
+    fontSize: 11,
+  },
 
   // ✅ Translation block
   bubbleSecondary: {
@@ -1099,6 +1397,7 @@ const S: Record<string, any> = {
     borderTop: "1px dashed rgba(255,255,255,.14)",
     opacity: 0.92,
   },
+
   secondaryTag: {
     display: "inline-flex",
     alignItems: "center",
@@ -1113,12 +1412,32 @@ const S: Record<string, any> = {
     textTransform: "uppercase",
     marginBottom: 6,
   },
+
   secondaryText: {
     whiteSpace: "pre-wrap",
     lineHeight: 1.45,
     wordBreak: "break-word",
     color: "rgba(255,255,255,.72)",
     fontStyle: "italic",
+  },
+
+  // ✅ quick replies row
+  quickRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    padding: "2px 2px",
+  },
+  quickChip: {
+    padding: "8px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.86)",
+    cursor: "pointer",
+    fontSize: 12,
+    maxWidth: "100%",
   },
 
   replyBar: {
@@ -1133,6 +1452,8 @@ const S: Record<string, any> = {
     zIndex: 2,
     backdropFilter: "blur(8px)",
   },
+
+  replyRow: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
   replyTip: { fontSize: 12, color: "rgba(255,255,255,.55)" },
 
   input: {
@@ -1146,6 +1467,20 @@ const S: Record<string, any> = {
     maxWidth: "100%",
   },
 
+  textarea: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "rgba(255,255,255,.92)",
+    outline: "none",
+    maxWidth: "100%",
+    resize: "none",
+    lineHeight: 1.45,
+    overflow: "hidden",
+  },
+
   btn: {
     padding: "10px 12px",
     borderRadius: 12,
@@ -1154,6 +1489,7 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.86)",
     cursor: "pointer",
   },
+
   btnGhost: {
     padding: "10px 12px",
     borderRadius: 12,
@@ -1162,6 +1498,7 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.74)",
     cursor: "pointer",
   },
+
   btnPrimary: {
     padding: "10px 14px",
     borderRadius: 12,
@@ -1181,6 +1518,7 @@ const S: Record<string, any> = {
     cursor: "pointer",
     fontWeight: 850,
   },
+
   btnAiOn: {
     padding: "10px 12px",
     borderRadius: 12,
@@ -1211,6 +1549,7 @@ const S: Record<string, any> = {
     color: "rgba(255,255,255,.92)",
     marginBottom: 12,
   },
+
   empty: { padding: 16, color: "rgba(255,255,255,.65)" },
 
   code: {
@@ -1232,7 +1571,9 @@ const S: Record<string, any> = {
     backdropFilter: "blur(10px)",
     margin: "12dvh auto 0",
   },
+
   brandRow: { display: "flex", alignItems: "center", gap: 10 },
+
   brandDot: {
     width: 10,
     height: 10,
@@ -1240,6 +1581,7 @@ const S: Record<string, any> = {
     background: "linear-gradient(135deg, rgba(20,82,199,1), rgba(122,92,255,1))",
     boxShadow: "0 0 0 6px rgba(20,82,199,.12)",
   },
+
   brandText: {
     fontWeight: 950,
     letterSpacing: ".08em",
