@@ -7,6 +7,10 @@ import Layout from "./components/Layout";
 import IntroScreen from "./components/IntroScreen";
 import MatrixLoader from "./components/MatrixLoader";
 
+// ✅ Global smooth wheel (create this file)
+// src/components/SmoothWheelScroll.tsx
+import SmoothWheelScroll from "./components/SmoothWheelScroll";
+
 // pages
 import Home from "./pages/Home";
 import About from "./pages/About";
@@ -174,54 +178,59 @@ export default function App() {
       {boot === "loader" && <MatrixLoader onDone={handleLoaderDone} />}
 
       {boot === "app" && (
-        <AdminOnlyGate>
-          <Routes>
-            {/* root -> auto lang */}
-            <Route path="/" element={<Navigate to={`/${rootLang}`} replace />} />
+        <>
+          {/* ✅ GLOBAL: smooth wheel inertia for ALL pages (desktop only, respects reduced motion) */}
+          <SmoothWheelScroll enabled={true} minWidth={980} />
 
-            {/* ✅ MAGIC (langsız) — bunu yuxarıda saxla ki /admin/* udmasın */}
-            <Route path="/admin/magic" element={<AdminMagicRedirect toLang={rootLang} />} />
+          <AdminOnlyGate>
+            <Routes>
+              {/* root -> auto lang */}
+              <Route path="/" element={<Navigate to={`/${rootLang}`} replace />} />
 
-            {/* ✅ lang-sız admin route-lar -> auto lang admin */}
-            <Route path="/admin" element={<Navigate to={`/${rootLang}/admin`} replace />} />
-            <Route path="/admin/*" element={<Navigate to={`/${rootLang}/admin`} replace />} />
+              {/* ✅ MAGIC (langsız) — bunu yuxarıda saxla ki /admin/* udmasın */}
+              <Route path="/admin/magic" element={<AdminMagicRedirect toLang={rootLang} />} />
 
-            <Route path="/:lang" element={<LangGate />}>
-              {/* ✅ MAGIC (langlı) — AdminLayout-dan KƏNAR (auth-guard bloklamasın) */}
-              <Route path="admin/magic" element={<AdminMagic />} />
+              {/* ✅ lang-sız admin route-lar -> auto lang admin */}
+              <Route path="/admin" element={<Navigate to={`/${rootLang}/admin`} replace />} />
+              <Route path="/admin/*" element={<Navigate to={`/${rootLang}/admin`} replace />} />
 
-              {/* ✅ ADMIN (Layout YOX — öz AdminLayout var) */}
-              <Route path="admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="leads" replace />} />
-                <Route path="leads" element={<AdminLeads />} />
-                <Route path="chats" element={<AdminChats />} />
-                <Route path="chats/:id" element={<AdminChats />} />
+              <Route path="/:lang" element={<LangGate />}>
+                {/* ✅ MAGIC (langlı) — AdminLayout-dan KƏNAR (auth-guard bloklamasın) */}
+                <Route path="admin/magic" element={<AdminMagic />} />
 
-                {/* ✅ Admin pages */}
-                <Route path="blog" element={<AdminBlog />} />
-                <Route path="products" element={<AdminProducts />} />
-                <Route path="media" element={<AdminMedia />} />
+                {/* ✅ ADMIN (Layout YOX — öz AdminLayout var) */}
+                <Route path="admin" element={<AdminLayout />}>
+                  <Route index element={<Navigate to="leads" replace />} />
+                  <Route path="leads" element={<AdminLeads />} />
+                  <Route path="chats" element={<AdminChats />} />
+                  <Route path="chats/:id" element={<AdminChats />} />
+
+                  {/* ✅ Admin pages */}
+                  <Route path="blog" element={<AdminBlog />} />
+                  <Route path="products" element={<AdminProducts />} />
+                  <Route path="media" element={<AdminMedia />} />
+                </Route>
+
+                {/* ✅ normal pages: Layout VAR */}
+                <Route element={<WithLayout />}>
+                  <Route index element={<Home />} />
+                  <Route path="about" element={<About />} />
+                  <Route path="services" element={<Services />} />
+                  <Route path="use-cases" element={<UseCases />} />
+                  <Route path="pricing" element={<Pricing />} />
+                  <Route path="contact" element={<Contact />} />
+
+                  {/* ✅ Blog */}
+                  <Route path="blog" element={<Blog />} />
+                  <Route path="blog/:slug" element={<BlogPost />} />
+                </Route>
               </Route>
 
-              {/* ✅ normal pages: Layout VAR */}
-              <Route element={<WithLayout />}>
-                <Route index element={<Home />} />
-                <Route path="about" element={<About />} />
-                <Route path="services" element={<Services />} />
-                <Route path="use-cases" element={<UseCases />} />
-                <Route path="pricing" element={<Pricing />} />
-                <Route path="contact" element={<Contact />} />
-
-                {/* ✅ Blog */}
-                <Route path="blog" element={<Blog />} />
-                <Route path="blog/:slug" element={<BlogPost />} />
-              </Route>
-            </Route>
-
-            {/* fallback */}
-            <Route path="*" element={<Navigate to={`/${DEFAULT_LANG}`} replace />} />
-          </Routes>
-        </AdminOnlyGate>
+              {/* fallback */}
+              <Route path="*" element={<Navigate to={`/${DEFAULT_LANG}`} replace />} />
+            </Routes>
+          </AdminOnlyGate>
+        </>
       )}
     </>
   );
