@@ -1355,14 +1355,6 @@ main{ padding-top: 74px; }
   color: rgba(255,255,255,.86);
 }
 
-/* =========================================================
-   FLOW CONNECTOR — FINAL (NO DUPES)
-   - BG unify (full black)
-   - Seam/band kill (only around flow area)
-   - Premium SOLID arrow + glow (no dash)
-   - Connector çıxışı stage-in altından, mesajlara dəymir
-========================================================= */
-
 /* ---------- FLOW: BG unify + overlay kill ---------- */
 .neo-flowblock,
 .neo-flow-bridge,

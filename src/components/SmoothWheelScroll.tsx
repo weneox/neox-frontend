@@ -71,7 +71,7 @@ export default function SmoothWheelScroll({
 
   // ✅ default: “hezin-hezin”
   strength = 0.22,     // çox aşağı
-  friction = 0.90,     // yavaş sönmə
+  friction = 0.92,     // yavaş sönmə
   maxVelocity = 85,    // çox aşağı clamp
   softCap = 120,       // wheel böyük gəlsə yumşalt
 }: Props) {
