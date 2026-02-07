@@ -1,3 +1,5 @@
+// src/components/NeoxAIWidget.tsx (FINAL RESET — stable toggle everywhere)
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -26,29 +28,14 @@ const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 const SESSION_KEY = "neox_session_id";
 const LEAD_KEY = "neox_lead_id";
 
-function handoffKey(sessionId: string) {
-  return `neox_handoff:${sessionId}`;
-}
-function lastAdminTsKey(leadId: string) {
-  return `neox_last_admin_ts:${leadId}`;
-}
-
 function safeLSGet(k: string) {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
+  try { return localStorage.getItem(k); } catch { return null; }
 }
 function safeLSSet(k: string, v: string) {
-  try {
-    localStorage.setItem(k, v);
-  } catch {}
+  try { localStorage.setItem(k, v); } catch {}
 }
 function safeLSRemove(k: string) {
-  try {
-    localStorage.removeItem(k);
-  } catch {}
+  try { localStorage.removeItem(k); } catch {}
 }
 
 function getOrCreateSessionId() {
@@ -56,11 +43,8 @@ function getOrCreateSessionId() {
   if (existing) return existing;
 
   let sid = "";
-  try {
-    sid = (globalThis.crypto as any)?.randomUUID?.() ?? uid();
-  } catch {
-    sid = uid();
-  }
+  try { sid = (globalThis.crypto as any)?.randomUUID?.() ?? uid(); }
+  catch { sid = uid(); }
   safeLSSet(SESSION_KEY, sid);
   return sid;
 }
@@ -72,13 +56,6 @@ function setStoredLeadId(leadId: string) {
   const v = String(leadId || "").trim();
   if (!v) return;
   safeLSSet(LEAD_KEY, v);
-}
-
-function getStoredHandoff(sessionId: string): boolean {
-  return safeLSGet(handoffKey(sessionId)) === "1";
-}
-function setStoredHandoff(sessionId: string, on: boolean) {
-  safeLSSet(handoffKey(sessionId), on ? "1" : "0");
 }
 
 function clearSessionAndLead() {
@@ -104,19 +81,8 @@ function detectOperatorIntent(text: string) {
     s.includes("canlı dəstək") ||
     s.includes("canli destek") ||
     s.includes("insan") ||
-    s.includes("real adam") ||
-    s.includes("müştəri xidm") ||
-    s.includes("musteri xidm") ||
-    s.includes("call") ||
-    s.includes("support") ||
-    s.includes("live support") ||
     s.includes("human") ||
-    s.includes("менеджер") ||
-    s.includes("оператор") ||
-    s.includes("поддерж") ||
-    s.includes("zəng") ||
-    s.includes("zeng") ||
-    (s.includes("whatsapp") && s.includes("yaz"))
+    s.includes("оператор")
   );
 }
 
@@ -137,7 +103,7 @@ function RobotHeadIcon({ className }: { className?: string }) {
         opacity="0.08"
       />
       <path
-        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-5-2.239-5-5v-2Z"
+        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-10-2.239-10-5v-2Z"
         stroke="currentColor"
         strokeWidth="2"
         opacity="0.9"
@@ -145,28 +111,16 @@ function RobotHeadIcon({ className }: { className?: string }) {
       <circle cx="29.5" cy="34" r="1.8" fill="currentColor" opacity="0.95" />
       <circle cx="34.5" cy="34" r="1.8" fill="currentColor" opacity="0.95" />
       <path d="M26 44h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.75" />
-      <path d="M28 48h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.55" />
       <path d="M14 32h3M47 32h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
     </svg>
   );
 }
 
-type WidgetServerMsg = {
-  id?: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt?: string;
-  ts?: number;
-  channel?: string;
-  meta?: any;
-};
-
 function isAdminPath(pathname: string) {
   return /^\/(az|en|tr|ru|es)\/admin(\/|$)/.test(pathname || "");
 }
 function isApiBaseValid(base: string) {
-  if (!base) return false;
-  return /^https?:\/\/[^ "]+$/i.test(base);
+  return !!base && /^https?:\/\/[^ "]+$/i.test(base);
 }
 
 export default function NeoxAIWidget() {
@@ -174,7 +128,6 @@ export default function NeoxAIWidget() {
   const location = useLocation();
 
   if (isAdminPath(location.pathname)) return null;
-
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
   if (!apiOk) return null;
 
@@ -183,294 +136,65 @@ export default function NeoxAIWidget() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
 
-  const fabRef = useRef<HTMLButtonElement | null>(null);
-
-  // ✅ FORCE OPEN even if overlay steals touches:
-  // Capture on window, check finger coordinates inside FAB rect.
-  useEffect(() => {
-    const hitFab = (clientX: number, clientY: number) => {
-      const el = fabRef.current;
-      if (!el) return false;
-      const r = el.getBoundingClientRect();
-      return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
-    };
-
-    const toggle = () => setOpen((s) => !s);
-
-    const onTouchEnd = (e: TouchEvent) => {
-      const t = e.changedTouches?.[0];
-      if (!t) return;
-      if (hitFab(t.clientX, t.clientY)) {
-        // overlay stopPropagation etsə belə capture-dan əvvəl gəlir
-        e.preventDefault();
-        toggle();
-      }
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (hitFab(e.clientX, e.clientY)) {
-        e.preventDefault();
-        toggle();
-      }
-    };
-
-    const onClick = (e: MouseEvent) => {
-      // fallback: some browsers only dispatch click
-      const x = (e as any).clientX ?? 0;
-      const y = (e as any).clientY ?? 0;
-      if (hitFab(x, y)) {
-        e.preventDefault();
-        toggle();
-      }
-    };
-
-    window.addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
-    window.addEventListener("pointerup", onPointerUp, { capture: true });
-    window.addEventListener("click", onClick, { capture: true });
-
-    return () => {
-      window.removeEventListener("touchend", onTouchEnd as any, true as any);
-      window.removeEventListener("pointerup", onPointerUp as any, true as any);
-      window.removeEventListener("click", onClick as any, true as any);
-    };
-  }, []);
-
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
-  const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
+  const [handoff, setHandoff] = useState(false);
 
   const welcomeIdRef = useRef<string>(uid());
-
-  const QUICK = useMemo(() => {
-    const arr = t("neoxAi.quick.items", { returnObjects: true }) as unknown;
-    if (Array.isArray(arr) && arr.every((x) => typeof x === "string")) return arr as string[];
-    return [
-      "Instagram DM-ləri necə avtomatik cavablandıra bilərik?",
-      "WhatsApp-dan gələn mesajları CRM-ə necə yazırsınız?",
-      "Lead score necə hesablanır? Nələrə baxırsınız?",
-      "Operatora nə vaxt route edirsiniz?",
-      "Məhsul soruşan müştəriyə nümunə cavab yaz.",
-      "Bir kampaniya üçün 3 hazır reply şablonu ver.",
-    ];
-  }, [t, i18n.language]);
-
   const [msgs, setMsgs] = useState<Msg[]>(() => [
     { id: welcomeIdRef.current, role: "ai", text: String(t("neoxAi.welcome")), ts: Date.now(), source: "ai", kind: "welcome" },
   ]);
 
   const msgsRef = useRef<Msg[]>(msgs);
-  useEffect(() => {
-    msgsRef.current = msgs;
-  }, [msgs]);
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMsgs((p) => p.map((m) => (m.kind === "welcome" ? { ...m, text: String(t("neoxAi.welcome")) } : m)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i18n.language]);
 
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const canSend = useMemo(() => input.trim().length > 0 && !typing, [input, typing]);
-
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [msgs.length, open, typing]);
-
-  // ===== Polling admin replies =====
-  const lastSeenTsRef = useRef<number>(0);
-  const pollRef = useRef<number | null>(null);
-  const inflightPoll = useRef(false);
-  const seenAdminIdsRef = useRef<Set<string>>(new Set());
-  const pollAbortRef = useRef<AbortController | null>(null);
-  const sendAbortRef = useRef<AbortController | null>(null);
-
-  function loadLastSeenTs(leadId: string) {
-    const raw = safeLSGet(lastAdminTsKey(leadId));
-    lastSeenTsRef.current = Number(raw || "0") || 0;
-  }
-  function persistLastSeenTs(leadId: string, ts: number) {
-    safeLSSet(lastAdminTsKey(leadId), String(ts || 0));
-  }
-
-  async function pollAdminReplies() {
-    if (!leadIdLive) return;
-    if (inflightPoll.current) return;
-    inflightPoll.current = true;
-
-    try {
-      pollAbortRef.current?.abort();
-    } catch {}
-    const ac = new AbortController();
-    pollAbortRef.current = ac;
-
-    try {
-      const sessionId = sessionIdRef.current;
-      const after = lastSeenTsRef.current || 0;
-
-      const url =
-        `${API_BASE}/api/widget/messages` +
-        `?lead_id=${encodeURIComponent(leadIdLive)}` +
-        `&session_id=${encodeURIComponent(sessionId)}` +
-        `&after=${encodeURIComponent(String(after))}`;
-
-      const r = await fetch(url, { signal: ac.signal });
-      if (!r.ok) return;
-
-      const j = await r.json().catch(() => null);
-      if (!j) return;
-
-      const items: WidgetServerMsg[] = (j as any)?.messages || [];
-      if (!Array.isArray(items) || items.length === 0) return;
-
-      const normalized = items
-        .map((x) => {
-          const ts = x.ts ?? (x.createdAt ? new Date(x.createdAt).getTime() : Date.now());
-          const isAdmin = x?.channel === "admin" || x?.meta?.source === "admin_panel";
-          return {
-            id: String(x.id || `${ts}_${Math.random().toString(16).slice(2)}`),
-            role: x.role,
-            text: String(x.content || "").trim(),
-            ts,
-            source: (isAdmin ? "admin" : "ai") as MsgSource,
-          };
-        })
-        .filter((x) => x.role === "assistant" && x.text);
-
-      if (normalized.length === 0) return;
-
-      let maxTs = lastSeenTsRef.current;
-      for (const it of normalized) maxTs = Math.max(maxTs, it.ts || 0);
-      if (maxTs > lastSeenTsRef.current) {
-        lastSeenTsRef.current = maxTs;
-        persistLastSeenTs(leadIdLive, maxTs);
-      }
-
-      const fresh = normalized.filter((x) => !seenAdminIdsRef.current.has(x.id));
-      if (fresh.length === 0) return;
-      for (const it of fresh) seenAdminIdsRef.current.add(it.id);
-
-      if (fresh.some((x) => x.source === "admin")) {
-        setHandoff(true);
-        setStoredHandoff(sessionIdRef.current, true);
-      }
-
-      setMsgs((p) => [
-        ...p,
-        ...fresh.map((x) => ({
-          id: x.id,
-          role: "ai" as const,
-          text: x.text,
-          ts: x.ts,
-          source: x.source,
-          kind: "normal" as const,
-        })),
-      ]);
-    } catch {
-      // silent
-    } finally {
-      inflightPoll.current = false;
-    }
-  }
-
-  useEffect(() => {
-    if (!leadIdLive) return;
-    loadLastSeenTs(leadIdLive);
-    seenAdminIdsRef.current = new Set();
-    pollAdminReplies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leadIdLive]);
-
-  useEffect(() => {
-    if (!leadIdLive) return;
-
-    if (pollRef.current) window.clearInterval(pollRef.current);
-    pollRef.current = window.setInterval(() => pollAdminReplies(), open ? 3500 : 9000);
-
-    return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
-      pollRef.current = null;
-      try {
-        pollAbortRef.current?.abort();
-      } catch {}
-      pollAbortRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leadIdLive, open]);
-
-  useEffect(() => {
-    return () => {
-      try {
-        pollAbortRef.current?.abort();
-        sendAbortRef.current?.abort();
-      } catch {}
-    };
-  }, []);
+  }, [open, msgs.length, typing]);
 
   function hardResetChat() {
-    if (pollRef.current) window.clearInterval(pollRef.current);
-    pollRef.current = null;
-
-    try {
-      pollAbortRef.current?.abort();
-      sendAbortRef.current?.abort();
-    } catch {}
-
-    const oldLead = getStoredLeadId();
-    const oldSession = safeLSGet(SESSION_KEY) || "";
-
     clearSessionAndLead();
-    if (oldLead) safeLSRemove(lastAdminTsKey(oldLead));
-    if (oldSession) safeLSRemove(handoffKey(oldSession));
-
     sessionIdRef.current = getOrCreateSessionId();
-
     setLeadIdLive(null);
-    lastSeenTsRef.current = 0;
-    seenAdminIdsRef.current = new Set();
     setHandoff(false);
-
     setTyping(false);
     setInput("");
     setTab("chat");
 
     welcomeIdRef.current = uid();
-    setMsgs([
-      { id: welcomeIdRef.current, role: "ai", text: String(t("neoxAi.welcome")), ts: Date.now(), source: "ai", kind: "welcome" },
-    ]);
+    setMsgs([{ id: welcomeIdRef.current, role: "ai", text: String(t("neoxAi.welcome")), ts: Date.now(), source: "ai", kind: "welcome" }]);
   }
 
   async function send(text: string, opts?: { requestOperator?: boolean }) {
     const tt = text.trim();
     if (!tt || typing) return;
 
-    const autoOp = detectOperatorIntent(tt);
-    const requestOperator = opts?.requestOperator === true || autoOp === true;
-
+    const requestOperator = opts?.requestOperator === true || detectOperatorIntent(tt);
     const sessionId = sessionIdRef.current;
     const lang = getLangSafe(i18n.language);
     const page = window.location.pathname;
     const leadId = getStoredLeadId();
 
-    const userMsg: Msg = { id: uid(), role: "user", text: tt, ts: Date.now(), kind: "normal" };
-    setMsgs((p) => [...p, userMsg]);
+    setMsgs((p) => [...p, { id: uid(), role: "user", text: tt, ts: Date.now(), kind: "normal" }]);
     setInput("");
     setTyping(true);
 
     const aiId = uid();
-    setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai", kind: "normal" }]);
-
-    try {
-      sendAbortRef.current?.abort();
-    } catch {}
-    const ac = new AbortController();
-    sendAbortRef.current = ac;
+    setMsgs((p) => [...p, { id: aiId, role: "ai", text: "…", ts: Date.now(), source: "ai", kind: "normal" }]);
 
     try {
       const history = msgsRef.current
-        .filter((m) => (m.text || "").trim().length > 0)
+        .filter((m) => (m.text || "").trim())
         .filter((m) => !(m.role === "ai" && m.source === "admin"))
         .map((m) => ({ role: toLlmRole(m.role), content: m.text }));
 
@@ -485,21 +209,15 @@ export default function NeoxAIWidget() {
         request_operator: requestOperator ? true : false,
       };
 
-      if (requestOperator) {
-        setHandoff(true);
-        setStoredHandoff(sessionId, true);
-      }
-
       const r = await fetch(`${API_BASE}/api/ai/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: ac.signal,
       });
 
-      if (!r.ok) throw new Error(`${r.status}`);
-
+      if (!r.ok) throw new Error(String(r.status));
       const data = await r.json().catch(() => ({} as any));
+
       const newLeadId = String((data as any)?.lead_id ?? "").trim();
       if (newLeadId) {
         setStoredLeadId(newLeadId);
@@ -508,68 +226,30 @@ export default function NeoxAIWidget() {
 
       const serverHandoff = Boolean((data as any)?.handoff);
       setHandoff(serverHandoff);
-      setStoredHandoff(sessionId, serverHandoff);
 
       const full = String((data as any)?.text ?? (data as any)?.reply ?? "").trim();
-      if (!full) throw new Error("Empty");
-
-      let i = 0;
-      const step = () => {
-        const inc = Math.max(1, Math.floor(full.length / 120));
-        i += inc;
-        const next = full.slice(0, i);
-        setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: next, source: "ai" } : m)));
-        if (i < full.length) requestAnimationFrame(step);
-        else setTyping(false);
-      };
-      requestAnimationFrame(step);
-    } catch (err: any) {
+      setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: full || "…" } : m)));
+    } catch {
+      setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: "Xəta oldu. Yenidən yoxlayın." } : m)));
+    } finally {
       setTyping(false);
-      setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: "Xəta oldu. Yenidən yoxla.", source: "ai" } : m)));
     }
   }
 
-  function onQuick(q: string) {
-    setOpen(true);
-    setTab("chat");
-    send(q);
-  }
-
-  function requestOperator() {
-    setOpen(true);
-    setTab("chat");
-    if (handoff) return;
-
-    const l = getLangSafe(i18n.language);
-    const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
-    const enText = "I want a human operator. Please connect me to live support.";
-    const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
-    const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
-    const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
-    const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
-
-    send(txt, { requestOperator: true });
-  }
-
-  const OP_LABEL =
-    (t("neoxAi.chat.operator") as string) && !String(t("neoxAi.chat.operator")).includes("neoxAi.chat.operator")
-      ? (t("neoxAi.chat.operator") as string)
-      : "Operator";
-
-  const AI_LABEL =
-    (t("neoxAi.chat.ai") as string) && !String(t("neoxAi.chat.ai")).includes("neoxAi.chat.ai")
-      ? (t("neoxAi.chat.ai") as string)
-      : "NEOX AI";
-
-  const resetLabel =
-    (t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset")
-      ? (t("neoxAi.reset") as string)
-      : "Reset";
+  const QUICK = useMemo(() => {
+    const arr = t("neoxAi.quick.items", { returnObjects: true }) as unknown;
+    if (Array.isArray(arr) && arr.every((x) => typeof x === "string")) return arr as string[];
+    return ["Demo istəyirəm", "Qiymətlər nədir?", "Operator istəyirəm"];
+  }, [t, i18n.language]);
 
   return (
     <div className={cx("neox-ai", open && "is-open")}>
-      {/* FAB: only for layout/rect; real open is forced by capture hit-test */}
-      <button ref={fabRef} type="button" className={cx("neox-ai-fab", open && "is-open")} aria-label={t("neoxAi.fabAria")}>
+      <button
+        type="button"
+        className={cx("neox-ai-fab", open && "is-open")}
+        onClick={() => setOpen((s) => !s)}
+        aria-label="Open chat"
+      >
         <span className="neox-ai-fabRing" aria-hidden="true" />
         <span className="neox-ai-fabCore" aria-hidden="true" />
         <span className="neox-ai-fabIcon" aria-hidden="true">
@@ -579,7 +259,7 @@ export default function NeoxAIWidget() {
         <span className="neox-ai-fabPing" aria-hidden="true" />
       </button>
 
-      <div className={cx("neox-ai-panel", open && "is-open")} role="dialog" aria-modal="false" aria-label={t("neoxAi.panelAria")}>
+      <div className={cx("neox-ai-panel", open && "is-open")} role="dialog" aria-label="NEOX AI">
         <div className="neox-ai-shell">
           <div className="neox-ai-decorFrame" aria-hidden="true" />
           <div className="neox-ai-decorCorners" aria-hidden="true" />
@@ -593,53 +273,15 @@ export default function NeoxAIWidget() {
                 <div className="neox-ai-markRing" />
                 <RobotHeadIcon className="neox-ai-robot" />
               </div>
-
               <div className="neox-ai-brandText">
                 <div className="neox-ai-titleRow">
                   <div className="neox-ai-title">{t("neoxAi.brand")}</div>
-                  <div className="neox-ai-status">
-                    <span className="neox-ai-statusDot" />
-                    <span className="neox-ai-statusTxt">{t("neoxAi.status")}</span>
-                  </div>
                 </div>
-
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
-
-                {/* Chips */}
-                <div className="neox-ai-controls">
-                  <div className="neox-ai-chipRow">
-                    <button
-                      type="button"
-                      className={cx("neox-ai-chipBtn", "ai", !handoff && "is-active")}
-                      onClick={() => {
-                        setHandoff(false);
-                        setStoredHandoff(sessionIdRef.current, false);
-                      }}
-                    >
-                      <span className="neox-ai-chipIcon" aria-hidden="true">
-                        <RobotHeadIcon />
-                      </span>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>AI</span>
-                      <span style={{ opacity: 0.85 }}>{!handoff ? "ON" : "OFF"}</span>
-                    </button>
-
-                    <button type="button" className={cx("neox-ai-chipBtn", "op", handoff && "is-active")} onClick={requestOperator}>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>{OP_LABEL}</span>
-                      <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
-                    </button>
-
-                    <button type="button" className={cx("neox-ai-chipBtn", "reset")} onClick={hardResetChat}>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>{resetLabel}</span>
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
 
-            <button type="button" className="neox-ai-x" onClick={() => setOpen(false)} aria-label={t("common.close")}>
+            <button type="button" className="neox-ai-x" onClick={() => setOpen(false)} aria-label="Close">
               ✕
             </button>
           </div>
@@ -648,14 +290,9 @@ export default function NeoxAIWidget() {
             <button type="button" className={cx("neox-ai-tab", tab === "chat" && "is-active")} onClick={() => setTab("chat")}>
               {t("neoxAi.tabs.chat")}
             </button>
-
             <button type="button" className={cx("neox-ai-tab", tab === "suallar" && "is-active")} onClick={() => setTab("suallar")}>
               {t("neoxAi.tabs.quick")}
             </button>
-
-            <a className="neox-ai-join" href={t("neoxAi.join.href")} target="_blank" rel="noreferrer">
-              {t("neoxAi.join.label")}
-            </a>
           </div>
 
           {tab === "suallar" ? (
@@ -663,7 +300,7 @@ export default function NeoxAIWidget() {
               <div className="neox-ai-quickTitle">{t("neoxAi.quick.title")}</div>
               <div className="neox-ai-quickGrid">
                 {QUICK.map((q) => (
-                  <button key={q} type="button" className="neox-ai-q" onClick={() => onQuick(q)}>
+                  <button key={q} type="button" className="neox-ai-q" onClick={() => { setTab("chat"); setOpen(true); send(q); }}>
                     {q}
                   </button>
                 ))}
@@ -672,17 +309,13 @@ export default function NeoxAIWidget() {
           ) : (
             <>
               <div className="neox-ai-list" ref={listRef}>
-                {msgs.map((m) => {
-                  const isAdmin = m.role !== "user" && m.source === "admin";
-                  return (
-                    <div key={m.id} className={cx("neox-ai-msg", m.role === "user" ? "is-user" : isAdmin ? "is-admin" : "is-ai")}>
-                      <div className="neox-ai-bubble">
-                        <div className="neox-ai-who">{m.role === "user" ? t("neoxAi.chat.you") : isAdmin ? OP_LABEL : AI_LABEL}</div>
-                        <div className="neox-ai-text">{m.text || (typing && m.role === "ai" ? "…" : "")}</div>
-                      </div>
+                {msgs.map((m) => (
+                  <div key={m.id} className={cx("neox-ai-msg", m.role === "user" ? "is-user" : "is-ai")}>
+                    <div className="neox-ai-bubble">
+                      <div className="neox-ai-text">{m.text}</div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
 
               <div className="neox-ai-inputRow">
@@ -694,12 +327,15 @@ export default function NeoxAIWidget() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (canSend) send(input);
+                      if (input.trim()) send(input);
                     }
                   }}
                 />
-                <button type="button" className={cx("neox-ai-send", !canSend && "is-disabled")} onClick={() => send(input)} disabled={!canSend}>
+                <button type="button" className="neox-ai-send" onClick={() => input.trim() && send(input)} disabled={!input.trim() || typing}>
                   {t("neoxAi.input.send")}
+                </button>
+                <button type="button" className="neox-ai-send" onClick={hardResetChat} style={{ marginLeft: 8 }}>
+                  Reset
                 </button>
               </div>
             </>
