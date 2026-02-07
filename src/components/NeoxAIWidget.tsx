@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (ELITE — modal overlay lock + operator toggle + mobile fixes)
+// src/components/NeoxAIWidget.tsx (FINAL — iOS hard lock + no background scroll/click + clean operator OFF msg)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -172,29 +172,43 @@ function isApiBaseValid(base: string) {
   return /^https?:\/\/[^ "]+$/i.test(base);
 }
 
-/* lock body scroll when open */
+/**
+ * iOS-safe hard lock:
+ * - body fixed + restore scroll position
+ * - also blocks touchmove while open (added below)
+ */
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
 
     const body = document.body;
-    const docEl = document.documentElement;
+    const html = document.documentElement;
 
-    const prevOverflow = body.style.overflow;
+    const scrollY = window.scrollY || 0;
+
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPos = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
     const prevTouch = body.style.touchAction;
-    const prevPadRight = body.style.paddingRight;
 
-    // compensate scrollbar to avoid layout shift on desktop
-    const scrollBarW = window.innerWidth - docEl.clientWidth;
-    if (scrollBarW > 0) body.style.paddingRight = `${scrollBarW}px`;
-
+    html.style.overflow = "hidden";
     body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
     body.style.touchAction = "none";
 
     return () => {
-      body.style.overflow = prevOverflow;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPos;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
       body.style.touchAction = prevTouch;
-      body.style.paddingRight = prevPadRight;
+
+      window.scrollTo(0, scrollY);
     };
   }, [locked]);
 }
@@ -217,6 +231,20 @@ export default function NeoxAIWidget() {
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
 
   useBodyScrollLock(open);
+
+  // extra hard block: prevent background touch scroll (iOS)
+  useEffect(() => {
+    if (!open) return;
+
+    const prevent = (e: TouchEvent) => {
+      // allow scrolling inside the widget list only (we handle that via CSS)
+      // any touchmove on document should be blocked to stop page scroll
+      e.preventDefault();
+    };
+
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent as any);
+  }, [open]);
 
   const welcomeIdRef = useRef<string>(uid());
 
@@ -582,20 +610,20 @@ export default function NeoxAIWidget() {
       setHandoff(false);
       setStoredHandoff(sessionId, false);
 
+      // ✅ only this text
       setMsgs((p) => [
         ...p,
         {
           id: uid(),
           role: "ai",
-          text:
-            ((t("neoxAi.operator.off") as string) && !String(t("neoxAi.operator.off")).includes("neoxAi.operator.off"))
-              ? (t("neoxAi.operator.off") as string)
-              : "✅ Operator OFF • AI ON. Mesajlar saxlanıldı — AI yenidən cavab verə bilər.",
+          text: "Operator OFF • AI ON",
           ts: Date.now(),
           source: "ai",
           kind: "system",
         },
       ]);
+
+      // NOTE: backend/admin-panel status will be handled next step in backend.
       return;
     }
 
@@ -625,11 +653,19 @@ export default function NeoxAIWidget() {
 
   return (
     <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"}>
-      {/* ✅ overlay catches clicks + blocks scroll behind */}
+      {/* overlay catches clicks + blocks scroll behind */}
       <div
         className={cx("neox-ai-overlay", open && "is-open")}
         aria-hidden="true"
         onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onPointerUp={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -750,7 +786,17 @@ export default function NeoxAIWidget() {
             </div>
           ) : (
             <>
-              <div className="neox-ai-list" ref={listRef}>
+              <div
+                className="neox-ai-list"
+                ref={listRef}
+                onTouchMove={(e) => {
+                  // allow list to scroll without moving page
+                  e.stopPropagation();
+                }}
+                onWheel={(e) => {
+                  e.stopPropagation();
+                }}
+              >
                 {msgs.map((m) => {
                   const isAdmin = m.role !== "user" && m.source === "admin";
                   return (
@@ -777,11 +823,10 @@ export default function NeoxAIWidget() {
                     }
                   }}
                 />
+
+                {/* ✅ no extra arrow span -> premium button style comes from CSS */}
                 <button type="button" className={cx("neox-ai-send", !canSend && "is-disabled")} onClick={() => send(input)} disabled={!canSend}>
                   {t("neoxAi.input.send")}
-                  <span className="neox-ai-sendIcon" aria-hidden="true">
-                    →
-                  </span>
                 </button>
               </div>
             </>
