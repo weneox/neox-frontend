@@ -1,6 +1,7 @@
-// src/components/NeoxAIWidget.tsx (FINAL — header layout fix + mobile open fix)
+// src/components/NeoxAIWidget.tsx (FINAL — Portal render + Mobile tap fix + Futuristic status chips)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -36,21 +37,13 @@ function lastAdminTsKey(leadId: string) {
 }
 
 function safeLSGet(k: string) {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
+  try { return localStorage.getItem(k); } catch { return null; }
 }
 function safeLSSet(k: string, v: string) {
-  try {
-    localStorage.setItem(k, v);
-  } catch {}
+  try { localStorage.setItem(k, v); } catch {}
 }
 function safeLSRemove(k: string) {
-  try {
-    localStorage.removeItem(k);
-  } catch {}
+  try { localStorage.removeItem(k); } catch {}
 }
 
 function getOrCreateSessionId() {
@@ -176,6 +169,10 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
+  // Portal mount (fixes mobile fixed/transform stacking bugs)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   if (isAdminPath(location.pathname)) return null;
 
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
@@ -209,9 +206,7 @@ export default function NeoxAIWidget() {
   ]);
 
   const msgsRef = useRef<Msg[]>(msgs);
-  useEffect(() => {
-    msgsRef.current = msgs;
-  }, [msgs]);
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
 
@@ -257,9 +252,7 @@ export default function NeoxAIWidget() {
     if (inflightPoll.current) return;
     inflightPoll.current = true;
 
-    try {
-      pollAbortRef.current?.abort();
-    } catch {}
+    try { pollAbortRef.current?.abort(); } catch {}
     const ac = new AbortController();
     pollAbortRef.current = ac;
 
@@ -349,9 +342,7 @@ export default function NeoxAIWidget() {
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
       pollRef.current = null;
-      try {
-        pollAbortRef.current?.abort();
-      } catch {}
+      try { pollAbortRef.current?.abort(); } catch {}
       pollAbortRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -419,9 +410,7 @@ export default function NeoxAIWidget() {
     const aiId = uid();
     setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai", kind: "normal" }]);
 
-    try {
-      sendAbortRef.current?.abort();
-    } catch {}
+    try { sendAbortRef.current?.abort(); } catch {}
     const ac = new AbortController();
     sendAbortRef.current = ac;
 
@@ -546,14 +535,13 @@ export default function NeoxAIWidget() {
     }
 
     const l = getLangSafe(i18n.language);
-
     const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
     const enText = "I want a human operator. Please connect me to live support.";
     const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
     const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
     const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
-
     const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
+
     send(txt, { requestOperator: true });
   }
 
@@ -567,36 +555,24 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.chat.ai") as string)
       : "NEOX AI";
 
-  const modeText =
-    handoff
-      ? ((t("neoxAi.mode.operatorOn") as string) && !String(t("neoxAi.mode.operatorOn")).includes("neoxAi.mode.operatorOn")
-          ? (t("neoxAi.mode.operatorOn") as string)
-          : "Operator ON • AI OFF")
-      : ((t("neoxAi.mode.aiOn") as string) && !String(t("neoxAi.mode.aiOn")).includes("neoxAi.mode.aiOn")
-          ? (t("neoxAi.mode.aiOn") as string)
-          : "AI ON • Operator OFF");
+  const resetLabel =
+    (t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset")
+      ? (t("neoxAi.reset") as string)
+      : "Reset";
 
-  // ✅ Mobil açılmama fix: toggle yalnız onClick-də, pointer/touch sadəcə stopPropagation
-  const toggleOpen = (e?: any) => {
-    if (e) {
-      e.stopPropagation?.();
-    }
+  // Mobile tap: do NOT preventDefault on pointer/touch; toggle on click.
+  const toggleOpen = (e: any) => {
+    e?.stopPropagation?.();
     setOpen((s) => !s);
   };
 
-  return (
+  const ui = (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
       <button
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
-        onPointerDown={(e) => {
-          // IMPORTANT: preventDefault YOX (iOS click öldürə bilər)
-          e.stopPropagation();
-        }}
-        onTouchStart={(e) => {
-          // fallback (mobil safari)
-          e.stopPropagation();
-        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.preventDefault();
           toggleOpen(e);
@@ -637,7 +613,7 @@ export default function NeoxAIWidget() {
               <div className="neox-ai-brandText">
                 <div className="neox-ai-titleRow">
                   <div className="neox-ai-title">{t("neoxAi.brand")}</div>
-                  <div className="neox-ai-status" title={modeText}>
+                  <div className="neox-ai-status" title={handoff ? "Operator live" : "AI live"}>
                     <span className="neox-ai-statusDot" />
                     <span className="neox-ai-statusTxt">{t("neoxAi.status")}</span>
                   </div>
@@ -645,9 +621,21 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                {/* ✅ FIX: mode pill + actions ayrıdır (artıq sözlər bir-birinə girmir) */}
+                {/* Futuristic status UI */}
                 <div className="neox-ai-controls">
-                  <span className="neox-ai-modePill" title={modeText}>{modeText}</span>
+                  <div className="neox-ai-statusChips">
+                    <span className={cx("neox-ai-chip", "ai", !handoff && "is-active")} title="AI mode">
+                      <span className="neox-ai-chipDot" />
+                      <span>AI</span>
+                      <span style={{ opacity: 0.85 }}>{!handoff ? "ON" : "OFF"}</span>
+                    </span>
+
+                    <span className={cx("neox-ai-chip", "op", handoff && "is-active")} title="Operator mode">
+                      <span className="neox-ai-chipDot" />
+                      <span>Operator</span>
+                      <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
+                    </span>
+                  </div>
 
                   <div className="neox-ai-actions">
                     <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
@@ -655,7 +643,7 @@ export default function NeoxAIWidget() {
                     </button>
 
                     <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
-                      {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
+                      {resetLabel}
                     </button>
                   </div>
                 </div>
@@ -665,9 +653,7 @@ export default function NeoxAIWidget() {
             <button
               type="button"
               className="neox-ai-x"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-              }}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -743,4 +729,7 @@ export default function NeoxAIWidget() {
       </div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(ui, document.body);
 }
