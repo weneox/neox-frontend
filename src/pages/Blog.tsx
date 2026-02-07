@@ -313,6 +313,8 @@ export default function Blog() {
 
   const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "";
   const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
+  
+  console.log("BLOG API_BASE:", API_BASE);
 
   const [enter, setEnter] = useState(false);
   useEffect(() => {
