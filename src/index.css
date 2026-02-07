@@ -4761,38 +4761,71 @@ main { margin: 0 !important; padding: 0 !important; transform: none !important; 
   background: radial-gradient(900px 520px at 50% 45%, rgba(0,0,0,.25), rgba(0,0,0,.92) 68%, rgba(0,0,0,1) 100%) !important;
 }
 
-/* ========================= PREMIUM BUTTON FEEL ========================= */
-.neo-btn--premium {
+/* ========================= PREMIUM BUTTON FEEL (FIXED) ========================= */
+.neo-btn--premium{
   position: relative;
   transform: translateZ(0);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, filter .18s ease;
   box-shadow: 0 14px 36px rgba(0,0,0,.55);
   will-change: transform, box-shadow;
+  overflow: hidden; /* shine kənara daşmasın */
 }
 
-.neo-btn--premium::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
+.neo-btn--premium::before{
+  content:"";
+  position:absolute;
+  inset:-1px;
   border-radius: inherit;
-  pointer-events: none;
+  pointer-events:none;
   background: radial-gradient(60% 60% at 20% 10%, rgba(255,255,255,.18), transparent 60%);
-  opacity: .7;
+  opacity:.7;
 }
 
-.neo-btn--premium::after {
-  content: "";
-  position: absolute;
-  left: -30%;
-  top: -40%;
-  width: 60%;
-  height: 180%;
+.neo-btn--premium::after{
+  content:"";
+  position:absolute;
+  left:-40%;
+  top:-60%;
+  width:60%;
+  height:220%;
   transform: rotate(18deg);
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
-  opacity: 0;
-  pointer-events: none;
+  pointer-events:none;
+  background: linear-gradient(
+    to right,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,.22) 45%,
+    rgba(255,255,255,0) 100%
+  );
+  opacity: .0;
+  transition: opacity .22s ease, transform .55s ease;
 }
+
+@media (hover:hover) and (pointer:fine){
+  .neo-btn--premium:hover{
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+    box-shadow: 0 22px 70px rgba(0,0,0,.65);
+  }
+  .neo-btn--premium:hover::after{
+    opacity: .85;
+    transform: translateX(45%) rotate(18deg);
+  }
+}
+
+.neo-btn--premium:active{
+  transform: translateY(0px);
+}
+
+/* focus visible (accessibility) */
+.neo-btn--premium:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(0,240,255,.45),
+    0 0 0 6px rgba(0,240,255,.14),
+    0 18px 60px rgba(0,0,0,.55);
+}
+
 
 .neo-btn--premium:hover {
   transform: translateY(-2px);
