@@ -10457,18 +10457,20 @@ html {
 }
 
 /* =========================================================
-   NEOX AI Widget — FINAL OVERRIDES (Mobile open + Chips)
-   Paste at END of index.css (remove older duplicate patches)
+   NEOX AI Widget — FINAL SAFE (no portal, no preventDefault)
+   Paste at END of index.css
    ========================================================= */
 
+/* Root */
 .neox-ai{
   position: fixed;
   right: 0;
   bottom: 0;
   z-index: 2147483000;
-  pointer-events: none; /* root klik yeməsin */
+  pointer-events: none; /* root itself doesn't eat taps */
 }
 
+/* FAB (always tappable) */
 .neox-ai-fab{
   pointer-events: auto !important;
   position: fixed !important;
@@ -10480,6 +10482,7 @@ html {
   user-select: none;
 }
 
+/* Panel container */
 .neox-ai-panel{
   position: fixed;
   right: 16px;
@@ -10487,12 +10490,12 @@ html {
   width: 420px;
   height: min(680px, calc(100vh - 120px));
   z-index: 2147483645;
-  pointer-events: none;
+  pointer-events: none; /* closed */
 }
-
 .neox-ai.is-open .neox-ai-panel,
 .neox-ai-panel.is-open{ pointer-events: auto; }
 
+/* Decorative layers must never steal clicks */
 .neox-ai-decorFrame,
 .neox-ai-decorCorners,
 .neox-ai-scan,
@@ -10501,9 +10504,11 @@ html {
 .neox-ai-markRing,
 .neox-ai-fabRing,
 .neox-ai-fabCore,
-.neox-ai-fabPing{ pointer-events: none !important; }
+.neox-ai-fabPing{
+  pointer-events: none !important;
+}
 
-/* list + input overlap FIX */
+/* Layout fix: messages never go under input */
 .neox-ai-shell{
   height: 100%;
   display: flex;
@@ -10525,17 +10530,25 @@ html {
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* ======================
-   FUTURISTIC CHIP BUTTONS
-   ====================== */
+/* Bubble overflow safety */
+.neox-ai-bubble,
+.neox-ai-msg,
+.neox-ai-text{ min-width: 0; }
+.neox-ai-text{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
 
+/* ======================
+   Futuristic Chips (AI/Operator/Reset)
+   ====================== */
 .neox-ai-controls{
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
 }
-
 .neox-ai-chipRow{
   display: flex;
   gap: 10px;
@@ -10543,7 +10556,6 @@ html {
   align-items: center;
 }
 
-/* chip button base */
 .neox-ai-chipBtn{
   appearance: none;
   border: 1px solid rgba(255,255,255,.12);
@@ -10565,7 +10577,6 @@ html {
   white-space: nowrap;
   transform: translateZ(0);
 }
-
 .neox-ai-chipBtn:active{ transform: translateY(1px); }
 .neox-ai-chipBtn:focus{ outline: none; box-shadow: 0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 3px rgba(255,255,255,.08); }
 
@@ -10584,7 +10595,6 @@ html {
   box-shadow: 0 0 0 3px rgba(255,255,255,.06);
   position: relative;
 }
-
 .neox-ai-chipDot::after{
   content: "";
   position: absolute;
@@ -10594,7 +10604,6 @@ html {
   opacity: 0;
   transform: scale(.7);
 }
-
 .neox-ai-chipBtn.is-active{
   border-color: rgba(255,255,255,.24);
 }
@@ -10609,12 +10618,11 @@ html {
   100%{ opacity:.25; transform:scale(.75); }
 }
 
-/* color accents */
 .neox-ai-chipBtn.ai .neox-ai-chipDot{ background:#4fd3ff; box-shadow:0 0 18px rgba(79,211,255,.45),0 0 0 3px rgba(79,211,255,.12); }
 .neox-ai-chipBtn.op .neox-ai-chipDot{ background:#7CFF7A; box-shadow:0 0 18px rgba(124,255,122,.40),0 0 0 3px rgba(124,255,122,.12); }
 .neox-ai-chipBtn.reset .neox-ai-chipDot{ background:#FFC46B; box-shadow:0 0 18px rgba(255,196,107,.35),0 0 0 3px rgba(255,196,107,.12); }
 
-/* Mobile full-screen panel */
+/* Mobile full-screen */
 @media (max-width: 520px){
   .neox-ai-panel{
     left: 10px;
