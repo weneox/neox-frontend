@@ -3373,9 +3373,6 @@ body::before{
     filter: none !important;
   }
 
-/* ========================= PHONE LOCK — NO OVERFLOW (<=560px) ========================= */
-@media (max-width: 560px){
-
   /* 0) Ümumi “daşma” kill */
   html, body{ width:100%; max-width:100%; overflow-x:hidden !important; }
   .neox-home, .neox-main, .app-shell{ width:100%; max-width:100%; overflow-x:hidden !important; }
