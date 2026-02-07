@@ -1,5 +1,3 @@
-// src/components/NeoxAIWidget.tsx (FINAL SAFE — works on mobile like before + chip UI)
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -36,13 +34,21 @@ function lastAdminTsKey(leadId: string) {
 }
 
 function safeLSGet(k: string) {
-  try { return localStorage.getItem(k); } catch { return null; }
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
 }
 function safeLSSet(k: string, v: string) {
-  try { localStorage.setItem(k, v); } catch {}
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
 }
 function safeLSRemove(k: string) {
-  try { localStorage.removeItem(k); } catch {}
+  try {
+    localStorage.removeItem(k);
+  } catch {}
 }
 
 function getOrCreateSessionId() {
@@ -177,6 +183,58 @@ export default function NeoxAIWidget() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
 
+  const fabRef = useRef<HTMLButtonElement | null>(null);
+
+  // ✅ FORCE OPEN even if overlay steals touches:
+  // Capture on window, check finger coordinates inside FAB rect.
+  useEffect(() => {
+    const hitFab = (clientX: number, clientY: number) => {
+      const el = fabRef.current;
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    };
+
+    const toggle = () => setOpen((s) => !s);
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const t = e.changedTouches?.[0];
+      if (!t) return;
+      if (hitFab(t.clientX, t.clientY)) {
+        // overlay stopPropagation etsə belə capture-dan əvvəl gəlir
+        e.preventDefault();
+        toggle();
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (hitFab(e.clientX, e.clientY)) {
+        e.preventDefault();
+        toggle();
+      }
+    };
+
+    const onClick = (e: MouseEvent) => {
+      // fallback: some browsers only dispatch click
+      const x = (e as any).clientX ?? 0;
+      const y = (e as any).clientY ?? 0;
+      if (hitFab(x, y)) {
+        e.preventDefault();
+        toggle();
+      }
+    };
+
+    window.addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
+    window.addEventListener("pointerup", onPointerUp, { capture: true });
+    window.addEventListener("click", onClick, { capture: true });
+
+    return () => {
+      window.removeEventListener("touchend", onTouchEnd as any, true as any);
+      window.removeEventListener("pointerup", onPointerUp as any, true as any);
+      window.removeEventListener("click", onClick as any, true as any);
+    };
+  }, []);
+
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
 
@@ -200,7 +258,9 @@ export default function NeoxAIWidget() {
   ]);
 
   const msgsRef = useRef<Msg[]>(msgs);
-  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+  useEffect(() => {
+    msgsRef.current = msgs;
+  }, [msgs]);
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
 
@@ -212,7 +272,6 @@ export default function NeoxAIWidget() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const canSend = useMemo(() => input.trim().length > 0 && !typing, [input, typing]);
 
-  // scroll to bottom on open/new msg
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
@@ -241,7 +300,9 @@ export default function NeoxAIWidget() {
     if (inflightPoll.current) return;
     inflightPoll.current = true;
 
-    try { pollAbortRef.current?.abort(); } catch {}
+    try {
+      pollAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     pollAbortRef.current = ac;
 
@@ -331,7 +392,9 @@ export default function NeoxAIWidget() {
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
       pollRef.current = null;
-      try { pollAbortRef.current?.abort(); } catch {}
+      try {
+        pollAbortRef.current?.abort();
+      } catch {}
       pollAbortRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -399,7 +462,9 @@ export default function NeoxAIWidget() {
     const aiId = uid();
     setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai", kind: "normal" }]);
 
-    try { sendAbortRef.current?.abort(); } catch {}
+    try {
+      sendAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     sendAbortRef.current = ac;
 
@@ -432,18 +497,9 @@ export default function NeoxAIWidget() {
         signal: ac.signal,
       });
 
-      if (r.status === 401 || r.status === 403) {
-        hardResetChat();
-        throw new Error("Unauthorized");
-      }
-
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        throw new Error(`${r.status} ${txt || "Request failed"}`);
-      }
+      if (!r.ok) throw new Error(`${r.status}`);
 
       const data = await r.json().catch(() => ({} as any));
-
       const newLeadId = String((data as any)?.lead_id ?? "").trim();
       if (newLeadId) {
         setStoredLeadId(newLeadId);
@@ -455,7 +511,7 @@ export default function NeoxAIWidget() {
       setStoredHandoff(sessionId, serverHandoff);
 
       const full = String((data as any)?.text ?? (data as any)?.reply ?? "").trim();
-      if (!full) throw new Error("Empty response from backend");
+      if (!full) throw new Error("Empty");
 
       let i = 0;
       const step = () => {
@@ -468,19 +524,8 @@ export default function NeoxAIWidget() {
       };
       requestAnimationFrame(step);
     } catch (err: any) {
-      if (err?.name === "AbortError") {
-        setTyping(false);
-        setMsgs((p) => p.filter((m) => m.id !== aiId));
-        return;
-      }
-
-      console.error("[NEOX AI] chat fail:", err);
-      const msg = String(err?.message || "Request failed");
-      const shouldReset = /jwt|auth|unauthorized|invalid|expired|permission|403|401/i.test(msg);
-      if (shouldReset) hardResetChat();
-
-      setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: `Xəta: ${msg}`, source: "ai" } : m)));
       setTyping(false);
+      setMsgs((p) => p.map((m) => (m.id === aiId ? { ...m, text: "Xəta oldu. Yenidən yoxla.", source: "ai" } : m)));
     }
   }
 
@@ -493,14 +538,7 @@ export default function NeoxAIWidget() {
   function requestOperator() {
     setOpen(true);
     setTab("chat");
-
-    if (handoff) {
-      setMsgs((p) => [
-        ...p,
-        { id: uid(), role: "ai", text: "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.", ts: Date.now(), source: "ai", kind: "system" },
-      ]);
-      return;
-    }
+    if (handoff) return;
 
     const l = getLangSafe(i18n.language);
     const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
@@ -528,18 +566,10 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.reset") as string)
       : "Reset";
 
-  const toggle = () => setOpen((s) => !s);
-
   return (
-    <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
-      <button
-        type="button"
-        className={cx("neox-ai-fab", open && "is-open")}
-        onClick={(e) => { e.stopPropagation(); toggle(); }}
-        onPointerUp={(e) => { e.stopPropagation(); toggle(); }}
-        onTouchEnd={(e) => { e.stopPropagation(); toggle(); }}
-        aria-label={t("neoxAi.fabAria")}
-      >
+    <div className={cx("neox-ai", open && "is-open")}>
+      {/* FAB: only for layout/rect; real open is forced by capture hit-test */}
+      <button ref={fabRef} type="button" className={cx("neox-ai-fab", open && "is-open")} aria-label={t("neoxAi.fabAria")}>
         <span className="neox-ai-fabRing" aria-hidden="true" />
         <span className="neox-ai-fabCore" aria-hidden="true" />
         <span className="neox-ai-fabIcon" aria-hidden="true">
@@ -549,14 +579,7 @@ export default function NeoxAIWidget() {
         <span className="neox-ai-fabPing" aria-hidden="true" />
       </button>
 
-      <div
-        className={cx("neox-ai-panel", open && "is-open")}
-        role="dialog"
-        aria-modal="false"
-        aria-label={t("neoxAi.panelAria")}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className={cx("neox-ai-panel", open && "is-open")} role="dialog" aria-modal="false" aria-label={t("neoxAi.panelAria")}>
         <div className="neox-ai-shell">
           <div className="neox-ai-decorFrame" aria-hidden="true" />
           <div className="neox-ai-decorCorners" aria-hidden="true" />
@@ -582,13 +605,12 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                {/* ✅ Chips: robot AI yanında, Operator/Reset də button */}
+                {/* Chips */}
                 <div className="neox-ai-controls">
                   <div className="neox-ai-chipRow">
                     <button
                       type="button"
                       className={cx("neox-ai-chipBtn", "ai", !handoff && "is-active")}
-                      title="AI mode"
                       onClick={() => {
                         setHandoff(false);
                         setStoredHandoff(sessionIdRef.current, false);
@@ -602,18 +624,13 @@ export default function NeoxAIWidget() {
                       <span style={{ opacity: 0.85 }}>{!handoff ? "ON" : "OFF"}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      className={cx("neox-ai-chipBtn", "op", handoff && "is-active")}
-                      title="Operator mode"
-                      onClick={requestOperator}
-                    >
+                    <button type="button" className={cx("neox-ai-chipBtn", "op", handoff && "is-active")} onClick={requestOperator}>
                       <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>Operator</span>
+                      <span>{OP_LABEL}</span>
                       <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
                     </button>
 
-                    <button type="button" className={cx("neox-ai-chipBtn", "reset")} onClick={hardResetChat} title="Reset chat">
+                    <button type="button" className={cx("neox-ai-chipBtn", "reset")} onClick={hardResetChat}>
                       <span className="neox-ai-chipDot" aria-hidden="true" />
                       <span>{resetLabel}</span>
                     </button>
@@ -622,16 +639,7 @@ export default function NeoxAIWidget() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="neox-ai-x"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
-              }}
-              aria-label={t("common.close")}
-            >
+            <button type="button" className="neox-ai-x" onClick={() => setOpen(false)} aria-label={t("common.close")}>
               ✕
             </button>
           </div>
@@ -645,7 +653,7 @@ export default function NeoxAIWidget() {
               {t("neoxAi.tabs.quick")}
             </button>
 
-            <a className="neox-ai-join" href={t("neoxAi.join.href")} target="_blank" rel="noreferrer" title={t("neoxAi.join.title")}>
+            <a className="neox-ai-join" href={t("neoxAi.join.href")} target="_blank" rel="noreferrer">
               {t("neoxAi.join.label")}
             </a>
           </div>

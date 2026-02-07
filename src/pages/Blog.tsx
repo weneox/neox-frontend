@@ -4,8 +4,26 @@ import { Calendar, User, ArrowRight, Clock, Search, Filter } from "lucide-react"
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+type ApiPost = {
+  id?: string | number;
+  slug?: string;
+  title?: string;
+  excerpt?: string;
+  author?: string;
+  date?: string; // ISO
+  read_time?: string;
+  category?: string;
+  image_url?: string;
+  coverUrl?: string;
+  cover_url?: string;
+  published_at?: string;
+  publishedAt?: string;
+  createdAt?: string;
+};
+
 interface BlogPost {
   id: string;
+  slug: string;
   title: string;
   excerpt: string;
   author: string;
@@ -259,6 +277,38 @@ const BreadcrumbPill = memo(function BreadcrumbPill({
   );
 });
 
+function normalizePosts(rows: any[], fallbackLang: Lang): BlogPost[] {
+  const out: BlogPost[] = [];
+  for (const r of rows || []) {
+    const a = (r || {}) as ApiPost;
+    const title = String(a.title || "").trim();
+    const slug = String(a.slug || "").trim();
+    if (!title || !slug) continue;
+
+    const date =
+      a.published_at ||
+      a.publishedAt ||
+      a.date ||
+      a.createdAt ||
+      new Date().toISOString();
+
+    const cover = a.coverUrl || a.cover_url || a.image_url || "";
+
+    out.push({
+      id: String(a.id ?? slug),
+      slug,
+      title,
+      excerpt: String(a.excerpt || ""),
+      author: String(a.author || "NEOX"),
+      date: String(date),
+      read_time: String(a.read_time || "5 dəq"),
+      category: String(a.category || "General"),
+      image_url: String(cover || ""),
+    });
+  }
+  return out;
+}
+
 export default function Blog() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -267,6 +317,9 @@ export default function Blog() {
   const pageRef = useRef<HTMLElement | null>(null);
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 560px)", false);
+
+  const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "";
+  const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 
   // page enter (hero top->down)
   const [enter, setEnter] = useState(false);
@@ -298,23 +351,28 @@ export default function Blog() {
   useEffect(() => {
     fetchPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lang]);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
 
-      // Supabase yoxdursa sample göstər
-      const supa = (globalThis as any).supabase;
-      if (!supa || typeof supa.from !== "function") {
+      // backend yoxdursa sample göstər
+      if (!API_BASE) {
         setPosts([]);
         return;
       }
 
-      const { data, error } = await supa.from("blog_posts").select("*").order("date", { ascending: false });
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/api/posts?lang=${encodeURIComponent(lang)}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      setPosts((data as BlogPost[]) || []);
+      const j = await res.json();
+      const rows = Array.isArray(j) ? j : (j?.posts || j?.data || []);
+      const norm = normalizePosts(rows, lang);
+
+      setPosts(norm);
     } catch (err) {
       console.error("Postları gətirərkən xəta:", err);
       setPosts([]);
@@ -326,7 +384,8 @@ export default function Blog() {
   // Sample posts (AZ-only content) — UI tərcümə olacaq, post kontenti yox
   const samplePosts: BlogPost[] = [
     {
-      id: "1",
+      id: "ai-automation-trends-2024",
+      slug: "ai-automation-trends-2024",
       title: "AI Avtomatlaşdırmanın Gələcəyi: 2024 Trendləri",
       excerpt: "AI avtomatlaşdırma sahəsində əsas trendlər və onların biznesə təsiri: real nümunələr və tətbiq yolları.",
       author: "Dr. Alexandra Chen",
@@ -336,7 +395,8 @@ export default function Blog() {
       image_url: "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1200",
     },
     {
-      id: "2",
+      id: "ai-agents-support-5-ways",
+      slug: "ai-agents-support-5-ways",
       title: "AI Agentlər Support-u Necə Dəyişir? 5 Praktik Yol",
       excerpt: "Agent axınlarını düzgün qurmaqla müştəri təcrübəsini artır və support xərclərini azalt.",
       author: "Marcus Johnson",
@@ -346,7 +406,8 @@ export default function Blog() {
       image_url: "https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=1200",
     },
     {
-      id: "3",
+      id: "retailco-2m-savings-case-study",
+      slug: "retailco-2m-savings-case-study",
       title: "Case Study: RetailCo AI ilə $2M Qənaət Etdi",
       excerpt: "Bir e-commerce şirkətinin NEOX ilə proseslərini necə sistemləşdirib ölçülə bilən nəticə aldığını gör.",
       author: "Sarah Williams",
@@ -354,36 +415,6 @@ export default function Blog() {
       read_time: "10 dəq",
       category: "Case Study",
       image_url: "https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: "4",
-      title: "Workflow Avtomatlaşdırmaya Başlanğıc: Sadə Bələdçi",
-      excerpt: "Yeni başlayırsan? Bu bələdçi ilkin addımları, quick win-ləri və ən çox edilən səhvləri göstərir.",
-      author: "Michael Torres",
-      date: "2024-01-01",
-      read_time: "8 dəq",
-      category: "Bələdçi",
-      image_url: "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: "5",
-      title: "AI Avtomatlaşdırmada Təhlükəsizlik: Praktik Qaydalar",
-      excerpt: "Agentləri təhlükəsiz qurmaq, limitlər, audit, compliance və risk intent-lərin idarəsi.",
-      author: "Dr. Alexandra Chen",
-      date: "2023-12-28",
-      read_time: "6 dəq",
-      category: "Təhlükəsizlik",
-      image_url: "https://images.pexels.com/photos/60504/security-protection-anti-virus-software-60504.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: "6",
-      title: "AI Avtomatlaşdırmanın ROI-si: 1-ci İldə Nə Gözləmək Olar?",
-      excerpt: "ROI-ni necə ölçmək, KPI-lar, pilot planı və ilk ildə tipik nəticələr: real çərçivə.",
-      author: "Sarah Williams",
-      date: "2023-12-20",
-      read_time: "9 dəq",
-      category: "Biznes Strategiyası",
-      image_url: "https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=1200",
     },
   ];
 
@@ -902,11 +933,15 @@ export default function Blog() {
                 const dir = idx % 3 === 0 ? "bl-reveal-left" : idx % 3 === 1 ? "bl-reveal-bottom" : "bl-reveal-right";
                 const catLabel = post.category || t("blog.filters.general");
 
+                const coverSrc =
+                  post.image_url ||
+                  "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1200";
+
                 return (
                   <article key={post.id} className={cx("bl-reveal", dir, "bl-card bl-pop bl-contain group")} aria-label={post.title}>
                     <div className="bl-imgWrap bl-contain">
                       <img
-                        src={post.image_url}
+                        src={coverSrc}
                         alt={post.title}
                         loading="lazy"
                         decoding="async"
@@ -940,7 +975,7 @@ export default function Blog() {
 
                     <div className="mt-5">
                       <Link
-                        to={withLang(lang, `/blog/${post.id}`)}
+                        to={withLang(lang, `/blog/${post.slug}`)}
                         className="bl-btn bl-btn--primary"
                         aria-label={t("blog.actions.readAria")}
                       >
