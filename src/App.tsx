@@ -23,6 +23,11 @@ import AdminChats from "./pages/Admin/AdminChats";
 import AdminStub from "./pages/Admin/AdminStub";
 import AdminMagic from "./pages/Admin/AdminMagic";
 
+// ✅ NEW: skeleton admin pages (stub yerinə)
+import AdminBlog from "./pages/Admin/AdminBlog";
+import AdminProducts from "./pages/Admin/AdminProducts";
+import AdminMedia from "./pages/Admin/AdminMedia";
+
 // ✅ Admin context provider
 import { AdminProvider } from "./pages/Admin/adminContext";
 
@@ -182,9 +187,6 @@ export default function App() {
       {boot === "loader" && <MatrixLoader onDone={handleLoaderDone} />}
 
       {boot === "app" && (
-        // ✅ Burda AdminProvider əlavə etdik:
-        // - PROD: env yoxdursa apiBase="" olacaq (same-origin /api/..)
-        // - DEV: env yoxdursa localhost:5050 olacaq
         <AdminProvider>
           <AdminOnlyGate>
             <Routes>
@@ -208,9 +210,14 @@ export default function App() {
                   <Route path="leads" element={<AdminLeads />} />
                   <Route path="chats" element={<AdminChats />} />
                   <Route path="chats/:id" element={<AdminChats />} />
-                  <Route path="blog" element={<AdminStub title="Blog (coming next)" />} />
-                  <Route path="products" element={<AdminStub title="Shop / Products (coming next)" />} />
-                  <Route path="media" element={<AdminStub title="Media (coming next)" />} />
+
+                  {/* ✅ Stub -> real skeleton pages */}
+                  <Route path="blog" element={<AdminBlog />} />
+                  <Route path="products" element={<AdminProducts />} />
+                  <Route path="media" element={<AdminMedia />} />
+
+                  {/* (istəsən AdminStub-u başqa yerdə saxla / ya da sonra sil) */}
+                  {/* <Route path="something" element={<AdminStub title="Coming soon" />} /> */}
                 </Route>
 
                 {/* ✅ normal pages: Layout VAR */}
