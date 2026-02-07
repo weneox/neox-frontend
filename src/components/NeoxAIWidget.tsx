@@ -577,7 +577,7 @@ export default function NeoxAIWidget() {
           : "AI ON • Operator OFF");
 
   return (
-    <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
+    <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"}>
       <button
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
@@ -643,7 +643,7 @@ export default function NeoxAIWidget() {
                     {OP_LABEL}
                   </button>
 
-                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
+                  <button type="button" onClick={hardResetChat} className={cx("neox-ai-pillBtn", "is-reset")}>
                     {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
                   </button>
                 </div>
