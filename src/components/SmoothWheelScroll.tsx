@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   enabled?: boolean;
-  minWidth?: number;          // desktop only
-  strength?: number;          // wheel -> velocity multiplier
-  friction?: number;          // inertia decay (0.80..0.92 yaxşı)
-  maxVelocity?: number;       // clamp
-  locationKey?: string;       // route dəyişəndə reset üçün
-  ignoreSelectors?: string[]; // iç-scroll olan yerlər
+  minWidth?: number;
+  locationKey?: string;
+  ignoreSelectors?: string[];
+
+  // tuning
+  strength?: number;     // wheel -> accel
+  friction?: number;     // inertia decay (0.86..0.93)
+  maxVelocity?: number;  // clamp
+  softCap?: number;      // yumuşatma həddi
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -19,7 +22,9 @@ function getScrollableParent(el: Element | null) {
   while (cur && cur !== document.documentElement) {
     const st = getComputedStyle(cur);
     const oy = st.overflowY;
-    const canScroll = (oy === "auto" || oy === "scroll") && (cur as HTMLElement).scrollHeight > (cur as HTMLElement).clientHeight + 2;
+    const canScroll =
+      (oy === "auto" || oy === "scroll") &&
+      (cur as HTMLElement).scrollHeight > (cur as HTMLElement).clientHeight + 2;
     if (canScroll) return cur as HTMLElement;
     cur = cur.parentElement;
   }
@@ -39,31 +44,42 @@ function shouldIgnoreTarget(target: EventTarget | null, ignoreSelectors: string[
 }
 
 function normalizeDelta(e: WheelEvent) {
-  // deltaMode: 0=pixel, 1=line, 2=page
   let dy = e.deltaY;
-
-  // trackpad çox kiçik dəyərlər göndərə bilir — normal saxlayırıq
   if (e.deltaMode === 1) dy *= 16; // lines -> px
-  else if (e.deltaMode === 2) dy *= window.innerHeight;
-
+  else if (e.deltaMode === 2) dy *= window.innerHeight; // page -> px
   return dy;
+}
+
+// velocity yumşaltma: böyük dəyərləri “kivam”a salır
+function soften(v: number, softCap: number) {
+  const s = Math.sign(v);
+  const a = Math.abs(v);
+
+  if (a <= softCap) return v;
+
+  // soft knee: cap-dən sonra artım yavaşıyır (log-like)
+  const extra = a - softCap;
+  const damped = softCap + extra * 0.35; // 0.35 = daha ağır hiss
+  return s * damped;
 }
 
 export default function SmoothWheelScroll({
   enabled = true,
   minWidth = 980,
-  strength = 0.85,
-  friction = 0.88,
-  maxVelocity = 240,
   locationKey,
   ignoreSelectors,
+
+  // ✅ default: “hezin-hezin”
+  strength = 0.22,     // çox aşağı
+  friction = 0.90,     // yavaş sönmə
+  maxVelocity = 85,    // çox aşağı clamp
+  softCap = 120,       // wheel böyük gəlsə yumşalt
 }: Props) {
   const ignores = useMemo(
     () =>
       ignoreSelectors?.length
         ? ignoreSelectors
         : [
-            // widget/admin kimi iç-scroll yerləri
             ".neox-ai",
             ".neox-ai-modal",
             ".admin",
@@ -83,20 +99,16 @@ export default function SmoothWheelScroll({
   useEffect(() => {
     if (!enabled) return;
 
-    // reduced motion -> off
     const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (prefersReduced) return;
 
-    // mobile -> off (touch native)
     if (window.innerWidth < minWidth) return;
 
-    // yalnız mouse wheel (fine pointer) üçün
     const fine = window.matchMedia?.("(pointer: fine)")?.matches;
     const hover = window.matchMedia?.("(hover: hover)")?.matches;
     if (!fine || !hover) return;
 
     const docEl = document.documentElement;
-
     const maxScroll = () => Math.max(0, docEl.scrollHeight - window.innerHeight);
 
     const stop = () => {
@@ -106,17 +118,16 @@ export default function SmoothWheelScroll({
     };
 
     const syncToNative = () => {
-      const y = window.scrollY || window.pageYOffset || 0;
+      const y = window.scrollY || 0;
       posRef.current = y;
       lastYRef.current = y;
     };
 
-    // route dəyişəndə “sürət yığılması” olmasın
+    // route dəyişəndə reset
     syncToNative();
     stop();
 
     const step = () => {
-      // native scroll başqa yerdən dəyişibsə (keyboard, drag, etc) sync et
       const nativeY = window.scrollY || 0;
       if (Math.abs(nativeY - lastYRef.current) > 2) {
         posRef.current = nativeY;
@@ -125,22 +136,22 @@ export default function SmoothWheelScroll({
       // inertia
       velocityRef.current *= friction;
 
-      // çox kiçikdirsə dayandır
-      if (Math.abs(velocityRef.current) < 0.1) {
+      // dayandırma həddi (çox yumşaq)
+      if (Math.abs(velocityRef.current) < 0.08) {
         stop();
         return;
       }
 
       const next = posRef.current + velocityRef.current;
-      const clamped = clamp(next, 0, maxScroll());
+      const mx = maxScroll();
+      const clamped = clamp(next, 0, mx);
 
       posRef.current = clamped;
       lastYRef.current = clamped;
       window.scrollTo(0, clamped);
 
-      // sərhədə dəyibsə velocity-ni öldür (top/bottom “donma” olmasın)
-      if (clamped <= 0 || clamped >= maxScroll()) {
-        velocityRef.current = 0;
+      // sərhəddə tam dayansın
+      if (clamped <= 0 || clamped >= mx) {
         stop();
         return;
       }
@@ -149,58 +160,50 @@ export default function SmoothWheelScroll({
     };
 
     const onWheel = (e: WheelEvent) => {
-      // zoom gesture / ctrl+wheel -> native
       if (e.ctrlKey) return;
 
-      // iç scroll olan elementlərdə native saxla
       if (shouldIgnoreTarget(e.target, ignores)) return;
 
-      // əgər mouse iç-scroll konteynerin üstündədirsə (closest scrollable) native olsun
       const sp = getScrollableParent(e.target instanceof Element ? e.target : null);
       if (sp) return;
 
-      const dyRaw = normalizeDelta(e);
+      let dy = normalizeDelta(e);
 
-      // çox xırda (trackpad noise) -> native
-      if (Math.abs(dyRaw) < 2.5) return;
+      // xırda trackpad noise -> native
+      if (Math.abs(dy) < 2.5) return;
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
 
-      // TOP/BOTTOM sərhədlərində native scroll-a icazə ver:
-      //  - top-da yuxarı (dy<0) gəlirsə preventDefault ETMƏ
-      //  - bottom-da aşağı (dy>0) gəlirsə preventDefault ETMƏ
-      if ((y <= 0 && dyRaw < 0) || (y >= mx && dyRaw > 0)) {
-        // inertia varsa sıfırla ki, sərhəddə “tutulma” olmasın
+      // top/bottom-da native
+      if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
         stop();
         syncToNative();
         return;
       }
 
-      // burada artıq smooth edəcəyik
+      // ✅ smooth only here
       e.preventDefault();
 
-      // native scroll ilə sinxron saxla
       syncToNative();
 
-      // wheel -> velocity (aşırı sürətlənməsin)
-      const add = clamp(dyRaw * strength, -maxVelocity, maxVelocity);
+      // ✅ wheel impulsunu yumşalt
+      dy = soften(dy, softCap);
 
-      // ardıcıl wheel-lərdə yüngül toplanma, amma clamp var
-      velocityRef.current = clamp(velocityRef.current + add, -maxVelocity, maxVelocity);
+      // accel çox az
+      const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
-      if (!rafRef.current) {
-        rafRef.current = requestAnimationFrame(step);
-      }
+      // ✅ toplama yox, “blend” (birdən sürətlənməsin)
+      // yeni velocity = köhnənin 70%-i + add
+      velocityRef.current = clamp(velocityRef.current * 0.70 + add, -maxVelocity, maxVelocity);
+
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(step);
     };
 
-    // passive:false lazımdır ki preventDefault işləsin
     window.addEventListener("wheel", onWheel, { passive: false });
 
-    // resize zamanı maxScroll dəyişir -> sync
     const onResize = () => {
       syncToNative();
-      // sərhədə düşübsə velocity-ni öldür
       const y = window.scrollY || 0;
       if (y <= 0 || y >= maxScroll()) stop();
     };
@@ -212,7 +215,7 @@ export default function SmoothWheelScroll({
       stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, minWidth, strength, friction, maxVelocity, locationKey, JSON.stringify(ignores)]);
+  }, [enabled, minWidth, strength, friction, maxVelocity, softCap, locationKey, JSON.stringify(ignores)]);
 
   return null;
 }
