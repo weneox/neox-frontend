@@ -10577,3 +10577,446 @@ html {
   /* keep FAB reachable */
   .neox-ai-fab { right: 14px; bottom: 14px; }
 }
+
+/* =========================================================
+   NEOX AI WIDGET — FULL CSS (base + mobile open fix)
+   Paste to END of src/index.css
+   ========================================================= */
+
+.neox-ai{
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 2147481000;
+  pointer-events: none; /* only FAB & open panel will accept clicks */
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.neox-ai *{ box-sizing: border-box; }
+
+.neox-ai-fab{
+  pointer-events: auto;
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  height: 50px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(10,12,16,.72);
+  color: rgba(255,255,255,.92);
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  box-shadow:
+    0 12px 34px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.neox-ai-fab:active{ transform: translateY(1px); }
+
+.neox-ai-fabIcon{
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.neox-ai-robotMini{ width: 18px; height: 18px; opacity: .95; }
+
+.neox-ai-fabText{
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 800;
+  opacity: .95;
+  white-space: nowrap;
+}
+
+.neox-ai-fabRing,
+.neox-ai-fabCore,
+.neox-ai-fabPing{ display:none; } /* səndə əvvəl efekt var idisə, istəyirsən sonra qaytararıq */
+
+/* PANEL */
+.neox-ai-panel{
+  pointer-events: none;
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(420px, calc(100vw - 20px));
+  height: min(640px, calc(100dvh - 20px));
+  max-height: calc(100dvh - 20px);
+  z-index: 2147482000;
+
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(6,7,10,.86);
+  color: rgba(255,255,255,.92);
+
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+
+  box-shadow:
+    0 22px 60px rgba(0,0,0,.55),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+
+  opacity: 0;
+  transform: translateY(10px) scale(.98);
+  visibility: hidden;
+}
+
+.neox-ai.is-open .neox-ai-panel,
+.neox-ai-panel.is-open{
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+}
+
+/* IMPORTANT: decor layers must NOT steal taps */
+.neox-ai-decorFrame,
+.neox-ai-decorCorners,
+.neox-ai-scan,
+.neox-ai-noise,
+.neox-ai-markGlow,
+.neox-ai-markRing{
+  pointer-events: none !important;
+}
+
+/* Shell layout */
+.neox-ai-shell{
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.neox-ai-top{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.neox-ai-brand{
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.neox-ai-mark{
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  flex: 0 0 auto;
+}
+
+.neox-ai-robot{ width: 22px; height: 22px; opacity: .95; }
+
+.neox-ai-brandText{ min-width: 0; }
+
+.neox-ai-titleRow{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.neox-ai-title{
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.neox-ai-status{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  flex: 0 0 auto;
+}
+
+.neox-ai-statusDot{
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(60, 220, 120, .95);
+  box-shadow: 0 0 0 3px rgba(60,220,120,.16);
+}
+
+.neox-ai-statusTxt{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .92;
+}
+
+.neox-ai-sub{
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: .82;
+  line-height: 1.35;
+}
+
+.neox-ai-x{
+  pointer-events: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.90);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  touch-action: manipulation;
+}
+
+.neox-ai-tabs{
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.neox-ai-tab{
+  pointer-events: auto;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.88);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.neox-ai-tab.is-active{
+  background: rgba(20,82,199,.22);
+  border-color: rgba(20,82,199,.35);
+}
+
+.neox-ai-join{
+  margin-left: auto;
+  pointer-events: auto;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.88);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.neox-ai-list{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  padding-bottom: 92px; /* inputRow space */
+  overscroll-behavior: contain;
+}
+
+.neox-ai-msg{
+  display: flex;
+  margin: 10px 0;
+  min-width: 0;
+}
+
+.neox-ai-msg.is-user{ justify-content: flex-end; }
+.neox-ai-msg.is-ai,
+.neox-ai-msg.is-admin{ justify-content: flex-start; }
+
+.neox-ai-bubble{
+  max-width: min(78%, 560px);
+  min-width: 0;
+  border-radius: 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+}
+
+.neox-ai-msg.is-user .neox-ai-bubble{
+  background: rgba(20,82,199,.20);
+  border-color: rgba(20,82,199,.28);
+}
+
+.neox-ai-who{
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  opacity: .72;
+  margin-bottom: 6px;
+}
+
+.neox-ai-text{
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* admin bubble style (sənin blokun) */
+.neox-ai-msg.is-admin .neox-ai-bubble{
+  border-color: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+}
+.neox-ai-msg.is-admin .neox-ai-who{
+  opacity: .95;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Input row fixed inside panel */
+.neox-ai-inputRow{
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255,255,255,.10);
+  background: rgba(6,7,10,.86);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.neox-ai-input{
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.92);
+  padding: 0 12px;
+  outline: none;
+}
+
+.neox-ai-input:focus{
+  border-color: rgba(20,82,199,.42);
+  box-shadow: 0 0 0 3px rgba(20,82,199,.16);
+}
+
+.neox-ai-send{
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.92);
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.neox-ai-send.is-disabled,
+.neox-ai-send:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* QUICK tab */
+.neox-ai-quick{
+  padding: 14px;
+}
+.neox-ai-quickTitle{
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .82;
+  margin-bottom: 10px;
+}
+.neox-ai-quickGrid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.neox-ai-q{
+  pointer-events: auto;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.88);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 520px) {
+  .neox-ai-panel{
+    inset: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-radius: 16px;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .neox-ai-top{
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    padding-top: 10px;
+  }
+
+  .neox-ai-x{
+    width: 40px;
+    height: 40px;
+  }
+
+  .neox-ai-list{ padding-bottom: 100px; }
+
+  .neox-ai-fab{
+    right: 14px;
+    bottom: 14px;
+  }
+}
