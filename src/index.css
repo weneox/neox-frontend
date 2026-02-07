@@ -9481,27 +9481,28 @@ html {
 }
 
 /* =========================================================
-   NEOX AI WIDGET — PREMIUM v2 (Orb FAB + True Modal)
-   Paste to END of index.css (REMOVE old .neox-ai styles)
+   NEOX AI WIDGET — ULTRA PREMIUM (FIX: no focus rectangle + smooth mobile open)
+   Paste to end of index.css (replace old .neox-ai styles)
 ========================================================= */
 
 .neox-ai{
-  /* tokens */
-  --w-bg: rgba(6,10,18,0.92);
-  --w-bg2: rgba(10,14,28,0.88);
-  --w-glass: rgba(0,0,0,0.26);
+  --n-bg0: rgba(6, 10, 18, 0.92);
+  --n-bg1: rgba(10, 16, 30, 0.88);
+  --n-glass: rgba(0,0,0,0.22);
 
-  --w-stroke: rgba(255,255,255,0.14);
-  --w-stroke2: rgba(255,255,255,0.08);
+  --n-stroke: rgba(255,255,255,0.14);
+  --n-stroke2: rgba(255,255,255,0.08);
 
-  --w-text: rgba(255,255,255,0.92);
-  --w-muted: rgba(255,255,255,0.66);
+  --n-text: rgba(255,255,255,0.92);
+  --n-muted: rgba(255,255,255,0.66);
 
-  --w-blue: #2f7bff;
-  --w-mint: #62ffbf;
-  --w-amber: #ffb24a;
+  --n-blue: #2f7bff;
+  --n-blue2: #8fb6ff;
+  --n-mint: #62ffbf;
+  --n-amber: #ffb24a;
+  --n-orange: #ff7a2f;
 
-  --w-r: 22px;
+  --n-r: 22px;
 
   position: fixed;
   right: 18px;
@@ -9511,26 +9512,67 @@ html {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
   -webkit-tap-highlight-color: transparent;
 
-  /* IMPORTANT: closed state should NOT block the page */
+  /* do not block page when closed */
   pointer-events: none;
 }
 
 .neox-ai-fab,
-.neox-ai-panel{
-  pointer-events: auto;
+.neox-ai-panel{ pointer-events: auto; }
+
+/* =========================================================
+   ✅ FIX #1: REMOVE THE "RECTANGLE" (focus outline / focus ring)
+   This is what you're seeing around the widget when opened.
+========================================================= */
+.neox-ai button,
+.neox-ai a,
+.neox-ai input{
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.neox-ai button:focus,
+.neox-ai a:focus,
+.neox-ai input:focus{
+  outline: none !important;
+  box-shadow: none !important; /* kills browser focus ring */
+}
+
+/* Keep a premium focus for keyboard users only (desktop) */
+.neox-ai button:focus-visible,
+.neox-ai a:focus-visible,
+.neox-ai input:focus-visible{
+  outline: none !important;
+  box-shadow: 0 0 0 4px rgba(47,123,255,0.16) !important;
+}
+
+/* some browsers draw inner focus border */
+.neox-ai button::-moz-focus-inner{
+  border: 0 !important;
 }
 
 /* ---------- motion ---------- */
-@keyframes wBreath { 0%{ transform:scale(.96); opacity:.65 } 50%{ transform:scale(1.10); opacity:1 } 100%{ transform:scale(.96); opacity:.65 } }
-@keyframes wPing { 0%{ transform:scale(.3); opacity:.9 } 100%{ transform:scale(1.7); opacity:0 } }
-@keyframes wSweep { 0%{ transform:translateX(-42%) rotate(12deg); opacity:0 } 22%{ opacity:.16 } 60%{ opacity:.12 } 100%{ transform:translateX(46%) rotate(12deg); opacity:0 } }
+@keyframes nBreath {
+  0% { transform: scale(.94); opacity: .55; }
+  50% { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(.94); opacity: .55; }
+}
+@keyframes nPing {
+  0% { transform: scale(.25); opacity: .9; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+@keyframes nGlowSweep {
+  0% { transform: translateX(-35%) rotate(12deg); opacity: 0; }
+  25% { opacity: .18; }
+  60% { opacity: .14; }
+  100% { transform: translateX(40%) rotate(12deg); opacity: 0; }
+}
 
 @media (prefers-reduced-motion: reduce){
   .neox-ai *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
 }
 
 /* =========================================================
-   OVERLAY — blur from first frame, blocks all clicks/scroll
+   OVERLAY — blur is present from the FIRST frame
 ========================================================= */
 .neox-ai-overlay{
   position: fixed;
@@ -9538,15 +9580,16 @@ html {
   opacity: 0;
   pointer-events: none;
 
-  backdrop-filter: blur(14px) saturate(1.12);
-  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
 
   background:
-    radial-gradient(1200px 760px at 78% 70%, rgba(47,123,255,0.16), transparent 62%),
-    radial-gradient(900px 600px at 18% 18%, rgba(255,178,74,0.10), transparent 60%),
-    rgba(0,0,0,0.44);
+    radial-gradient(1200px 720px at 78% 70%, rgba(47,123,255,0.16), transparent 62%),
+    radial-gradient(980px 560px at 22% 18%, rgba(255,178,74,0.10), transparent 60%),
+    rgba(0,0,0,0.42);
 
-  transition: opacity 200ms ease;
+  transition: opacity 260ms ease;
+  will-change: opacity;
 }
 .neox-ai-overlay.is-open{
   opacity: 1;
@@ -9555,87 +9598,94 @@ html {
 }
 
 /* =========================================================
-   FAB — NEW LOOK (premium orb + hidden label)
+   FAB — premium pill
 ========================================================= */
 .neox-ai-fab{
   position: relative;
-
-  /* orb size */
-  width: 58px;
-  height: 58px;
+  width: 152px;
+  height: 56px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.14);
 
   background:
-    radial-gradient(42px 42px at 30% 25%, rgba(255,255,255,0.16), transparent 62%),
-    radial-gradient(56px 56px at 60% 72%, rgba(47,123,255,0.42), rgba(10,14,26,0.92) 70%),
-    linear-gradient(180deg, rgba(10,14,26,0.95), rgba(6,10,18,0.88));
+    radial-gradient(560px 240px at 28% 18%, rgba(47,123,255,0.28), transparent 60%),
+    radial-gradient(420px 240px at 78% 120%, rgba(255,178,74,0.11), transparent 62%),
+    linear-gradient(180deg, rgba(12,16,28,0.96), rgba(8,10,18,0.82));
 
   box-shadow:
-    0 28px 120px rgba(0,0,0,0.82),
+    0 34px 160px rgba(0,0,0,0.80),
     0 0 0 1px rgba(255,255,255,0.06) inset;
 
-  display: grid;
-  place-items: center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
 
-  cursor: pointer;
-  user-select: none;
+  cursor:pointer;
+  user-select:none;
   touch-action: manipulation;
 
   transform: translateZ(0);
-  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, filter 220ms ease;
+  transition: transform 240ms cubic-bezier(.16,1,.22,1), border-color 220ms ease, box-shadow 220ms ease, filter 220ms ease;
+  will-change: transform;
 }
 
 .neox-ai-fab:hover{
   transform: translateY(-2px);
   border-color: rgba(255,255,255,0.18);
   box-shadow:
-    0 34px 140px rgba(0,0,0,0.86),
+    0 44px 180px rgba(0,0,0,0.86),
     0 0 0 1px rgba(255,255,255,0.07) inset;
 }
 
 .neox-ai-fab.is-open{
-  transform: translateY(-1px) scale(0.99);
+  transform: translateY(-2px) scale(0.99);
 }
 
-/* glow ring */
 .neox-ai-fabRing{
   position:absolute;
-  inset:-16px;
+  inset:-14px;
   border-radius: 999px;
   background:
-    radial-gradient(closest-side, rgba(47,123,255,0.22), transparent 60%),
-    radial-gradient(closest-side, rgba(98,255,191,0.10), transparent 62%),
+    radial-gradient(closest-side, rgba(47,123,255,0.24), transparent 60%),
+    radial-gradient(closest-side, rgba(143,182,255,0.16), transparent 62%),
     radial-gradient(closest-side, rgba(255,178,74,0.08), transparent 62%);
   filter: blur(16px);
   opacity: 0.95;
   pointer-events:none;
 }
 
-/* core dot */
 .neox-ai-fabCore{
-  position:absolute;
-  width: 10px; height: 10px;
+  width: 12px; height: 12px;
   border-radius: 999px;
-  background: rgba(47,123,255,0.98);
-  box-shadow: 0 0 0 7px rgba(47,123,255,0.14), 0 0 26px rgba(47,123,255,0.34);
+  background: rgba(47,123,255,0.96);
+  box-shadow: 0 0 0 7px rgba(47,123,255,0.16), 0 0 28px rgba(47,123,255,0.34);
 }
 
-/* icon */
 .neox-ai-fabIcon{
-  width: 34px; height: 34px;
+  position:absolute;
+  left: 14px;
+  width: 32px; height: 32px;
   display:grid;
   place-items:center;
   pointer-events:none;
-  opacity: .98;
+  opacity: .96;
 }
 .neox-ai-robotMini{
-  width: 22px; height: 22px;
-  color: rgba(255,255,255,0.94);
-  filter: drop-shadow(0 0 16px rgba(47,123,255,0.50));
+  width: 20px; height: 20px;
+  color: rgba(255,255,255,0.92);
+  filter: drop-shadow(0 0 16px rgba(47,123,255,0.46));
 }
 
-/* live dot */
+.neox-ai-fabText{
+  font-weight: 980;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.94);
+  padding-left: 30px;
+}
+
 .neox-ai-fabPing{
   position:absolute;
   right:-6px;
@@ -9651,78 +9701,53 @@ html {
   inset:-10px;
   border-radius:999px;
   border:1px solid rgba(98,255,191,0.34);
-  animation: wPing 1.6s ease-out infinite;
+  animation: nPing 1.6s ease-out infinite;
   opacity: 0.85;
   pointer-events:none;
 }
 
-/* label bubble — hidden by default */
-.neox-ai-fabText{
-  position:absolute;
-  right: 64px;
-  bottom: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background:
-    radial-gradient(360px 160px at 30% 20%, rgba(47,123,255,0.18), transparent 62%),
-    rgba(0,0,0,0.40);
-
-  color: rgba(255,255,255,0.94);
-  font-weight: 980;
-  letter-spacing: 0.10em;
-  font-size: 11px;
-  text-transform: uppercase;
-  white-space: nowrap;
-
-  box-shadow: 0 20px 70px rgba(0,0,0,0.60);
-
-  opacity: 0;
-  transform: translateX(8px);
-  pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-/* show label on hover (desktop) or when open */
-@media (hover:hover){
-  .neox-ai-fab:hover .neox-ai-fabText{
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-.neox-ai-fab.is-open .neox-ai-fabText{
-  opacity: 1;
-  transform: translateX(0);
-}
-
 /* =========================================================
-   PANEL — smoother open + premium glass
+   ✅ FIX #2: PANEL OPEN ANIMATION (smooth everywhere, extra smooth on mobile)
 ========================================================= */
 .neox-ai-panel{
   position:absolute;
   right:0;
-  bottom: 76px;
+  bottom: 70px;
 
   width: min(440px, calc(100vw - 26px));
   height: min(680px, calc(100dvh - 130px));
   max-height: calc(100dvh - 130px);
 
+  /* closed */
   opacity: 0;
-  transform: translateY(16px) scale(0.975);
-  transform-origin: 92% 100%;
-  transition:
-    opacity 200ms ease,
-    transform 460ms cubic-bezier(.16,1,.22,1);
+  transform: translate3d(0, 18px, 0) scale(0.975);
+  transform-origin: 90% 100%;
+  filter: saturate(1.05);
 
   pointer-events:none;
   visibility:hidden;
+
+  /* smooth transitions */
+  transition:
+    opacity 260ms ease,
+    transform 520ms cubic-bezier(.16,1,.22,1),
+    filter 260ms ease,
+    visibility 0s linear 260ms; /* visibility changes AFTER fade when closing */
+
+  will-change: transform, opacity;
 }
 
+/* open */
 .neox-ai-panel.is-open{
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translate3d(0, 0, 0) scale(1);
   pointer-events:auto;
   visibility:visible;
+  transition:
+    opacity 260ms ease,
+    transform 520ms cubic-bezier(.16,1,.22,1),
+    filter 260ms ease,
+    visibility 0s linear 0s; /* visible immediately when opening */
 }
 
 /* shell */
@@ -9730,7 +9755,7 @@ html {
   position:relative;
   width:100%;
   height:100%;
-  border-radius: var(--w-r);
+  border-radius: var(--n-r);
   border: 1px solid rgba(255,255,255,0.14);
 
   background:
@@ -9746,24 +9771,41 @@ html {
   display:flex;
   flex-direction: column;
 
-  backdrop-filter: blur(18px) saturate(1.18);
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* sweep */
+.neox-ai-shell::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border-radius: calc(var(--n-r) + 2px);
+  background: conic-gradient(
+    from 180deg,
+    rgba(47,123,255,0.00),
+    rgba(47,123,255,0.18),
+    rgba(255,255,255,0.08),
+    rgba(255,178,74,0.10),
+    rgba(47,123,255,0.00)
+  );
+  filter: blur(14px);
+  opacity: 0.55;
+  pointer-events:none;
+}
+
 .neox-ai-shell::after{
   content:"";
   position:absolute;
   top:-30%;
-  left:-48%;
-  width: 96%;
+  left:-40%;
+  width: 90%;
   height: 160%;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
   transform: rotate(12deg);
-  animation: wSweep 7s ease-in-out infinite;
+  animation: nGlowSweep 7s ease-in-out infinite;
   pointer-events:none;
-  opacity: .10;
+  opacity: .12;
 }
 
 .neox-ai-decorFrame,
@@ -9774,20 +9816,18 @@ html {
 .neox-ai-scan{
   position:absolute; inset:0;
   background: repeating-linear-gradient(180deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 7px);
-  opacity: 0.06;
+  opacity: 0.07;
   mix-blend-mode: overlay;
 }
 .neox-ai-noise{
   position:absolute; inset:0;
   background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px);
   background-size: 28px 28px;
-  opacity: 0.022;
+  opacity: 0.025;
   filter: blur(0.25px);
 }
 
-/* =========================================================
-   TOP BAR
-========================================================= */
+/* TOP */
 .neox-ai-top{
   position:relative;
   z-index: 5;
@@ -9871,7 +9911,7 @@ html {
   border-radius: 999px;
   background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.45));
   box-shadow: 0 0 18px rgba(98,255,191,0.45);
-  animation: wBreath 1.6s ease-in-out infinite;
+  animation: nBreath 1.6s ease-in-out infinite;
 }
 .neox-ai-statusTxt{
   font-size: 10px;
@@ -9898,9 +9938,7 @@ html {
   border-color: rgba(255,255,255,0.14);
 }
 
-/* =========================================================
-   CONTROLS
-========================================================= */
+/* controls */
 .neox-ai-controls{
   margin-top: 10px;
   display:flex;
@@ -9928,7 +9966,7 @@ html {
   border-radius: 999px;
   background: radial-gradient(circle, rgba(47,123,255,1), rgba(47,123,255,0.35));
   box-shadow: 0 0 18px rgba(47,123,255,0.45);
-  animation: wBreath 1.8s ease-in-out infinite;
+  animation: nBreath 1.8s ease-in-out infinite;
 }
 .neox-ai.is-operator .neox-ai-modePill::before{
   background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35));
@@ -9958,7 +9996,6 @@ html {
   border-color: rgba(255,255,255,0.14);
   background: rgba(0,0,0,0.28);
 }
-
 .neox-ai-pillBtn.is-on{
   border-color: rgba(98,255,191,0.30);
   background: rgba(98,255,191,0.10);
@@ -9970,9 +10007,8 @@ html {
   border-radius: 999px;
   background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35));
   box-shadow: 0 0 18px rgba(98,255,191,0.44);
-  animation: wBreath 1.5s ease-in-out infinite;
+  animation: nBreath 1.5s ease-in-out infinite;
 }
-
 .neox-ai-pillBtn.is-reset{
   border-color: rgba(255,178,74,0.26);
   background: rgba(255,178,74,0.08);
@@ -9982,14 +10018,12 @@ html {
   content:"";
   width: 9px; height: 9px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(255,178,74,1), rgba(255,178,74,0.35));
+  background: radial-gradient(circle, rgba(255,178,74,1), rgba(255,122,47,0.35));
   box-shadow: 0 0 18px rgba(255,178,74,0.42);
-  animation: wBreath 1.7s ease-in-out infinite;
+  animation: nBreath 1.7s ease-in-out infinite;
 }
 
-/* =========================================================
-   TABS
-========================================================= */
+/* tabs */
 .neox-ai-tabs{
   position:relative;
   z-index: 5;
@@ -10046,9 +10080,7 @@ html {
   background: rgba(47,123,255,0.14);
 }
 
-/* =========================================================
-   CONTENT (quick/list) — isolate scroll
-========================================================= */
+/* content list/quick */
 .neox-ai-quick,
 .neox-ai-list{
   position:relative;
@@ -10056,11 +10088,9 @@ html {
   flex: 1 1 auto;
   min-height: 0;
   overflow:auto;
-
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-
   padding: 12px 14px 12px;
 }
 
@@ -10114,9 +10144,7 @@ html {
   color: rgba(255,255,255,0.92);
 }
 
-/* =========================================================
-   INPUT ROW — sticky footer, premium send (no arrow)
-========================================================= */
+/* input row */
 .neox-ai-inputRow{
   position: sticky;
   bottom: 0;
@@ -10148,7 +10176,7 @@ html {
 
 .neox-ai-send{
   height: 42px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: 14px;
   border: 1px solid rgba(47,123,255,0.34);
   background:
@@ -10162,6 +10190,7 @@ html {
   display:inline-flex;
   align-items:center;
   justify-content:center;
+  gap: 8px;
 
   white-space: nowrap;
   line-height: 1;
@@ -10170,6 +10199,11 @@ html {
 }
 .neox-ai-send:hover{ transform: translateY(-1px); filter: saturate(1.08); }
 .neox-ai-send:active{ transform: translateY(0); }
+.neox-ai-sendIcon{
+  display:inline-block;
+  transform: translateY(-0.5px);
+  opacity: 0.95;
+}
 .neox-ai-send.is-disabled,
 .neox-ai-send:disabled{
   opacity: 0.55;
@@ -10177,9 +10211,7 @@ html {
   transform: none;
 }
 
-/* =========================================================
-   QUICK
-========================================================= */
+/* quick cards */
 .neox-ai-quickTitle{
   font-weight: 950;
   letter-spacing: .06em;
@@ -10214,25 +10246,39 @@ html {
 }
 
 /* =========================================================
-   MOBILE
+   MOBILE — smoother open (extra)
 ========================================================= */
 @media (max-width: 640px){
   .neox-ai{ right: 12px; bottom: 12px; }
-
-  /* keep orb compact on mobile */
-  .neox-ai-fab{ width: 56px; height: 56px; }
-  .neox-ai-fabText{ display:none; } /* no label on small screens */
+  .neox-ai-fab{ width: 150px; height: 56px; }
 
   .neox-ai-panel{
     width: calc(100vw - 24px);
     bottom: 72px;
     height: min(680px, calc(100dvh - 140px));
     max-height: calc(100dvh - 140px);
+
+    /* make mobile feel softer */
+    transition:
+      opacity 300ms ease,
+      transform 600ms cubic-bezier(.16,1,.22,1),
+      filter 260ms ease,
+      visibility 0s linear 300ms;
+  }
+  .neox-ai-panel.is-open{
+    transition:
+      opacity 300ms ease,
+      transform 600ms cubic-bezier(.16,1,.22,1),
+      filter 260ms ease,
+      visibility 0s linear 0s;
   }
 }
 
+/* tiny phones */
 @media (max-width: 380px){
-  .neox-ai-panel{ width: calc(100vw - 20px); }
+  .neox-ai-fab{ width: 142px; }
+  .neox-ai-title{ font-size: 11px; }
+  .neox-ai-sub{ font-size: 11px; }
   .neox-ai-tab,
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
