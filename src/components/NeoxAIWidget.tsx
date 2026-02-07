@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + mobile click fix + stable polling)
+// src/components/NeoxAIWidget.tsx (FINAL — header layout fix + mobile open fix)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -576,21 +576,30 @@ export default function NeoxAIWidget() {
           ? (t("neoxAi.mode.aiOn") as string)
           : "AI ON • Operator OFF");
 
+  // ✅ Mobil açılmama fix: toggle yalnız onClick-də, pointer/touch sadəcə stopPropagation
+  const toggleOpen = (e?: any) => {
+    if (e) {
+      e.stopPropagation?.();
+    }
+    setOpen((s) => !s);
+  };
+
   return (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
       <button
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
         onPointerDown={(e) => {
-          // ✅ mobile: make sure tap isn't "stolen"
-          e.preventDefault();
+          // IMPORTANT: preventDefault YOX (iOS click öldürə bilər)
           e.stopPropagation();
-          setOpen((s) => !s);
+        }}
+        onTouchStart={(e) => {
+          // fallback (mobil safari)
+          e.stopPropagation();
         }}
         onClick={(e) => {
-          // ✅ fallback for browsers that don't fire pointerdown as expected
           e.preventDefault();
-          e.stopPropagation();
+          toggleOpen(e);
         }}
         aria-label={t("neoxAi.fabAria")}
       >
@@ -636,16 +645,19 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
+                {/* ✅ FIX: mode pill + actions ayrıdır (artıq sözlər bir-birinə girmir) */}
                 <div className="neox-ai-controls">
-                  <span className="neox-ai-modePill">{modeText}</span>
+                  <span className="neox-ai-modePill" title={modeText}>{modeText}</span>
 
-                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
-                    {OP_LABEL}
-                  </button>
+                  <div className="neox-ai-actions">
+                    <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
+                      {OP_LABEL}
+                    </button>
 
-                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
-                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
-                  </button>
+                    <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
+                      {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -654,6 +666,9 @@ export default function NeoxAIWidget() {
               type="button"
               className="neox-ai-x"
               onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 setOpen(false);

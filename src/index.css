@@ -10457,100 +10457,18 @@ html {
 }
 
 /* =========================================================
-   NEOX AI Widget — MINIMAL MOBILE PATCH (NO DESIGN OVERRIDE)
-   Paste at END of index.css
+   NEOX AI Widget — FINAL MOBILE TAP + HEADER LAYOUT FIX
+   Paste at END of index.css (remove older duplicate patches)
    ========================================================= */
 
-/* Widget root klikləri bloklamasın */
+/* Root: klik bloklamasın + həmişə üst qatda olsun */
 .neox-ai {
-  position: fixed; /* bəzi layoutlarda relative qalırsa mobil klik qırılır */
+  position: fixed;
   right: 0;
   bottom: 0;
   z-index: 2147481000;
+  pointer-events: auto !important;
 }
-
-/* FAB həmişə kliklənə bilsin */
-.neox-ai-fab {
-  pointer-events: auto;
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2147483000;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Panel “open” olanda klik qəbul etsin */
-.neox-ai-panel {
-  z-index: 2147482000;
-  pointer-events: none; /* closed state */
-}
-
-/* sən artıq is-open class verirsən — onu istifadə edirik */
-.neox-ai.is-open .neox-ai-panel,
-.neox-ai-panel.is-open {
-  pointer-events: auto;
-}
-
-/* Dekor layer-lər tap/click oğurlamasın (mobil açılmama səbəblərindən biri budur) */
-.neox-ai-decorFrame,
-.neox-ai-decorCorners,
-.neox-ai-scan,
-.neox-ai-noise,
-.neox-ai-markGlow,
-.neox-ai-markRing,
-.neox-ai-fabRing,
-.neox-ai-fabCore,
-.neox-ai-fabPing {
-  pointer-events: none !important;
-}
-
-/* Mesajlar “altına girməsin” — input hündürlüyü qədər bottom padding */
-.neox-ai-list {
-  padding-bottom: 92px; /* sadəcə rezerv yer */
-}
-
-/* Bubbles daşmasın */
-.neox-ai-bubble,
-.neox-ai-msg,
-.neox-ai-text {
-  min-width: 0;
-}
-.neox-ai-text {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-/* Mobil: panel ekranın üstündən daşmasın, X düyməsi əlçatan olsun */
-@media (max-width: 520px) {
-  .neox-ai-panel {
-    inset: 10px;              /* sağ/sol/yuxarı/aşağı boşluq */
-    width: auto !important;
-    height: auto !important;
-    max-height: none !important;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .neox-ai-top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-
-  .neox-ai-x {
-    touch-action: manipulation;
-  }
-}
-
-/* =========================================
-   NEOX AI — MOBILE TAP FIX (SAFE, MINIMAL)
-   Paste at END of index.css
-   ========================================= */
-
-/* ƏVVƏLKİ səhv patch-i override elə */
-.neox-ai { pointer-events: auto !important; }
 
 /* FAB həmişə kliklənə bilsin */
 .neox-ai-fab{
@@ -10561,9 +10479,10 @@ html {
   pointer-events: auto !important;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
-/* FAB-ın dekor layerləri klik oğurlamasın */
+/* FAB dekor layerləri klik oğurlamasın */
 .neox-ai-fabRing,
 .neox-ai-fabCore,
 .neox-ai-fabPing{
@@ -10573,6 +10492,7 @@ html {
 /* Panel üst qatlarda qalsın */
 .neox-ai-panel{
   z-index: 2147483645 !important;
+  pointer-events: none; /* closed state */
 }
 
 /* Açıq olanda klik qəbul etsin */
@@ -10581,7 +10501,7 @@ html {
   pointer-events: auto;
 }
 
-/* Dekor layerlər tap oğurlamasın */
+/* Dekor layer-lər tap/click oğurlamasın */
 .neox-ai-decorFrame,
 .neox-ai-decorCorners,
 .neox-ai-scan,
@@ -10596,7 +10516,71 @@ html {
   padding-bottom: 92px;
 }
 
-/* Mobil ekranda daşmanı düzəlt */
+/* Bubbles daşmasın */
+.neox-ai-bubble,
+.neox-ai-msg,
+.neox-ai-text{
+  min-width: 0;
+}
+.neox-ai-text{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* =========================
+   HEADER: mode + buttons layout fix
+   (səndə "Operator ON • AI OFFOperatorReset" problemi burdan gəlir)
+   ========================= */
+
+.neox-ai-controls{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.neox-ai-modePill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;          /* mobil: sətirə düşə bilsin */
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+  padding: 7px 10px;
+  border-radius: 999px;
+}
+
+.neox-ai-actions{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.neox-ai-pillBtn{
+  white-space: nowrap;
+}
+
+/* Desktop: mode pill bir xəttdə qalsın, çox uzundursa ellipsis */
+@media (min-width: 521px){
+  .neox-ai-controls{
+    flex-wrap: nowrap;
+  }
+  .neox-ai-modePill{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 62%;
+  }
+}
+
+/* Mobil: panel ekranı düzgün tutsun, X əlçatan olsun */
 @media (max-width: 520px){
   .neox-ai-panel{
     inset: 10px !important;
@@ -10612,7 +10596,16 @@ html {
     top: 0;
     z-index: 10;
   }
-}
 
-.neox-ai { pointer-events: auto !important; }
-.neox-ai-fab { pointer-events: auto !important; touch-action: manipulation; }
+  .neox-ai-x{
+    touch-action: manipulation;
+  }
+
+  /* Mobil: mode pill tam enə yayılsın, düymələr aşağıda qalsın */
+  .neox-ai-modePill{
+    flex: 1 1 100%;
+  }
+  .neox-ai-actions{
+    flex: 1 1 100%;
+  }
+}
