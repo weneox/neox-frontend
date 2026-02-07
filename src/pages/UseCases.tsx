@@ -68,7 +68,7 @@ function useRevealScopedBatched(
   rootRef: React.RefObject<HTMLElement>,
   opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
 ) {
-  const { rootMargin = "0px 0px -16% 0px", batchSize = 3, batchDelayMs = 90 } = opts || {};
+  const { rootMargin = "0px 0px -16% 0px", batchSize = 4, batchDelayMs = 80 } = opts || {};
 
   useEffect(() => {
     const root = rootRef.current;
@@ -124,7 +124,7 @@ function useRevealScopedBatched(
     const fallback = window.setTimeout(() => {
       els.forEach(revealNow);
       io.disconnect();
-    }, 2200);
+    }, 2400);
 
     return () => {
       window.clearTimeout(fallback);
@@ -206,7 +206,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
 }
 
 /* ---------------- types ---------------- */
-type Tint = "cyan" | "violet" | "pink" | "amber";
+type Tint = "cyan" | "violet" | "pink" | "amber" | "emerald" | "indigo";
 
 type CaseItem = {
   icon: LucideIcon;
@@ -252,6 +252,8 @@ const TintChip = memo(function TintChip({ t, label }: { t: Tint; label: string }
     violet: "border-[rgba(42,125,255,.22)] bg-[rgba(42,125,255,.07)] text-[rgba(224,242,255,.92)]",
     pink: "border-[rgba(170,225,255,.22)] bg-[rgba(170,225,255,.06)] text-[rgba(236,252,255,.92)]",
     amber: "border-[rgba(80,170,255,.22)] bg-[rgba(80,170,255,.06)] text-[rgba(230,248,255,.92)]",
+    emerald: "border-[rgba(80,255,180,.18)] bg-[rgba(80,255,180,.06)] text-[rgba(220,255,244,.92)]",
+    indigo: "border-[rgba(140,120,255,.18)] bg-[rgba(140,120,255,.06)] text-[rgba(236,232,255,.92)]",
   };
   return <span className={cx("text-[11px] px-3 py-1 rounded-full border tracking-[.08em] uppercase", map[t])}>{label}</span>;
 });
@@ -259,7 +261,10 @@ const TintChip = memo(function TintChip({ t, label }: { t: Tint; label: string }
 const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
     <div className="uc-bullet flex items-start gap-2">
-      <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
+      <span className="uc-bulletIconWrap" aria-hidden="true">
+        <span className="uc-bulletPing" />
+        <CheckCircle className="uc-bulletIcon w-5 h-5 flex-shrink-0 mt-0.5" />
+      </span>
       <span className="text-white/75 leading-[1.65] break-words">{text}</span>
     </div>
   );
@@ -293,12 +298,14 @@ const CreativeHUD = memo(function CreativeHUD({
   statusValue: string;
 }) {
   const tintMap: Record<Tint, { a: string; b: string; c: string }> = {
-    cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.14)", c: "rgba(170,225,255,.12)" },
-    violet: { a: "rgba(42,125,255,.18)", b: "rgba(47,184,255,.12)", c: "rgba(170,225,255,.10)" },
-    pink: { a: "rgba(170,225,255,.16)", b: "rgba(47,184,255,.12)", c: "rgba(42,125,255,.10)" },
-    amber: { a: "rgba(80,170,255,.16)", b: "rgba(47,184,255,.12)", c: "rgba(42,125,255,.10)" },
+    cyan: { a: "rgba(47,184,255,.16)", b: "rgba(42,125,255,.12)", c: "rgba(170,225,255,.10)" },
+    violet: { a: "rgba(42,125,255,.16)", b: "rgba(47,184,255,.10)", c: "rgba(170,225,255,.08)" },
+    pink: { a: "rgba(170,225,255,.14)", b: "rgba(47,184,255,.10)", c: "rgba(42,125,255,.08)" },
+    amber: { a: "rgba(80,170,255,.14)", b: "rgba(47,184,255,.10)", c: "rgba(42,125,255,.08)" },
+    emerald: { a: "rgba(80,255,180,.12)", b: "rgba(47,184,255,.08)", c: "rgba(170,225,255,.08)" },
+    indigo: { a: "rgba(140,120,255,.12)", b: "rgba(47,184,255,.08)", c: "rgba(170,225,255,.08)" },
   };
-  const tt = tintMap[tint];
+  const tt = tintMap[tint] || tintMap.cyan;
 
   return (
     <div
@@ -306,10 +313,10 @@ const CreativeHUD = memo(function CreativeHUD({
       data-tint={tint}
       style={{
         background: `
-          radial-gradient(700px 360px at 35% 10%, ${tt.a}, transparent 60%),
+          radial-gradient(700px 360px at 35% 10%, ${tt.a}, transparent 62%),
           radial-gradient(700px 360px at 80% 20%, ${tt.b}, transparent 62%),
-          radial-gradient(900px 460px at 50% 120%, rgba(255,255,255,.05), transparent 64%),
-          rgba(255,255,255,.012)
+          radial-gradient(900px 460px at 50% 120%, rgba(255,255,255,.04), transparent 64%),
+          rgba(255,255,255,.010)
         `,
         boxShadow: "0 14px 46px rgba(0,0,0,.55)",
       }}
@@ -372,11 +379,11 @@ const CaseRow = memo(function CaseRow({
   const Icon = c.icon;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-center uc-stack" data-tint={c.tint}>
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-start uc-stack" data-tint={c.tint}>
       {/* TEXT */}
       <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-          <header className="flex items-center justify-between gap-3">
+        <article className="uc-card uc-pop uc-contain uc-stickyOnHover" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
+          <header className={cx("flex items-center justify-between gap-3 uc-reveal reveal-top")} style={{ ["--sd" as any]: "40ms" }}>
             <div className="flex items-center gap-3 min-w-0">
               <div className="uc-ic" aria-hidden="true">
                 <Icon className="h-5 w-5" />
@@ -389,24 +396,28 @@ const CaseRow = memo(function CaseRow({
             <TintChip t={c.tint} label={tCaseLabel} />
           </header>
 
-          <div className="mt-4 uc-line" />
+          <div className={cx("mt-4 uc-line uc-reveal reveal-top")} style={{ ["--sd" as any]: "90ms" }} />
 
-          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
-          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
+          <h3 className={cx("mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "140ms" }}>
+            {c.basliq}
+          </h3>
+          <p className={cx("mt-3 text-white/70 leading-[1.75] break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "190ms" }}>
+            {c.hekayə}
+          </p>
 
-          <div className="mt-5 space-y-3">
+          <div className={cx("mt-5 space-y-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "240ms" }}>
             {c.maddeler.map((b) => (
               <Bullet key={b} text={b} />
             ))}
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className={cx("mt-6 grid grid-cols-2 gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "290ms" }}>
             {c.neticeler.map((r) => (
               <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
             ))}
           </div>
 
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className={cx("mt-7 flex flex-wrap gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "340ms" }}>
             <Link to={toContact} className="uc-btn">
               {ctaPrimary} <span aria-hidden="true">→</span>
             </Link>
@@ -419,15 +430,17 @@ const CaseRow = memo(function CaseRow({
 
       {/* VISUAL */}
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        <CreativeHUD
-          tint={c.tint}
-          icon={Icon}
-          metric={c.neticeler[0]?.k || "+0%"}
-          chips={hudChips}
-          metricLabel={hudMetricLabel}
-          statusLabel={hudStatusLabel}
-          statusValue={hudStatusValue}
-        />
+        <div className="uc-stickyOnHover">
+          <CreativeHUD
+            tint={c.tint}
+            icon={Icon}
+            metric={c.neticeler[0]?.k || "+0%"}
+            chips={hudChips}
+            metricLabel={hudMetricLabel}
+            statusLabel={hudStatusLabel}
+            statusValue={hudStatusValue}
+          />
+        </div>
       </div>
     </div>
   );
@@ -503,8 +516,13 @@ export default function UseCases() {
     return out;
   }, [CASE_META, casesText]);
 
-  const MORE_META: Array<{ icon: LucideIcon }> = useMemo(
-    () => [{ icon: Building2 }, { icon: GraduationCap }, { icon: TrendingUp }, { icon: Building2 }],
+  const MORE_META: Array<{ icon: LucideIcon; tint: Tint }> = useMemo(
+    () => [
+      { icon: Building2, tint: "emerald" },
+      { icon: GraduationCap, tint: "indigo" },
+      { icon: TrendingUp, tint: "cyan" },
+      { icon: Building2, tint: "amber" },
+    ],
     []
   );
 
@@ -515,11 +533,11 @@ export default function UseCases() {
 
   const MORE = useMemo(() => {
     const n = Math.min(MORE_META.length, moreText.length);
-    const out: Array<{ icon: LucideIcon; title: string; text: string }> = [];
+    const out: Array<{ icon: LucideIcon; title: string; text: string; tint: Tint }> = [];
     for (let i = 0; i < n; i++) {
       const meta = MORE_META[i];
       const txt = moreText[i];
-      out.push({ icon: meta.icon, title: txt?.title || "", text: txt?.text || "" });
+      out.push({ icon: meta.icon, title: txt?.title || "", text: txt?.text || "", tint: meta.tint });
     }
     return out;
   }, [MORE_META, moreText]);
@@ -530,7 +548,7 @@ export default function UseCases() {
     canonicalPath: withLang("/use-cases", lang),
   });
 
-  useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
+  useRevealScopedBatched(rootRef, { batchSize: 4, batchDelayMs: 80, rootMargin: "0px 0px -18% 0px" });
 
   return (
     <main ref={rootRef as any} className="uc-page">
@@ -552,7 +570,7 @@ export default function UseCases() {
       />
 
       <style>{`
-        /* ✅ ROOT-LEVEL FIX — eyni Blog/Contact kimi (kökdən bağlayır) */
+        /* ✅ ROOT-LEVEL FIX */
         html, body{
           background:#000 !important;
           margin:0;
@@ -571,7 +589,7 @@ export default function UseCases() {
           color: rgba(255,255,255,.92);
           min-height: 100vh;
           width: 100%;
-          overflow-x: clip; /* ✅ hidden yox, clip */
+          overflow-x: clip;
           overscroll-behavior-x: none;
           word-break: break-word;
           overflow-wrap: anywhere;
@@ -579,14 +597,19 @@ export default function UseCases() {
           text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+          padding-bottom: 24px;
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ hover scale daşımasın */
+        /* ✅ KƏSİLMƏ FIX:
+           əvvəl overflow: clip idi, hover scale kəsirdi
+           indi X-də clip, Y-də visible — yuxarı/aşağı kəsilmir
+        */
         .uc-stack{
           position: relative;
           isolation: isolate;
-          overflow: clip; /* ✅ bu əsas fixlərdən biridir */
+          overflow-x: clip;
+          overflow-y: visible;
         }
 
         /* palette */
@@ -608,23 +631,36 @@ export default function UseCases() {
         .uc-enter{
           opacity: 0;
           transform: translate3d(0, 16px, 0);
-          filter: blur(7px);
+          filter: blur(6px);
           transition: opacity .62s ease, transform .62s ease, filter .62s ease;
           transition-delay: var(--d, 0ms);
           will-change: opacity, transform, filter;
         }
         .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
+        /* hover pop — daha premium, amma FPS-safe */
         .uc-pop{
           position: relative;
           z-index: 1;
           transform: translate3d(0,0,0) scale(1);
-          transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
           will-change: transform;
         }
         .uc-pop:hover, .uc-pop:focus-within{
-          z-index: 60;
-          transform: translate3d(0,-10px,0) scale(1.03);
+          z-index: 90; /* ✅ yanındakı blokların üstündə olsun */
+          transform: translate3d(0,-12px,0) scale(1.04);
+        }
+
+        /* ✅ sticky on hover (desktop)
+           scroll edəndə header altına "düşür" və parent-in sonunda dayanır
+        */
+        @media (min-width: 1024px){
+          .uc-stickyOnHover:hover,
+          .uc-stickyOnHover:focus-within{
+            position: sticky;
+            top: 88px; /* header altı */
+            z-index: 95;
+          }
         }
 
         .uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
@@ -709,8 +745,8 @@ export default function UseCases() {
         }
         .uc-btn:hover{
           transform: translate3d(0,-2px,0);
-          border-color: rgba(47,184,255,.46);
-          box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 22px rgba(47,184,255,.12);
+          border-color: rgba(47,184,255,.52);
+          box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 18px rgba(47,184,255,.10);
         }
         .uc-btn:active{ transform: translate3d(0,-1px,0); }
         .uc-btnGhost{
@@ -797,7 +833,7 @@ export default function UseCases() {
         .uc-hudScan{
           position:absolute; inset:-40px 0 0 0;
           background: repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0px, rgba(255,255,255,.05) 1px, transparent 1px, transparent 10px);
-          opacity: .07;
+          opacity: .06;
           pointer-events:none;
         }
         .uc-hudRing{
@@ -805,7 +841,7 @@ export default function UseCases() {
           width: 260px; height: 260px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-          box-shadow: 0 0 0 8px rgba(47,184,255,.06), 0 0 0 1px rgba(0,0,0,.4) inset;
+          box-shadow: 0 0 0 8px rgba(47,184,255,.05), 0 0 0 1px rgba(0,0,0,.4) inset;
           opacity: .55;
           pointer-events:none;
         }
@@ -868,11 +904,13 @@ export default function UseCases() {
 
         .uc-section{ background: transparent !important; }
 
+        /* ✅ Reveal everywhere (including nested with --sd delay) */
         .uc-reveal{ opacity: 1; transform: none; }
         .uc-page.uc-io .uc-reveal{
           opacity: 0;
           transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-          transition: opacity .45s ease, transform .45s ease;
+          transition: opacity .42s ease, transform .42s ease;
+          transition-delay: var(--sd, 0ms);
           will-change: transform, opacity;
         }
         .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
@@ -887,6 +925,8 @@ export default function UseCases() {
           .uc-pop{ transition:none !important; transform:none !important; }
           .uc-btn{ transition:none !important; }
           .uc-hudOrbit{ animation: none !important; }
+          .uc-bulletPing{ animation:none !important; }
+          .uc-bulletIcon{ animation:none !important; }
         }
         @media (hover: none){
           .uc-pop:hover{ transform:none !important; }
@@ -894,10 +934,12 @@ export default function UseCases() {
         }
 
         /* Tint vars */
-        [data-tint="cyan"]{ --tA: rgba(47,184,255,.62); --tB: rgba(170,225,255,.28); }
-        [data-tint="violet"]{ --tA: rgba(42,125,255,.66); --tB: rgba(47,184,255,.22); }
-        [data-tint="pink"]{ --tA: rgba(170,225,255,.55); --tB: rgba(47,184,255,.20); }
-        [data-tint="amber"]{ --tA: rgba(80,170,255,.58); --tB: rgba(47,184,255,.20); }
+        [data-tint="cyan"]{ --tA: rgba(47,184,255,.70); --tB: rgba(170,225,255,.28); --tC: rgba(42,125,255,.18); }
+        [data-tint="violet"]{ --tA: rgba(42,125,255,.78); --tB: rgba(47,184,255,.24); --tC: rgba(170,225,255,.14); }
+        [data-tint="pink"]{ --tA: rgba(170,225,255,.62); --tB: rgba(47,184,255,.22); --tC: rgba(42,125,255,.14); }
+        [data-tint="amber"]{ --tA: rgba(80,170,255,.66); --tB: rgba(47,184,255,.22); --tC: rgba(170,225,255,.14); }
+        [data-tint="emerald"]{ --tA: rgba(80,255,180,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
+        [data-tint="indigo"]{ --tA: rgba(140,120,255,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
 
         .uc-card::before{
           content:"";
@@ -907,10 +949,11 @@ export default function UseCases() {
           pointer-events:none;
           opacity: 0;
           transform: translate3d(-14px, 0, 0);
-          transition: opacity .22s ease, transform .22s ease;
+          transition: opacity .20s ease, transform .20s ease;
           background:
-            radial-gradient(620px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
-            radial-gradient(520px 240px at 80% 12%, var(--tB), transparent 62%),
+            radial-gradient(640px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
+            radial-gradient(560px 260px at 82% 12%, var(--tB), transparent 62%),
+            radial-gradient(520px 260px at 30% 100%, var(--tC), transparent 60%),
             linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
           mix-blend-mode: screen;
         }
@@ -927,7 +970,7 @@ export default function UseCases() {
           border-radius: 22px;
           pointer-events:none;
           opacity: 0;
-          transition: opacity .22s ease;
+          transition: opacity .20s ease;
           box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 0 0 1px rgba(0,0,0,.35);
         }
         .uc-pop:hover.uc-card::after,
@@ -945,12 +988,47 @@ export default function UseCases() {
           opacity: .65;
         }
 
+        /* ✅ bullet live glow/pulse (GPU-safe) */
+        .uc-bulletIconWrap{
+          position: relative;
+          width: 22px;
+          height: 22px;
+          display: inline-grid;
+          place-items: center;
+          flex: 0 0 auto;
+          margin-top: 2px;
+        }
+        .uc-bulletIcon{
+          color: rgba(170,225,255,.95);
+          filter: drop-shadow(0 0 10px rgba(47,184,255,.22));
+          animation: uc-iconPulse 1.65s ease-in-out infinite;
+          will-change: transform, opacity;
+        }
+        .uc-bulletPing{
+          position:absolute;
+          inset: 4px;
+          border-radius: 999px;
+          background: radial-gradient(circle at 50% 50%, rgba(47,184,255,.26), transparent 70%);
+          opacity: .55;
+          animation: uc-ping 1.65s ease-in-out infinite;
+          will-change: transform, opacity;
+        }
+        @keyframes uc-iconPulse{
+          0%, 100%{ transform: translate3d(0,0,0) scale(1); opacity: .92; }
+          50%{ transform: translate3d(0,0,0) scale(1.07); opacity: 1; }
+        }
+        @keyframes uc-ping{
+          0%{ transform: translate3d(0,0,0) scale(.9); opacity: .42; }
+          50%{ transform: translate3d(0,0,0) scale(1.25); opacity: .70; }
+          100%{ transform: translate3d(0,0,0) scale(.9); opacity: .42; }
+        }
+
         .uc-hud::before{
           content:"";
           position:absolute;
           inset:0;
           pointer-events:none;
-          opacity:.65;
+          opacity:.62;
           background:
             radial-gradient(820px 260px at 20% 0%, var(--tB), transparent 60%),
             radial-gradient(700px 240px at 80% 10%, rgba(255,255,255,.06), transparent 62%);
@@ -961,6 +1039,20 @@ export default function UseCases() {
           .uc-hudOrbit{ animation: uc-orbit 10.5s linear infinite; transform-origin: 50% 50%; }
         }
         @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+
+        /* ✅ MORE 4 cards: hover-da daha çox pop + rəng kombinasiyası */
+        .uc-moreCard{
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+        }
+        .uc-moreCard:hover{
+          transform: translate3d(0,-16px,0) scale(1.055);
+          border-color: rgba(255,255,255,.14);
+          box-shadow: 0 22px 72px rgba(0,0,0,.72), 0 0 38px rgba(47,184,255,.10);
+          background:
+            radial-gradient(520px 220px at 18% 10%, var(--tB), transparent 60%),
+            radial-gradient(620px 260px at 86% 18%, var(--tC), transparent 62%),
+            linear-gradient(180deg, rgba(255,255,255,.040), rgba(255,255,255,.018));
+        }
 
         @media (min-width: 1024px){
           .uc-stack::after{
@@ -1076,9 +1168,13 @@ export default function UseCases() {
           <div className="mt-10 grid gap-4 md:grid-cols-4 uc-stack">
             {MORE.map((m, i) => {
               const dir = i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
-              const Icon = MORE_META[i]?.icon || Building2;
+              const Icon = m.icon || Building2;
               return (
-                <div key={m.title || String(i)} className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain")} data-tint={i % 2 === 0 ? "cyan" : "violet"}>
+                <div
+                  key={m.title || String(i)}
+                  className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain uc-moreCard")}
+                  data-tint={m.tint}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="uc-ic flex-shrink-0" aria-hidden="true">
                       <Icon className="h-5 w-5" />
@@ -1125,4 +1221,3 @@ export default function UseCases() {
     </main>
   );
 }
- 
