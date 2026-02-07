@@ -10236,18 +10236,3 @@ html {
   .neox-ai-tab,
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
-
-/* Fix: blur layer kvadrat artefaktını circle-a clip et */
-.neox-ai-fabRing{
-  clip-path: circle(50% at 50% 50%);
-  -webkit-clip-path: circle(50% at 50% 50%);
-  will-change: opacity, transform;
-  transform: translateZ(0);
-}
-
-/* əlavə stabilizasiya (bəzi GPU-larda kömək edir) */
-.neox-ai-fab{
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
