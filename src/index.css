@@ -1491,10 +1491,6 @@ main{ padding-top: 74px; }
   animation: neoBreathLine 3.1s ease-in-out infinite;
 }
 
-/* =========================================================
-   CONNECTOR: stage-dən çıxır, mesajlara dəymir (FINAL)
-   Home.tsx: stage wrap + connector ardıcıllığı ilə işləyir
-========================================================= */
 
 /* stage həmişə üst qatda qalsın */
 .neo-social-stage-wrap{
@@ -1506,8 +1502,6 @@ main{ padding-top: 74px; }
   z-index: 3;
 }
 
-/* connector stage-in altından başlayır (overlay, amma altda) */
-
 /* svg ölçü */
 .neo-flow-svg{
   width: 100%;
@@ -1517,25 +1511,6 @@ main{ padding-top: 74px; }
   overflow: visible;
 }
 
-/* ən vacib: üst hissəni gizlət → mesajların üstündən keçməsin */
-.neo-connectorLayer{
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 38%,
-    rgba(0,0,0,.92) 55%,
-    rgba(0,0,0,1) 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 38%,
-    rgba(0,0,0,.92) 55%,
-    rgba(0,0,0,1) 100%
-  );
-}
-
-/* Aşağıdakı flow block bir az gec başlasın (ox uzansın) */
 /* =========================================================
    FLOW CONNECTOR — PREMIUM LINE (FINAL / NO DUPES)
    Includes:
@@ -3375,124 +3350,6 @@ main{ padding-top: 74px; }
   justify-content:center;
   margin-top: 22px;
   flex-wrap:wrap;
-}
-
-/* =========================
-   HOME FINAL — WOW ADD-ON Social → Pipeline Connector
-   Paste at END of src/index.css
-========================= */
-/* wrap so overlay can cover both social + pipeline area */
-.neo-flowWrap{ position: relative; isolation: isolate; }
-
-/* ========================= CONNECTOR OVERLAY ========================= */
-.neo-connectorOverlay{
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-  opacity: .95;
-  mix-blend-mode: screen;
-}
-.neo-connectorSvg{ display: block; width: 100%; height: 100%; }
-
-/* ========================= SOURCE ANCHORS (SOCIAL) ========================= */
-.neo-social-card{ position: relative; }
-.neo-connectorOut{
-  position: absolute;
-  left: 50%;
-  bottom: -10px;
-  width: 14px;
-  height: 14px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(255,255,255,.76);
-  box-shadow: 0 0 0 1px rgba(20,82,199,.55), 0 0 24px rgba(20,82,199,.35);
-  opacity: .98;
-}
-
-/* ========================= PIPELINE INTAKES ========================= */
-.neo-pipe{ position: relative; }
-.neo-pipe-intakes{ position: absolute; inset: 0; pointer-events: none; }
-
-.neo-connectorIn{
-  position: absolute;
-  top: 112px;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.8);
-  box-shadow: 0 0 0 1px rgba(20,82,199,.55), 0 0 24px rgba(20,82,199,.35);
-}
-
-/* exact intake positions */
-.neo-connectorIn[data-connector="in-wa"]{ left: 50%; transform: translateX(-50%); }
-.neo-connectorIn[data-connector="in-ms"]{ left: 34%; }
-.neo-connectorIn[data-connector="in-ig"]{ left: 66%; }
-
-/* ========================= CONNECTOR PATH STYLES ========================= */
-/* base path */
-.neo-connectorPath{
-  fill: none;
-  stroke: rgba(120,170,255,.55);
-  stroke-width: 1.4;
-}
-
-/* glow underlay */
-.neo-connectorPathGlow{
-  fill: none;
-  stroke: rgba(90,150,255,.35);
-  stroke-width: 4;
-  filter: blur(4px);
-}
-
-/* animated flow */
-.neo-connectorFlow{
-  fill: none;
-  stroke: rgba(180,220,255,.95);
-  stroke-width: 2;
-  stroke-dasharray: 6 10;
-  animation: neo-flow 2.4s linear infinite;
-}
-
-/* channel timing */
-.neo-connectorFlow--wa{ animation-duration: 2.2s; }
-.neo-connectorFlow--ms{ animation-duration: 2.6s; }
-.neo-connectorFlow--ig{ animation-duration: 2.9s; }
-
-/* pulse at intake */
-.neo-connectorPulse{
-  fill: rgba(255,255,255,.9);
-  filter: drop-shadow(0 0 12px rgba(120,180,255,.8));
-  animation: neo-pulse 2.8s ease-out infinite;
-}
-
-/* =========================
-   ANIMATIONS
-========================= */
-@keyframes neo-flow{
-  from{ stroke-dashoffset: 0; }
-  to{ stroke-dashoffset: -32; }
-}
-@keyframes neo-pulse{
-  0%{ transform: scale(.35); opacity: .9; }
-  60%{ transform: scale(1.4); opacity: .35; }
-  100%{ transform: scale(2.1); opacity: 0; }
-}
-
-/* =========================
-   REDUCED MOTION
-========================= */
-@media (prefers-reduced-motion: reduce){
-  .neo-connectorFlow,
-  .neo-connectorPulse{ animation: none !important; }
-  .neo-connectorOverlay{ opacity: .55; }
-}
-
-/* =========================
-   RESPONSIVE SAFETY
-========================= */
-@media (max-width: 980px){
-  .neo-connectorOverlay{ display: none; }
 }
 
 /* =========================================================
