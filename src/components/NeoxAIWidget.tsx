@@ -1,5 +1,6 @@
+// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + mobile click fix + stable polling)
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -35,13 +36,21 @@ function lastAdminTsKey(leadId: string) {
 }
 
 function safeLSGet(k: string) {
-  try { return localStorage.getItem(k); } catch { return null; }
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
 }
 function safeLSSet(k: string, v: string) {
-  try { localStorage.setItem(k, v); } catch {}
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
 }
 function safeLSRemove(k: string) {
-  try { localStorage.removeItem(k); } catch {}
+  try {
+    localStorage.removeItem(k);
+  } catch {}
 }
 
 function getOrCreateSessionId() {
@@ -109,6 +118,7 @@ function detectOperatorIntent(text: string) {
     s.includes("поддерж") ||
     s.includes("zəng") ||
     s.includes("zeng") ||
+    s.includes("whatsappda danış") ||
     (s.includes("whatsapp") && s.includes("yaz"))
   );
 }
@@ -130,7 +140,7 @@ function RobotHeadIcon({ className }: { className?: string }) {
         opacity="0.08"
       />
       <path
-        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-12-2.239-12-5v-2Z"
+        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-5-2.239-5-5v-2Z"
         stroke="currentColor"
         strokeWidth="2"
         opacity="0.9"
@@ -166,9 +176,6 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   if (isAdminPath(location.pathname)) return null;
 
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
@@ -178,8 +185,6 @@ export default function NeoxAIWidget() {
   const [tab, setTab] = useState<"chat" | "suallar">("chat");
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-
-  const fabRef = useRef<HTMLButtonElement | null>(null);
 
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
@@ -204,7 +209,9 @@ export default function NeoxAIWidget() {
   ]);
 
   const msgsRef = useRef<Msg[]>(msgs);
-  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+  useEffect(() => {
+    msgsRef.current = msgs;
+  }, [msgs]);
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
 
@@ -215,28 +222,6 @@ export default function NeoxAIWidget() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const canSend = useMemo(() => input.trim().length > 0 && !typing, [input, typing]);
-
-  // ====== MOBILE OPEN HARD FIX ======
-  const toggleOpen = () => setOpen((s) => !s);
-
-  useEffect(() => {
-    const el = fabRef.current;
-    if (!el) return;
-
-    // Native touchend fallback (iOS click ölsə də işləyir)
-    const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault(); // important: stop ghost click & ensure toggle
-      e.stopPropagation();
-      toggleOpen();
-    };
-
-    el.addEventListener("touchend", onTouchEnd, { passive: false });
-
-    return () => {
-      el.removeEventListener("touchend", onTouchEnd as any);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fabRef.current]);
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -260,7 +245,7 @@ export default function NeoxAIWidget() {
   const sendAbortRef = useRef<AbortController | null>(null);
 
   function loadLastSeenTs(leadId: string) {
-    const raw = safeLSGet(`neox_last_admin_ts:${leadId}`);
+    const raw = safeLSGet(lastAdminTsKey(leadId));
     lastSeenTsRef.current = Number(raw || "0") || 0;
   }
   function persistLastSeenTs(leadId: string, ts: number) {
@@ -272,7 +257,9 @@ export default function NeoxAIWidget() {
     if (inflightPoll.current) return;
     inflightPoll.current = true;
 
-    try { pollAbortRef.current?.abort(); } catch {}
+    try {
+      pollAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     pollAbortRef.current = ac;
 
@@ -362,7 +349,9 @@ export default function NeoxAIWidget() {
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
       pollRef.current = null;
-      try { pollAbortRef.current?.abort(); } catch {}
+      try {
+        pollAbortRef.current?.abort();
+      } catch {}
       pollAbortRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -430,7 +419,9 @@ export default function NeoxAIWidget() {
     const aiId = uid();
     setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai", kind: "normal" }]);
 
-    try { sendAbortRef.current?.abort(); } catch {}
+    try {
+      sendAbortRef.current?.abort();
+    } catch {}
     const ac = new AbortController();
     sendAbortRef.current = ac;
 
@@ -541,7 +532,11 @@ export default function NeoxAIWidget() {
         {
           id: uid(),
           role: "ai",
-          text: "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
+          text:
+            (t("neoxAi.operator.alreadyOn") as string) &&
+            !String(t("neoxAi.operator.alreadyOn")).includes("neoxAi.operator.alreadyOn")
+              ? (t("neoxAi.operator.alreadyOn") as string)
+              : "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
           ts: Date.now(),
           source: "ai",
           kind: "system",
@@ -551,13 +546,14 @@ export default function NeoxAIWidget() {
     }
 
     const l = getLangSafe(i18n.language);
+
     const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
     const enText = "I want a human operator. Please connect me to live support.";
     const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
     const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
     const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
-    const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
 
+    const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
     send(txt, { requestOperator: true });
   }
 
@@ -571,23 +567,30 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.chat.ai") as string)
       : "NEOX AI";
 
-  const resetLabel =
-    (t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset")
-      ? (t("neoxAi.reset") as string)
-      : "Reset";
+  const modeText =
+    handoff
+      ? ((t("neoxAi.mode.operatorOn") as string) && !String(t("neoxAi.mode.operatorOn")).includes("neoxAi.mode.operatorOn")
+          ? (t("neoxAi.mode.operatorOn") as string)
+          : "Operator ON • AI OFF")
+      : ((t("neoxAi.mode.aiOn") as string) && !String(t("neoxAi.mode.aiOn")).includes("neoxAi.mode.aiOn")
+          ? (t("neoxAi.mode.aiOn") as string)
+          : "AI ON • Operator OFF");
 
-  const ui = (
+  return (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
       <button
-        ref={fabRef}
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onClick={(e) => {
+        onPointerDown={(e) => {
+          // ✅ mobile: make sure tap isn't "stolen"
           e.preventDefault();
           e.stopPropagation();
-          toggleOpen();
+          setOpen((s) => !s);
+        }}
+        onClick={(e) => {
+          // ✅ fallback for browsers that don't fire pointerdown as expected
+          e.preventDefault();
+          e.stopPropagation();
         }}
         aria-label={t("neoxAi.fabAria")}
       >
@@ -625,7 +628,7 @@ export default function NeoxAIWidget() {
               <div className="neox-ai-brandText">
                 <div className="neox-ai-titleRow">
                   <div className="neox-ai-title">{t("neoxAi.brand")}</div>
-                  <div className="neox-ai-status">
+                  <div className="neox-ai-status" title={modeText}>
                     <span className="neox-ai-statusDot" />
                     <span className="neox-ai-statusTxt">{t("neoxAi.status")}</span>
                   </div>
@@ -633,29 +636,16 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                {/* ✅ chips: robot AI ON yanında + operator/reset chip button */}
                 <div className="neox-ai-controls">
-                  <div className="neox-ai-chipRow">
-                    <button type="button" className={cx("neox-ai-chipBtn", "ai", !handoff && "is-active")} onClick={() => setHandoff(false)}>
-                      <span className="neox-ai-chipIcon" aria-hidden="true">
-                        <RobotHeadIcon />
-                      </span>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>AI</span>
-                      <span style={{ opacity: 0.85 }}>{!handoff ? "ON" : "OFF"}</span>
-                    </button>
+                  <span className="neox-ai-modePill">{modeText}</span>
 
-                    <button type="button" className={cx("neox-ai-chipBtn", "op", handoff && "is-active")} onClick={requestOperator}>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>Operator</span>
-                      <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
-                    </button>
+                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
+                    {OP_LABEL}
+                  </button>
 
-                    <button type="button" className={cx("neox-ai-chipBtn", "reset")} onClick={hardResetChat}>
-                      <span className="neox-ai-chipDot" aria-hidden="true" />
-                      <span>{resetLabel}</span>
-                    </button>
-                  </div>
+                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
+                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -663,8 +653,7 @@ export default function NeoxAIWidget() {
             <button
               type="button"
               className="neox-ai-x"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 setOpen(false);
@@ -739,7 +728,4 @@ export default function NeoxAIWidget() {
       </div>
     </div>
   );
-
-  if (!mounted) return null;
-  return createPortal(ui, document.body);
 }
