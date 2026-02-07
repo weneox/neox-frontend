@@ -55,11 +55,42 @@ function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Always start at top when page opens ---------------- */
-function useScrollTopOnMount() {
+/* ---------------- Scroll restore (harada qalmısansa ora) ---------------- */
+function useScrollRestore(key: string) {
+  // mount: restore
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, []);
+    const raw = sessionStorage.getItem(key);
+    const y = raw ? Number(raw) : 0;
+
+    // 1 frame gözlə: layout hazır olsun
+    const raf = requestAnimationFrame(() => {
+      if (Number.isFinite(y) && y > 0) window.scrollTo({ top: y, left: 0, behavior: "auto" });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [key]);
+
+  // unmount + scroll: save (throttle via rAF)
+  useEffect(() => {
+    let raf = 0;
+
+    const save = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        sessionStorage.setItem(key, String(window.scrollY || 0));
+      });
+    };
+
+    window.addEventListener("scroll", save, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", save);
+      if (raf) cancelAnimationFrame(raf);
+      // son dəfə də save et
+      sessionStorage.setItem(key, String(window.scrollY || 0));
+    };
+  }, [key]);
 }
 
 /* ---------------- Premium wheel scroll (PERF SAFE) ---------------- */
@@ -382,8 +413,10 @@ function PipelineDiagram({
   t: (key: string, opts?: any) => any;
 }) {
   const src = useMemo(() => {
-    if (platform === "WHATSAPP") return { k: "wa", name: t("home.pipeline.platforms.whatsapp"), icon: "/image/photo.1.webp" };
-    if (platform === "FACEBOOK") return { k: "ms", name: t("home.pipeline.platforms.messenger"), icon: "/image/photo.2.png" };
+    if (platform === "WHATSAPP")
+      return { k: "wa", name: t("home.pipeline.platforms.whatsapp"), icon: "/image/photo.1.webp" };
+    if (platform === "FACEBOOK")
+      return { k: "ms", name: t("home.pipeline.platforms.messenger"), icon: "/image/photo.2.png" };
     return { k: "ig", name: t("home.pipeline.platforms.instagram"), icon: "/image/photo.3.png" };
   }, [platform, t]);
 
@@ -520,10 +553,9 @@ function ConnectorOverlay({
     if (!root) return;
 
     const pick = (sel: string) => rootRef.current?.querySelector<HTMLElement>(sel) ?? null;
-
     const snap = (n: number) => Math.round(n * 2) / 2;
 
-    // ✅ mobile-də daha yumşaq throttle (sabit FPS + az CPU)
+    // ✅ mobile-də daha yumşaq throttle
     const THROTTLE_MS = mobile ? 180 : lite ? 160 : 90;
 
     const clear = () => {
@@ -561,8 +593,6 @@ function ConnectorOverlay({
       const bx = snap(br.left + br.width / 2 - rr.left);
       const by = snap(br.top + br.height / 2 - rr.top);
 
-      // ✅ MOBILE: bloklar alt-alta olduğuna görə, əsasən "düz aşağı" xətt kimi.
-      // Əgər x fərqi çoxdursa, çox yüngül "L" (elbow) saxlayırıq ki, yenə də təmiz görünsün.
       const dx = Math.abs(ax - bx);
       const midY = snap(ay + (by - ay) * 0.5);
 
@@ -641,7 +671,6 @@ function ConnectorOverlay({
             <stop offset="1" stopColor="rgba(42,125,255,.95)" />
           </linearGradient>
 
-          {/* ✅ mobile + lite-də filteri söndürürük (performans + daha təmiz) */}
           {!lite && !mobile && (
             <filter id="neoGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="1.05" result="blur" />
@@ -682,7 +711,6 @@ function ConnectorOverlay({
                 strokeLinejoin="round"
               />
 
-              {/* ✅ mobile-də dash animasiyasını yüngülləşdiririk */}
               {!lite && !mobile && (
                 <path
                   d={p.d}
@@ -1392,7 +1420,6 @@ const HOME_CSS = `
     font-weight: 450;
   }
 
-  /* SAGDAN SOLA (right -> left): 0 => -50% */
   @keyframes neoHomeMarquee{
     from{ transform: translate3d(0,0,0); }
     to{ transform: translate3d(-50%,0,0); }
@@ -1409,7 +1436,9 @@ export default function Home() {
 
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
-  useScrollTopOnMount();
+
+  // ✅ scroll restore key (route + lang)
+  useScrollRestore(`neox_scroll:${pathname}`);
 
   // səndə false idi -> saxladım
   usePremiumWheelScroll(false);
@@ -1428,18 +1457,34 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
-  // ✅ əvvəl: !reduced && !isMobile
-  // İndi: mobil-də də göstəririk (reduced motion-dan başqa)
+  // ✅ overlay
   const overlayEnabled = !reduced;
 
-  // ✅ mobile-də lite + filter off (zaten)
   const overlayLite = useMemo(() => {
     if (isMobile || reduced) return true;
     const hc = typeof navigator !== "undefined" ? ((navigator as any).hardwareConcurrency || 4) : 4;
     return hc <= 8;
   }, [isMobile, reduced]);
 
+  // ✅ HERO: only desktop (mobil/reduced => 0)
   const heroIntensity = reduced || isMobile ? 0 : 1.05;
+
+  // ✅ HERO: pause when not visible
+  const heroRef = useRef<HTMLElement | null>(null);
+  const [heroInView, setHeroInView] = useState(true);
+
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+
+    const io = new IntersectionObserver(
+      ([e]) => setHeroInView(e.isIntersecting),
+      { threshold: 0.05, rootMargin: "120px 0px 120px 0px" }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   return (
     <main
@@ -1455,9 +1500,14 @@ export default function Home() {
       <style>{HOME_CSS}</style>
 
       {/* HERO */}
-      <section className="neo-hero neo-hero--full">
+      <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} />
+          <HeroSystemBackground
+            className="neo-heroBg"
+            intensity={heroIntensity}
+            paused={!heroInView}
+            maxFps={isMobile ? 30 : 60}
+          />
         </div>
 
         <div className="container neo-hero-inner">
