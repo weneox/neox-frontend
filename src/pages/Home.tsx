@@ -725,7 +725,10 @@ function SocialAutomationSection({
                 {t("home.social.lead")}
               </p>
 
-              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}>
+              <div
+                className="neo-actions reveal reveal-top"
+                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}
+              >
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.cta.demo")}
                 </Link>
@@ -834,7 +837,10 @@ function SocialAutomationSection({
 
               <p className="neo-p reveal reveal-top">{t("home.smm.copy")}</p>
 
-              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+              <div
+                className="neo-actions reveal reveal-top"
+                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}
+              >
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.smm.cta.primary")}
                 </Link>
@@ -848,8 +854,13 @@ function SocialAutomationSection({
               </div>
             </div>
 
+            {/* ✅ EDGE-ANCHORED RIGHT PANEL */}
             <div className="neo-splitsec-visual reveal reveal-bottom" style={{ minWidth: 0 }}>
-              <SmmAutomationDiagramMemo reduced={reducedMotion} t={t} />
+              <div className="neo-edgePanel neo-edgePanel--right">
+                <div className="neo-edgePanel-inner">
+                  <SmmAutomationDiagramMemo reduced={reducedMotion} t={t} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -881,8 +892,13 @@ function SocialAutomationSection({
               </button>
             </div>
 
+            {/* ✅ EDGE-ANCHORED LEFT PANEL */}
             <div className="neo-splitsec-visual reveal reveal-bottom" style={{ minWidth: 0 }}>
-              <OpsAutomationDiagramMemo reduced={reducedMotion} t={t} />
+              <div className="neo-edgePanel neo-edgePanel--left">
+                <div className="neo-edgePanel-inner">
+                  <OpsAutomationDiagramMemo reduced={reducedMotion} t={t} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1164,6 +1180,81 @@ const HOME_CSS = `
   }
 
   @keyframes neoFlowDash{ to{ stroke-dashoffset:-140; } }
+
+  /* =========================
+     EDGE-ANCHORED VISUAL PANELS
+     (SMM right, OPS left)
+  ========================= */
+
+  .neo-splitsec-visual{
+    position: relative;
+    min-width: 0;
+  }
+
+  .neo-edgePanel{
+    position: relative;
+    border-radius: 26px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: linear-gradient(180deg, rgba(255,255,255,.040), rgba(255,255,255,.016));
+    box-shadow: 0 22px 70px rgba(0,0,0,.66);
+    overflow: hidden;
+    transform: translate3d(0,0,0);
+    will-change: transform;
+  }
+
+  .neo-edgePanel-inner{
+    padding: clamp(12px, 1.8vw, 18px);
+    min-width: 0;
+  }
+
+  .neo-edgePanel::before{
+    content:"";
+    position:absolute; inset:-40% -30%;
+    pointer-events:none;
+    opacity: .90;
+    background:
+      radial-gradient(520px 240px at 20% 10%, rgba(255,255,255,.10), transparent 72%),
+      radial-gradient(520px 240px at 80% 0%, rgba(47,184,255,.16), transparent 70%),
+      radial-gradient(420px 220px at 70% 90%, rgba(42,125,255,.12), transparent 72%);
+  }
+
+  /* container break-out: panel reaches page edge */
+  .neo-edgePanel--right{
+    margin-right: calc(50% - 50vw);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .neo-edgePanel--left{
+    margin-left: calc(50% - 50vw);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  /* gentle hover lift */
+  @media (hover:hover) and (pointer:fine){
+    .neo-edgePanel{
+      transition: transform .22s ease, border-color .22s ease, filter .22s ease;
+    }
+    .neo-edgePanel:hover{
+      transform: translate3d(0,-10px,0);
+      border-color: rgba(47,184,255,.22);
+      filter: saturate(1.05);
+    }
+  }
+
+  /* mobile: keep safe padding, don't full-bleed too aggressively */
+  @media (max-width: 860px){
+    .neo-edgePanel--right{
+      margin-right: 0;
+      border-top-right-radius: 26px;
+      border-bottom-right-radius: 26px;
+    }
+    .neo-edgePanel--left{
+      margin-left: 0;
+      border-top-left-radius: 26px;
+      border-bottom-left-radius: 26px;
+    }
+  }
 `;
 
 /* ========================= HOME ========================= */
