@@ -3841,21 +3841,6 @@ body::before{
   display:none !important;
 }
 
-/* Port node qalacaq, amma portdan kənar "ikinci node" gizlənsin:
-   (çox vaxt bu, connector elementinin içindəki əlavə dot olur) */
-.neo-deviceWrap .neo-connectorOut:not(.neo-connectorOut--port){
-  display:none !important;
-}
-
-/* Əgər pipeline tərəfində connector "in node" SOCIAL bölməsinə daşırsa */
-.neo-social .neo-connectorIn,
-.neo-social .neo-connectorMid,
-.neo-social .neo-connectorPin{
-  display:none !important;
-}
-
-/* ===== FIX: SocialThread header logo alignment ===== */
-
 /* header sətiri */
 .neo-deviceMock__screen .neo-thread-header,
 .neo-deviceMock__screen .neo-thread-top{
@@ -3890,10 +3875,6 @@ body::before{
   position: relative;
 }
 
-/* Social bölməsində cable/connector layəri kəs */
-.neo-social{
-  overflow: hidden;   /* ✅ diaqonal xətt burada kəsiləcək */
-}
 
 /* Device özü yenə görünən qalsın (kəsilməsin deyə) */
 .neo-deviceWrap{
@@ -7019,34 +7000,6 @@ html, body, #root{
   display:flex;
   min-height:0;
 }
-
-/* cable / connector ONLY from port */
-.neo-deviceMock__port{
-  position:absolute;
-  left:50%;
-  bottom:16px;
-  transform:translateX(-50%);
-  width:86px;
-  height:18px;
-  border-radius:999px;
-  background:rgba(0,0,0,.55);
-  border:1px solid rgba(255,255,255,.10);
-}
-.neo-deviceMock__cable{
-  position:absolute;
-  left:50%;
-  bottom:-80px;
-  transform:translateX(-50%);
-  width:3px;
-  height:90px;
-  background:linear-gradient(
-    to bottom,
-    rgba(120,190,255,.85),
-    rgba(20,82,199,.55),
-    transparent
-  );
-}
-
 
 /* =========================
    PIPELINE / DIAGRAM — CLEAN
