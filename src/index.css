@@ -3096,11 +3096,6 @@ body::before{
   contain-intrinsic-size: 900px;
 }
 
-/* 2) Blurları yüngülləşdir (ən böyük FPS qazancı burdan gəlir) */
-.neo-connectorPathGlow{ filter: blur(1.5px) !important; }
-.neo-proof-card--final::after{ filter: blur(10px) !important; }
-.neo-diagramcard::before{ filter: blur(8px) !important; }
-
 /* 4) Particle sayını/effektini yüngülləşdir */
 .neo-flow-particle,
 .neo-flight-p,
@@ -3783,8 +3778,6 @@ body::before{
   }
 }
 
-/* ===== Fix: device screen tam otursun + connector portdan çıxsın ===== */
-
 .neo-deviceMock{ position: relative; }
 .neo-deviceMock__frame{ position: relative; width: 100%; height: 100%; }
 
@@ -3827,38 +3820,6 @@ body::before{
   border-radius: 999px;
 }
 
-/* ✅ Connector OUT pin portun düz alt mərkəzində */
-.neo-connectorOut--port{
-  position: absolute;
-  left: 50%;
-  bottom: 8px; /* portun altından çıxış */
-  transform: translateX(-50%);
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.92);
-  box-shadow: 0 0 0 2px rgba(20,82,199,.35), 0 0 20px rgba(20,82,199,.55);
-  pointer-events: none;
-  z-index: 8;
-}
-
-/* Cable vizualı da portdan çıxsın (səninki varsa, bu override edir) */
-.neo-deviceMock__cable{
-  position: absolute;
-  left: 50%;
-  bottom: -96px;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 110px;
-  border-radius: 999px;
-  opacity: .9;
-}
-
-/* alt fade varsa, portu örtməsin */
-.neo-deviceMock__bottom{
-  pointer-events: none;
-  z-index: 2;
-}
 
 /* SocialThread header align fix */
 .neo-threadAlignFix .neo-thread-top,
