@@ -337,15 +337,15 @@ function SocialThread({
       platform === "WHATSAPP"
         ? "/image/photo.1.webp"
         : platform === "FACEBOOK"
-          ? "/image/photo.2.png"
-          : "/image/photo.3.png";
+        ? "/image/photo.2.png"
+        : "/image/photo.3.png";
 
     const alt =
       platform === "WHATSAPP"
         ? "WhatsApp Business"
         : platform === "FACEBOOK"
-          ? "Facebook Messenger"
-          : "Instagram DM";
+        ? "Facebook Messenger"
+        : "Instagram DM";
 
     return (
       <div className={`neo-pill neo-pill--logo neo-pill-${platformLower}`} aria-label={alt} title={alt}>
@@ -455,24 +455,6 @@ function PipelineDiagram({
             </span>
             <span style={{ fontWeight: 720, letterSpacing: ".01em" }}>{src.name}</span>
           </div>
-
-          <span
-            data-connector="in-active"
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: -8,
-              width: 12,
-              height: 12,
-              transform: "translateX(-50%)",
-              borderRadius: 999,
-              background: "rgba(255,255,255,.95)",
-              boxShadow: "0 0 0 2px rgba(47,184,255,.30), 0 0 24px rgba(47,184,255,.55)",
-              pointerEvents: "none",
-              zIndex: 5,
-            }}
-          />
         </div>
       </div>
 
@@ -689,8 +671,10 @@ function SocialAutomationSection({
   const visibleScript = useMemo(() => demos[platform].slice(-4), [demos, platform]);
 
   const meta = useMemo(() => {
-    if (platform === "WHATSAPP") return { dot: "rgba(170,225,255,.95)", clientName: t("home.social.clientName.whatsapp") as string };
-    if (platform === "FACEBOOK") return { dot: "rgba(47,184,255,.95)", clientName: t("home.social.clientName.default") as string };
+    if (platform === "WHATSAPP")
+      return { dot: "rgba(170,225,255,.95)", clientName: t("home.social.clientName.whatsapp") as string };
+    if (platform === "FACEBOOK")
+      return { dot: "rgba(47,184,255,.95)", clientName: t("home.social.clientName.default") as string };
     return { dot: "rgba(42,125,255,.95)", clientName: t("home.social.clientName.default") as string };
   }, [platform, t]);
 
@@ -733,7 +717,8 @@ function SocialAutomationSection({
                 <span className="neo-plusWhite" aria-hidden="true">
                   +
                 </span>{" "}
-                {t("home.social.title.p2")} <span className="neo-gradient">{t("home.social.title.grad2")}</span> {t("home.social.title.p3")}
+                {t("home.social.title.p2")} <span className="neo-gradient">{t("home.social.title.grad2")}</span>{" "}
+                {t("home.social.title.p3")}
               </h2>
 
               <p className="neo-p neo-p--lead reveal reveal-top" style={{ marginBottom: 18 }}>
@@ -794,24 +779,6 @@ function SocialAutomationSection({
                   <div className="neo-tabletVignette" aria-hidden="true" />
                   <div className="neo-tabletShine" aria-hidden="true" />
                 </div>
-
-                <span
-                  data-connector="tablet-out"
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    bottom: -10,
-                    width: 12,
-                    height: 12,
-                    transform: "translateX(-50%)",
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,.92)",
-                    boxShadow: "0 0 0 2px rgba(47,184,255,.26), 0 0 26px rgba(47,184,255,.55)",
-                    pointerEvents: "none",
-                    zIndex: 5,
-                  }}
-                />
               </div>
             </div>
           </div>
@@ -833,7 +800,8 @@ function SocialAutomationSection({
               </div>
 
               <h3 className="neo-h3 neo-h3--tight reveal reveal-top">
-                {t("home.pipeline.title.p1")} <span className="neo-gradient">{t("home.pipeline.title.grad")}</span> {t("home.pipeline.title.p2")}
+                {t("home.pipeline.title.p1")} <span className="neo-gradient">{t("home.pipeline.title.grad")}</span>{" "}
+                {t("home.pipeline.title.p2")}
               </h3>
 
               <p className="neo-p neo-p--tight reveal reveal-top">{t("home.pipeline.copy")}</p>
@@ -898,7 +866,8 @@ function SocialAutomationSection({
               </div>
 
               <h3 className="neo-h3 reveal reveal-top">
-                {t("home.ops.title.p1")} <span className="neo-gradient">{t("home.ops.title.grad")}</span> {t("home.ops.title.p2")}
+                {t("home.ops.title.p1")} <span className="neo-gradient">{t("home.ops.title.grad")}</span>{" "}
+                {t("home.ops.title.p2")}
               </h3>
 
               <p className="neo-p reveal reveal-top">{t("home.ops.copy")}</p>
@@ -929,8 +898,9 @@ function SocialAutomationSection({
             </div>
 
             <h3 className="neo-h2 neo-h2-premium" style={{ marginTop: 12 }}>
-              {t("home.final.title.p1")} <span className="neo-gradient">{t("home.final.title.grad1")}</span> {t("home.final.title.p2")}{" "}
-              <span className="neo-gradient">{t("home.final.title.grad2")}</span> {t("home.final.title.p3")}
+              {t("home.final.title.p1")} <span className="neo-gradient">{t("home.final.title.grad1")}</span>{" "}
+              {t("home.final.title.p2")} <span className="neo-gradient">{t("home.final.title.grad2")}</span>{" "}
+              {t("home.final.title.p3")}
             </h3>
 
             <p className="neo-p neo-p--lead reveal reveal-top" style={{ maxWidth: 920, margin: "12px auto 0" }}>
@@ -950,7 +920,8 @@ function SocialAutomationSection({
             <div className="neo-finalBlock neo-finalBlock--b">
               <div className="neo-finalBlockTop">{t("home.final.blocks.b.top")}</div>
               <div className="neo-finalBlockMid">
-                {t("home.final.blocks.b.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.b.mid.grad")}</span> {t("home.final.blocks.b.mid.p2")}
+                {t("home.final.blocks.b.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.b.mid.grad")}</span>{" "}
+                {t("home.final.blocks.b.mid.p2")}
               </div>
               <div className="neo-finalBlockBot">{t("home.final.blocks.b.bot")}</div>
             </div>
@@ -958,7 +929,8 @@ function SocialAutomationSection({
             <div className="neo-finalBlock neo-finalBlock--c">
               <div className="neo-finalBlockTop">{t("home.final.blocks.c.top")}</div>
               <div className="neo-finalBlockMid">
-                {t("home.final.blocks.c.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.c.mid.grad")}</span> {t("home.final.blocks.c.mid.p2")}
+                {t("home.final.blocks.c.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.c.mid.grad")}</span>{" "}
+                {t("home.final.blocks.c.mid.p2")}
               </div>
               <div className="neo-finalBlockBot">{t("home.final.blocks.c.bot")}</div>
             </div>
@@ -1216,21 +1188,10 @@ export default function Home() {
     return () => window.clearTimeout(tt);
   }, []);
 
-  const flowRef = useRef<HTMLDivElement>(null);
-
   const ticks = useMemo(() => {
     const arr = t("home.strip.ticks", { returnObjects: true }) as string[];
     return Array.isArray(arr) ? arr : [];
   }, [t]);
-
-  // ✅ overlay
-  const overlayEnabled = !reduced;
-
-  const overlayLite = useMemo(() => {
-    if (isMobile || reduced) return true;
-    const hc = typeof navigator !== "undefined" ? ((navigator as any).hardwareConcurrency || 4) : 4;
-    return hc <= 8;
-  }, [isMobile, reduced]);
 
   // ✅ HERO: only desktop (mobil/reduced => 0)
   const heroIntensity = reduced || isMobile ? 0 : 1.05;
@@ -1243,10 +1204,10 @@ export default function Home() {
     const el = heroRef.current;
     if (!el) return;
 
-    const io = new IntersectionObserver(
-      ([e]) => setHeroInView(e.isIntersecting),
-      { threshold: 0.05, rootMargin: "120px 0px 120px 0px" }
-    );
+    const io = new IntersectionObserver(([e]) => setHeroInView(e.isIntersecting), {
+      threshold: 0.05,
+      rootMargin: "120px 0px 120px 0px",
+    });
 
     io.observe(el);
     return () => io.disconnect();
@@ -1268,12 +1229,7 @@ export default function Home() {
       {/* HERO */}
       <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground
-            className="neo-heroBg"
-            intensity={heroIntensity}
-            paused={!heroInView}
-            maxFps={isMobile ? 30 : 60}
-          />
+          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} paused={!heroInView} maxFps={isMobile ? 30 : 60} />
         </div>
 
         <div className="container neo-hero-inner">
@@ -1330,9 +1286,8 @@ export default function Home() {
 
       <div style={{ height: "clamp(22px, 3.5vh, 46px)", background: "#000" }} />
 
-      {/* flow + connector */}
+      {/* flow (connectors removed) */}
       <div
-        ref={flowRef}
         className="neo-flowWrap"
         style={{
           position: "relative",
@@ -1347,9 +1302,6 @@ export default function Home() {
         <div style={{ position: "relative", zIndex: 2 }}>
           <SocialAutomationSectionMemo reducedMotion={reduced} isMobile={isMobile} t={t} lang={lang} />
         </div>
-
-        {/* ✅ mobile=true veririk ki xətt “düz aşağı” kimi davransın */}
-        <ConnectorOverlayMemo enabled={overlayEnabled} rootRef={flowRef} lite={overlayLite} mobile={isMobile} />
       </div>
     </main>
   );
