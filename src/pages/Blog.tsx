@@ -313,8 +313,6 @@ export default function Blog() {
 
   const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "";
   const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
-  
-  console.log("BLOG API_BASE:", API_BASE);
 
   const [enter, setEnter] = useState(false);
   useEffect(() => {
@@ -364,12 +362,18 @@ export default function Blog() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const j = await res.json();
-      const rows =
-        Array.isArray(j) ? j : Array.isArray(j?.posts) ? j.posts : Array.isArray(j?.data) ? j.data : Array.isArray(j?.items) ? j.items : [];
+      const rows = Array.isArray(j)
+        ? j
+        : Array.isArray(j?.posts)
+        ? j.posts
+        : Array.isArray(j?.data)
+        ? j.data
+        : Array.isArray(j?.items)
+        ? j.items
+        : [];
       setPosts(normalizePosts(rows));
     } catch (err) {
       console.error("Postları gətirərkən xəta:", err);
-      // backend var, amma xəta oldusa sample göstərməyək, empty göstərək:
       setHasBackend(!!API_BASE);
       setPosts([]);
     } finally {
@@ -377,44 +381,8 @@ export default function Blog() {
     }
   };
 
-  // Sample posts yalnız backend YOXdursa
-  const samplePosts: BlogPost[] = [
-    {
-      id: "ai-automation-trends-2024",
-      slug: "ai-automation-trends-2024",
-      title: "AI Avtomatlaşdırmanın Gələcəyi: 2024 Trendləri",
-      excerpt: "AI avtomatlaşdırma sahəsində əsas trendlər və onların biznesə təsiri: real nümunələr və tətbiq yolları.",
-      author: "Dr. Alexandra Chen",
-      date: "2024-01-15",
-      read_time: "5 dəq",
-      category: "Sənaye İcmalı",
-      image_url: "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: "ai-agents-support-5-ways",
-      slug: "ai-agents-support-5-ways",
-      title: "AI Agentlər Support-u Necə Dəyişir? 5 Praktik Yol",
-      excerpt: "Agent axınlarını düzgün qurmaqla müştəri təcrübəsini artır və support xərclərini azalt.",
-      author: "Marcus Johnson",
-      date: "2024-01-10",
-      read_time: "7 dəq",
-      category: "Praktik Tövsiyə",
-      image_url: "https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: "retailco-2m-savings-case-study",
-      slug: "retailco-2m-savings-case-study",
-      title: "Case Study: RetailCo AI ilə $2M Qənaət Etdi",
-      excerpt: "Bir e-commerce şirkətinin NEOX ilə proseslərini necə sistemləşdirib ölçülə bilən nəticə aldığını gör.",
-      author: "Sarah Williams",
-      date: "2024-01-05",
-      read_time: "10 dəq",
-      category: "Case Study",
-      image_url: "https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-  ];
-
-  const displayPosts = hasBackend ? posts : samplePosts;
+  // ✅ YALNIZ BACKEND POSTLARI (sample yoxdur)
+  const displayPosts = posts;
 
   const categories = useMemo(() => {
     const s = new Set<string>();
@@ -681,16 +649,12 @@ export default function Blog() {
 
               <h1 className={cx("mt-6 text-white break-words bl-enter", enter && "bl-in")} style={d(90)}>
                 <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
-                  {t("blog.hero.title.before")}{" "}
-                  <span className="bl-gradient">{t("blog.hero.title.highlight")}</span>
+                  {t("blog.hero.title.before")} <span className="bl-gradient">{t("blog.hero.title.highlight")}</span>
                 </span>
               </h1>
 
               <p
-                className={cx(
-                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words bl-enter",
-                  enter && "bl-in"
-                )}
+                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words bl-enter", enter && "bl-in")}
                 style={d(180)}
               >
                 {t("blog.hero.subtitle")}
@@ -776,9 +740,7 @@ export default function Blog() {
                       </div>
                     </div>
 
-                    <h3 className="mt-4 text-white text-[18px] sm:text-[20px] font-semibold leading-[1.25] break-words">
-                      {post.title}
-                    </h3>
+                    <h3 className="mt-4 text-white text-[18px] sm:text-[20px] font-semibold leading-[1.25] break-words">{post.title}</h3>
 
                     <p className="mt-3 text-white/70 leading-[1.7] break-words">{post.excerpt}</p>
 
@@ -804,12 +766,8 @@ export default function Blog() {
             </div>
           ) : (
             <div className="bl-panel bl-contain text-center bl-reveal bl-reveal-bottom" style={{ padding: 18 }}>
-              <div className="text-white font-semibold text-[18px]">
-                {hasBackend ? t("blog.empty.title") : t("blog.empty.title")}
-              </div>
-              <div className="mt-2 text-white/70">
-                {hasBackend ? t("blog.empty.subtitle") : t("blog.empty.subtitle")}
-              </div>
+              <div className="text-white font-semibold text-[18px]}">{t("blog.empty.title")}</div>
+              <div className="mt-2 text-white/70">{t("blog.empty.subtitle")}</div>
               <div className="mt-4 flex flex-wrap justify-center gap-3">
                 <button className="bl-btn" onClick={() => setQ("")} type="button" style={{ width: "auto", paddingInline: 16 }}>
                   {t("blog.empty.clearSearch")}
