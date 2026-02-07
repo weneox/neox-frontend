@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL — hard modal lock + soft open + no double arrow + clean operator OFF)
+// src/components/NeoxAIWidget.tsx (ELITE — modal overlay lock + operator toggle + mobile fixes)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -172,55 +172,29 @@ function isApiBaseValid(base: string) {
   return /^https?:\/\/[^ "]+$/i.test(base);
 }
 
-/* ✅ iOS-safe body scroll lock (no background scroll) */
+/* lock body scroll when open */
 function useBodyScrollLock(locked: boolean) {
-  const scrollYRef = useRef(0);
-
   useEffect(() => {
     if (!locked) return;
 
     const body = document.body;
     const docEl = document.documentElement;
 
-    scrollYRef.current = window.scrollY || docEl.scrollTop || 0;
-
     const prevOverflow = body.style.overflow;
-    const prevPosition = body.style.position;
-    const prevTop = body.style.top;
-    const prevLeft = body.style.left;
-    const prevRight = body.style.right;
-    const prevWidth = body.style.width;
     const prevTouch = body.style.touchAction;
     const prevPadRight = body.style.paddingRight;
 
+    // compensate scrollbar to avoid layout shift on desktop
     const scrollBarW = window.innerWidth - docEl.clientWidth;
     if (scrollBarW > 0) body.style.paddingRight = `${scrollBarW}px`;
 
     body.style.overflow = "hidden";
     body.style.touchAction = "none";
 
-    body.style.position = "fixed";
-    body.style.top = `-${scrollYRef.current}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-
-    const prevent = (e: TouchEvent) => e.preventDefault();
-    document.addEventListener("touchmove", prevent, { passive: false });
-
     return () => {
-      document.removeEventListener("touchmove", prevent as any);
-
       body.style.overflow = prevOverflow;
-      body.style.position = prevPosition;
-      body.style.top = prevTop;
-      body.style.left = prevLeft;
-      body.style.right = prevRight;
-      body.style.width = prevWidth;
       body.style.touchAction = prevTouch;
       body.style.paddingRight = prevPadRight;
-
-      window.scrollTo(0, scrollYRef.current || 0);
     };
   }, [locked]);
 }
@@ -229,15 +203,10 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
-  // ✅ do not show in admin panel
   if (isAdminPath(location.pathname)) return null;
 
-  // ✅ never "disappear": if API invalid, still show UI (fallback works)
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
-  if (!apiOk) {
-    // show nothing only if API_BASE is totally broken (very rare)
-    return null;
-  }
+  if (!apiOk) return null;
 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "suallar">("chat");
@@ -246,17 +215,6 @@ export default function NeoxAIWidget() {
 
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
-
-  // soft open flag for CSS
-  const [animReady, setAnimReady] = useState(false);
-  useEffect(() => {
-    if (!open) {
-      setAnimReady(false);
-      return;
-    }
-    const id = window.setTimeout(() => setAnimReady(true), 10);
-    return () => window.clearTimeout(id);
-  }, [open]);
 
   useBodyScrollLock(open);
 
@@ -380,6 +338,7 @@ export default function NeoxAIWidget() {
       if (fresh.length === 0) return;
       for (const it of fresh) seenAdminIdsRef.current.add(it.id);
 
+      // If admin replied, keep handoff ON (but user can toggle off manually)
       if (fresh.some((x) => x.source === "admin")) {
         setHandoff(true);
         setStoredHandoff(sessionIdRef.current, true);
@@ -475,6 +434,8 @@ export default function NeoxAIWidget() {
     if (!tt || typing) return;
 
     const autoOp = detectOperatorIntent(tt);
+
+    // If user toggled operator OFF, we should not request operator.
     const requestOperator = handoff ? true : (opts?.requestOperator === true || autoOp === true);
 
     const sessionId = sessionIdRef.current;
@@ -513,6 +474,7 @@ export default function NeoxAIWidget() {
         request_operator: requestOperator ? true : false,
       };
 
+      // Only set handoff true if we are requesting operator now.
       if (requestOperator) {
         setHandoff(true);
         setStoredHandoff(sessionId, true);
@@ -529,6 +491,7 @@ export default function NeoxAIWidget() {
         hardResetChat();
         throw new Error("Unauthorized");
       }
+
       if (!r.ok) {
         const txt = await r.text().catch(() => "");
         throw new Error(`${r.status} ${txt || "Request failed"}`);
@@ -542,11 +505,13 @@ export default function NeoxAIWidget() {
         setLeadIdLive(newLeadId);
       }
 
+      // Only accept server handoff if we didn't manually turn it off.
       const serverHandoff = Boolean((data as any)?.handoff);
       if (requestOperator) {
         setHandoff(serverHandoff);
         setStoredHandoff(sessionId, serverHandoff);
       } else {
+        // keep user's manual choice (AI mode)
         setHandoff(false);
         setStoredHandoff(sessionId, false);
       }
@@ -607,39 +572,34 @@ export default function NeoxAIWidget() {
     return l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
   }
 
-  // best-effort; backend endpointi sonra əlavə edəcəyik
-  async function notifyHandoffToBackend(on: boolean) {
-    try {
-      const session_id = sessionIdRef.current;
-      const lead_id = getStoredLeadId();
-      const lang = getLangSafe(i18n.language);
-      const page = window.location.pathname;
-
-      await fetch(`${API_BASE}/api/widget/handoff`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id, lead_id, handoff: !!on, lang, page, source: "ai_widget" }),
-      }).catch(() => {});
-    } catch {}
-  }
-
   function toggleOperator() {
     setOpen(true);
     setTab("chat");
 
+    // If currently operator ON -> turn OFF (AI ON) without clearing messages
     if (handoff) {
       const sessionId = sessionIdRef.current;
       setHandoff(false);
       setStoredHandoff(sessionId, false);
-      notifyHandoffToBackend(false);
 
       setMsgs((p) => [
         ...p,
-        { id: uid(), role: "ai", text: "Operator OFF • AI ON", ts: Date.now(), source: "ai", kind: "system" },
+        {
+          id: uid(),
+          role: "ai",
+          text:
+            ((t("neoxAi.operator.off") as string) && !String(t("neoxAi.operator.off")).includes("neoxAi.operator.off"))
+              ? (t("neoxAi.operator.off") as string)
+              : "✅ Operator OFF • AI ON. Mesajlar saxlanıldı — AI yenidən cavab verə bilər.",
+          ts: Date.now(),
+          source: "ai",
+          kind: "system",
+        },
       ]);
       return;
     }
 
+    // Operator OFF -> request operator
     const txt = requestOperatorTextByLang();
     send(txt, { requestOperator: true });
   }
@@ -664,9 +624,20 @@ export default function NeoxAIWidget() {
           : "AI ON • Operator OFF");
 
   return (
-    <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"} data-anim={animReady ? "1" : "0"}>
-      {/* overlay: blocks EVERYTHING behind */}
-      <div className={cx("neox-ai-overlay", open && "is-open")} aria-hidden="true" />
+    <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"}>
+      {/* ✅ overlay catches clicks + blocks scroll behind */}
+      <div
+        className={cx("neox-ai-overlay", open && "is-open")}
+        aria-hidden="true"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onWheel={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
 
       <button
         type="button"
@@ -696,14 +667,20 @@ export default function NeoxAIWidget() {
         role="dialog"
         aria-modal="true"
         aria-label={t("neoxAi.panelAria")}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="neox-ai-shell">
+          <div className="neox-ai-decorFrame" aria-hidden="true" />
+          <div className="neox-ai-decorCorners" aria-hidden="true" />
           <div className="neox-ai-scan" aria-hidden="true" />
           <div className="neox-ai-noise" aria-hidden="true" />
 
           <div className="neox-ai-top">
             <div className="neox-ai-brand">
               <div className="neox-ai-mark" aria-hidden="true">
+                <div className="neox-ai-markGlow" />
+                <div className="neox-ai-markRing" />
                 <RobotHeadIcon className="neox-ai-robot" />
               </div>
 
@@ -739,10 +716,6 @@ export default function NeoxAIWidget() {
                 e.preventDefault();
                 e.stopPropagation();
                 setOpen(false);
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
               }}
               aria-label={t("common.close")}
             >
@@ -806,6 +779,9 @@ export default function NeoxAIWidget() {
                 />
                 <button type="button" className={cx("neox-ai-send", !canSend && "is-disabled")} onClick={() => send(input)} disabled={!canSend}>
                   {t("neoxAi.input.send")}
+                  <span className="neox-ai-sendIcon" aria-hidden="true">
+                    →
+                  </span>
                 </button>
               </div>
             </>
