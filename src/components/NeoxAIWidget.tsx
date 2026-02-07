@@ -1,5 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + better layout hooks + stable polling)
-// ✅ Works with current server.js response shape: { lead_id, text, handoff }
+// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + mobile click fix + stable polling)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -18,29 +17,20 @@ function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-/**
- * ✅ API base resolution priority:
- *  1) window.__NEOX_API__ (runtime override, optional)
- *  2) VITE_API_BASE (build-time)
- *  3) Production fallback (Railway)
- */
 const PROD_BACKEND_FALLBACK = "https://neox-backend-production.up.railway.app";
 const API_BASE_RAW =
   ((globalThis as any)?.__NEOX_API__ as string | undefined) ||
   (import.meta as any)?.env?.VITE_API_BASE ||
   PROD_BACKEND_FALLBACK;
 
-// ✅ normalize API base (remove trailing slashes)
 const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 
 const SESSION_KEY = "neox_session_id";
 const LEAD_KEY = "neox_lead_id";
 
-// ✅ handoff per-session
 function handoffKey(sessionId: string) {
   return `neox_handoff:${sessionId}`;
 }
-// ✅ last admin cursor per lead
 function lastAdminTsKey(leadId: string) {
   return `neox_last_admin_ts:${leadId}`;
 }
@@ -109,7 +99,6 @@ function toLlmRole(r: UiRole): LlmRole {
   return r === "user" ? "user" : "assistant";
 }
 
-/** ✅ detect operator intent from free text */
 function detectOperatorIntent(text: string) {
   const s = String(text || "").toLowerCase();
   return (
@@ -134,7 +123,6 @@ function detectOperatorIntent(text: string) {
   );
 }
 
-/** Premium robot head icon */
 function RobotHeadIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
@@ -188,7 +176,6 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
-  // ✅ never mount on admin routes
   if (isAdminPath(location.pathname)) return null;
 
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
@@ -228,11 +215,8 @@ export default function NeoxAIWidget() {
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
 
-  // ✅ update welcome message when language changes
   useEffect(() => {
-    setMsgs((p) =>
-      p.map((m) => (m.kind === "welcome" ? { ...m, text: String(t("neoxAi.welcome")) } : m))
-    );
+    setMsgs((p) => p.map((m) => (m.kind === "welcome" ? { ...m, text: String(t("neoxAi.welcome")) } : m)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i18n.language]);
 
@@ -252,9 +236,7 @@ export default function NeoxAIWidget() {
     el.scrollTop = el.scrollHeight;
   }, [msgs.length, open, typing]);
 
-  // ===========================
-  // Polling (admin replies)
-  // ===========================
+  // ===== Polling admin replies =====
   const lastSeenTsRef = useRef<number>(0);
   const pollRef = useRef<number | null>(null);
   const inflightPoll = useRef(false);
@@ -599,7 +581,17 @@ export default function NeoxAIWidget() {
       <button
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
-        onClick={() => setOpen((s) => !s)}
+        onPointerDown={(e) => {
+          // ✅ mobile: make sure tap isn't "stolen"
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((s) => !s);
+        }}
+        onClick={(e) => {
+          // ✅ fallback for browsers that don't fire pointerdown as expected
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         aria-label={t("neoxAi.fabAria")}
       >
         <span className="neox-ai-fabRing" aria-hidden="true" />
@@ -611,7 +603,14 @@ export default function NeoxAIWidget() {
         <span className="neox-ai-fabPing" aria-hidden="true" />
       </button>
 
-      <div className={cx("neox-ai-panel", open && "is-open")} role="dialog" aria-modal="false" aria-label={t("neoxAi.panelAria")}>
+      <div
+        className={cx("neox-ai-panel", open && "is-open")}
+        role="dialog"
+        aria-modal="false"
+        aria-label={t("neoxAi.panelAria")}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="neox-ai-shell">
           <div className="neox-ai-decorFrame" aria-hidden="true" />
           <div className="neox-ai-decorCorners" aria-hidden="true" />
@@ -640,18 +639,27 @@ export default function NeoxAIWidget() {
                 <div className="neox-ai-controls">
                   <span className="neox-ai-modePill">{modeText}</span>
 
-                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")} title="Canlı operatora keç">
+                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
                     {OP_LABEL}
                   </button>
 
-                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn" title="Söhbəti sıfırla">
+                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
                     {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
                   </button>
                 </div>
               </div>
             </div>
 
-            <button type="button" className="neox-ai-x" onClick={() => setOpen(false)} aria-label={t("common.close")}>
+            <button
+              type="button"
+              className="neox-ai-x"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(false);
+              }}
+              aria-label={t("common.close")}
+            >
               ✕
             </button>
           </div>

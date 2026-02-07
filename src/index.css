@@ -10456,7 +10456,23 @@ html {
   text-transform: uppercase;
 }
 
-/* ===== NEOX AI Widget layout fix ===== */
+/* ===== NEOX AI Widget: MOBILE OPEN FIX (z-index + pointer-events) ===== */
+
+/* root always allows clicks */
+.neox-ai { position: relative; }
+
+/* FAB must be above EVERYTHING on mobile */
+.neox-ai-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Panel sits under FAB but still high */
 .neox-ai-panel {
   position: fixed;
   right: 18px;
@@ -10464,25 +10480,53 @@ html {
   width: min(420px, calc(100vw - 20px));
   height: min(640px, calc(100dvh - 20px));
   max-height: calc(100dvh - 20px);
+  z-index: 2147482000;
+
+  /* closed state safety */
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  pointer-events: none;
+  visibility: hidden;
 }
 
+/* open state */
+.neox-ai-panel.is-open,
+.neox-ai.is-open .neox-ai-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+/* IMPORTANT: decor layers must NOT steal taps */
+.neox-ai-decorFrame,
+.neox-ai-decorCorners,
+.neox-ai-scan,
+.neox-ai-noise,
+.neox-ai-markGlow,
+.neox-ai-markRing,
+.neox-ai-fabRing,
+.neox-ai-fabCore,
+.neox-ai-fabPing {
+  pointer-events: none !important;
+}
+
+/* Shell layout */
 .neox-ai-shell {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 0; /* IMPORTANT */
+  min-height: 0;
 }
 
 .neox-ai-top,
-.neox-ai-tabs {
-  flex: 0 0 auto;
-}
+.neox-ai-tabs { flex: 0 0 auto; }
 
 .neox-ai-list {
   flex: 1 1 auto;
-  min-height: 0;            /* IMPORTANT */
+  min-height: 0;
   overflow: auto;
-  padding-bottom: 84px;     /* input row üçün yer */
+  padding-bottom: 84px;
   overscroll-behavior: contain;
 }
 
@@ -10496,48 +10540,9 @@ html {
 
 /* bubbles never overflow */
 .neox-ai-msg { min-width: 0; }
-.neox-ai-bubble {
-  max-width: min(78%, 560px);
-  min-width: 0;
-}
-.neox-ai-text {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
+.neox-ai-bubble { max-width: min(78%, 560px); min-width: 0; }
+.neox-ai-text { overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
 
-/* controls wrap nicely */
-.neox-ai-controls {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.neox-ai-modePill {
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  opacity: .85;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(0,0,0,.22);
-}
-.neox-ai-pillBtn {
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.16);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.90);
-  cursor: pointer;
-}
-.neox-ai-pillBtn.is-on {
-  background: rgba(255,255,255,.08);
-}
-
-/* ===== Mobile full-screen + safe areas ===== */
 @media (max-width: 520px) {
   .neox-ai-panel {
     inset: 10px;
@@ -10564,9 +10569,11 @@ html {
     display: grid;
     place-items: center;
     border-radius: 999px;
+    touch-action: manipulation;
   }
 
-  .neox-ai-list {
-    padding-bottom: 92px;
-  }
+  .neox-ai-list { padding-bottom: 92px; }
+
+  /* keep FAB reachable */
+  .neox-ai-fab { right: 14px; bottom: 14px; }
 }
