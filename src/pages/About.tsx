@@ -129,7 +129,16 @@ function useRevealWithinBatched(
 type Pill = { icon: any; title: string; desc: string; bullets: string[] };
 type Step = { n: string; title: string; desc: string; points: string[] };
 
-const STRIP_WORDS_KEYS = ["foundation", "agents", "workflow", "rules", "monitoring", "integration", "crm", "sla"] as const;
+const STRIP_WORDS_KEYS = [
+  "foundation",
+  "agents",
+  "workflow",
+  "rules",
+  "monitoring",
+  "integration",
+  "crm",
+  "sla",
+] as const;
 
 export default function About() {
   const { t } = useTranslation();
@@ -276,7 +285,7 @@ export default function About() {
           overflow-x: clip;
         }
 
-        /* ✅ ən vacib: overlay heç vaxt kontenti örtməsin */
+        /* ✅ overlay heç vaxt kontenti örtməsin */
         .ab-page{
           position: relative;
           isolation: isolate;
@@ -437,7 +446,7 @@ export default function About() {
         }
         @media (max-width: 860px){
           .ab-hero{
-            padding-top: calc(102px + env(safe-area-inset-top, 0px));
+            padding-top: calc(104px + env(safe-area-inset-top, 0px));
             padding-bottom: 58px;
           }
         }
@@ -462,7 +471,7 @@ export default function About() {
           z-index: 2;
         }
 
-        /* ✅ title mobile layout */
+        /* ✅ title — NO forced line breaks, wraps naturally */
         .ab-title{
           margin-top: 12px;
           font-size: clamp(30px, 7.2vw, 72px);
@@ -471,36 +480,27 @@ export default function About() {
           font-weight: 660;
           text-align:center;
           text-wrap: balance;
-          max-width: 920px;
+          max-width: 980px;
           margin-left: auto;
           margin-right: auto;
         }
         @media (max-width: 560px){
           .ab-title{
-            max-width: 560px;
+            max-width: 640px;
             font-size: clamp(28px, 7.1vw, 44px);
-            line-height: 1.05;
+            line-height: 1.06;
           }
         }
         @media (max-width: 420px){
-          .ab-title{ font-size: 30px; line-height: 1.05; }
+          .ab-title{ font-size: 30px; line-height: 1.06; }
         }
 
-        .ab-titleLine{
-          display:block;
-          text-align:center;
-          text-wrap: balance;
-        }
-        .ab-titleLine2{ margin-top: 10px; }
-        @media (max-width: 560px){
-          .ab-titleLine2{ margin-top: 8px; }
-        }
-
+        /* “gözəl görünsün” parçalanmasın */
         .ab-quoteWrap{
           display:inline-flex;
           align-items: baseline;
           gap: .06em;
-          white-space: nowrap; /* “gözəl görünsün” parçalanmasın */
+          white-space: nowrap;
         }
         .ab-quote{
           display:inline-block;
@@ -1073,9 +1073,14 @@ export default function About() {
         <div className="ab-heroFade" aria-hidden="true" />
 
         <div className="ab-container">
-          {/* Kicker pill (✅ bir az aşağı) */}
+          {/* Kicker pill (✅ bir az aşağı, daha balanslı) */}
           <div
-            style={{ display: "flex", justifyContent: "center", marginTop: isMobile ? 14 : 8, ...d(0) }}
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              marginTop: isMobile ? 18 : 10,
+              ...d(0),
+            }}
             className={cx("ab-enter", enter && "ab-in")}
           >
             <div className="ab-kickerPill">
@@ -1084,25 +1089,23 @@ export default function About() {
             </div>
           </div>
 
-          {/* Title (✅ dırnaq fix + 3-4 sətir layout) */}
+          {/* Title (✅ forced break yoxdur, normal axır) */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            <span className="ab-titleLine">
-              {t("about.hero.title.0")}{" "}
-              <span className="ab-quoteWrap" aria-label="quote">
-                <span className="ab-quote" aria-hidden="true">“</span>
-                <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
-                <span className="ab-quote" aria-hidden="true">”</span>
-              </span>{" "}
-              {t("about.hero.title.1")}
-            </span>
-
-            <span className={cx("ab-titleLine", "ab-titleLine2")}>
-              {t("about.hero.title.2")}{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
-              {t("about.hero.title.3")}
-            </span>
+            {t("about.hero.title.0")}{" "}
+            <span className="ab-quoteWrap" aria-label="gözəl görünsün">
+              <span className="ab-quote" aria-hidden="true">
+                “
+              </span>
+              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
+              <span className="ab-quote" aria-hidden="true">
+                ”
+              </span>
+            </span>{" "}
+            {t("about.hero.title.1")} {t("about.hero.title.2")}{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
+            {t("about.hero.title.3")}
           </h1>
 
           {/* Sub */}
@@ -1307,7 +1310,11 @@ export default function About() {
                 <Link to="/services" className="ab-btn">
                   {t("about.arch.ctaServices")} <ArrowRight size={18} />
                 </Link>
-                <button type="button" className="ab-btn" onClick={() => window.dispatchEvent(new CustomEvent("neox-ai:open"))}>
+                <button
+                  type="button"
+                  className="ab-btn"
+                  onClick={() => window.dispatchEvent(new CustomEvent("neox-ai:open"))}
+                >
                   {t("about.arch.ctaAsk")}
                 </button>
               </div>
@@ -1339,11 +1346,7 @@ export default function About() {
                 {steps.map((s, idx) => (
                   <div
                     key={s.n}
-                    className={cx(
-                      "ab-termLine",
-                      "ab-reveal",
-                      idx % 2 === 0 ? "ab-reveal-left" : "ab-reveal-right"
-                    )}
+                    className={cx("ab-termLine", "ab-reveal", idx % 2 === 0 ? "ab-reveal-left" : "ab-reveal-right")}
                   >
                     <div>
                       <div className="ab-k">
