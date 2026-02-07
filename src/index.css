@@ -10544,3 +10544,73 @@ html {
     touch-action: manipulation;
   }
 }
+
+/* =========================================
+   NEOX AI — MOBILE TAP FIX (SAFE, MINIMAL)
+   Paste at END of index.css
+   ========================================= */
+
+/* ƏVVƏLKİ səhv patch-i override elə */
+.neox-ai { pointer-events: auto !important; }
+
+/* FAB həmişə kliklənə bilsin */
+.neox-ai-fab{
+  position: fixed !important;
+  right: 16px !important;
+  bottom: 16px !important;
+  z-index: 2147483646 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* FAB-ın dekor layerləri klik oğurlamasın */
+.neox-ai-fabRing,
+.neox-ai-fabCore,
+.neox-ai-fabPing{
+  pointer-events: none !important;
+}
+
+/* Panel üst qatlarda qalsın */
+.neox-ai-panel{
+  z-index: 2147483645 !important;
+}
+
+/* Açıq olanda klik qəbul etsin */
+.neox-ai.is-open .neox-ai-panel,
+.neox-ai-panel.is-open{
+  pointer-events: auto;
+}
+
+/* Dekor layerlər tap oğurlamasın */
+.neox-ai-decorFrame,
+.neox-ai-decorCorners,
+.neox-ai-scan,
+.neox-ai-noise,
+.neox-ai-markGlow,
+.neox-ai-markRing{
+  pointer-events: none !important;
+}
+
+/* Mesajlar inputun altına girməsin */
+.neox-ai-list{
+  padding-bottom: 92px;
+}
+
+/* Mobil ekranda daşmanı düzəlt */
+@media (max-width: 520px){
+  .neox-ai-panel{
+    inset: 10px !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .neox-ai-top{
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+}
