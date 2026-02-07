@@ -70,6 +70,36 @@ function isVid(item: MediaItem) {
   return (item.type || item.resource_type || "").toLowerCase() === "video";
 }
 
+// ✅ XHR upload for progress
+function uploadWithProgress(uploadUrl: string, fd: FormData, onProgress?: (pct: number) => void) {
+  return new Promise<any>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl, true);
+
+    xhr.upload.onprogress = (evt) => {
+      if (!evt.lengthComputable) return;
+      const pct = Math.max(0, Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+      onProgress?.(pct);
+    };
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState !== 4) return;
+      let json: any = null;
+      try {
+        json = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        json = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(json);
+      const msg = json?.error?.message || json?.error || `Upload failed (${xhr.status})`;
+      return reject(new Error(msg));
+    };
+
+    xhr.onerror = () => reject(new Error("Upload network error"));
+    xhr.send(fd);
+  });
+}
+
 export default function AdminMedia() {
   // ✅ use unified admin context (token + apiBase)
   const { apiBase, token } = useAdmin();
@@ -92,6 +122,9 @@ export default function AdminMedia() {
   const [uploadTitle, setUploadTitle] = useState<string>("");
   const [uploadNote, setUploadNote] = useState<string>("");
 
+  const [progress, setProgress] = useState<number>(0);
+  const [uploadName, setUploadName] = useState<string>("");
+
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const queryString = useMemo(() => {
@@ -113,7 +146,7 @@ export default function AdminMedia() {
       }
       if (token) {
         headers.set("Authorization", `Bearer ${token}`);
-        headers.set("x-admin-token", token);
+        headers.set("x-admin-token", token); // legacy support
       }
 
       const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
@@ -143,6 +176,7 @@ export default function AdminMedia() {
       const safe = Array.isArray(arr) ? arr : [];
       setItems(safe);
 
+      // keep selected fresh
       if (selected) {
         const found = safe.find((x: any) => Number(x?.id) === Number(selected.id));
         setSelected(found || null);
@@ -162,10 +196,32 @@ export default function AdminMedia() {
     fileRef.current?.click();
   }, []);
 
+  // ✅ allow multi upload
+  const onFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+
+      try {
+        for (const f of files) {
+          await doUploadOneRef.current?.(f);
+        }
+      } finally {
+        if (fileRef.current) fileRef.current.value = "";
+      }
+    },
+    []
+  );
+
+  // use ref to avoid deps loop
+  const doUploadOneRef = useRef<((file: File) => Promise<void>) | null>(null);
+
   const doUploadOne = useCallback(
     async (file: File) => {
       setUploading(true);
       setErr("");
+      setProgress(0);
+      setUploadName(file.name);
 
       try {
         // 1) sign
@@ -177,7 +233,7 @@ export default function AdminMedia() {
         const mediaType = guessTypeFromFile(file);
 
         const signBody = {
-          type: mediaType, // image|video|raw
+          type: mediaType,
           tags: tagsArr,
           folder: uploadFolder || "media",
           prefix: "asset",
@@ -199,7 +255,7 @@ export default function AdminMedia() {
           }
         }
 
-        // 2) upload directly to Cloudinary
+        // 2) upload directly to Cloudinary (XHR for progress)
         const fd = new FormData();
         fd.append("file", file);
         Object.entries(sign.params || {}).forEach(([k, v]) => {
@@ -207,12 +263,7 @@ export default function AdminMedia() {
           fd.append(k, String(v));
         });
 
-        const upRes = await fetch(String(sign.upload_url), { method: "POST", body: fd });
-        const upJson = await upRes.json().catch(() => ({}));
-        if (!upRes.ok) {
-          const msg = upJson?.error?.message || upJson?.error || `Upload failed (${upRes.status})`;
-          throw new Error(msg);
-        }
+        const upJson = await uploadWithProgress(String(sign.upload_url), fd, (pct) => setProgress(pct));
 
         // 3) store in our DB
         const storeBody = {
@@ -220,6 +271,7 @@ export default function AdminMedia() {
           tags: tagsArr,
           title: uploadTitle || file.name,
           note: uploadNote || "",
+          mime: file.type || "",
         };
 
         const saved = await apiFetch(`/api/admin/media`, {
@@ -239,20 +291,16 @@ export default function AdminMedia() {
         setUploadNote("");
       } finally {
         setUploading(false);
-        if (fileRef.current) fileRef.current.value = "";
+        setProgress(0);
+        setUploadName("");
       }
     },
     [apiFetch, loadList, uploadTags, uploadFolder, uploadTitle, uploadNote]
   );
 
-  const onFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-      await doUploadOne(f);
-    },
-    [doUploadOne]
-  );
+  useEffect(() => {
+    doUploadOneRef.current = doUploadOne;
+  }, [doUploadOne]);
 
   const doDelete = useCallback(
     async (item: MediaItem) => {
@@ -362,11 +410,7 @@ export default function AdminMedia() {
             </select>
 
             <label style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end", opacity: 0.9 }}>
-              <input
-                type="checkbox"
-                checked={includeDeleted}
-                onChange={(e) => setIncludeDeleted(e.target.checked)}
-              />
+              <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
               include deleted
             </label>
           </div>
@@ -404,7 +448,8 @@ export default function AdminMedia() {
               {uploading ? "Uploading..." : "Upload"}
             </button>
 
-            <input ref={fileRef} type="file" onChange={onFileChange} style={{ display: "none" }} />
+            {/* ✅ multiple */}
+            <input ref={fileRef} type="file" multiple onChange={onFileChange} style={{ display: "none" }} />
 
             <div style={{ flex: 1 }} />
 
@@ -412,6 +457,30 @@ export default function AdminMedia() {
               API: <span style={{ fontWeight: 800 }}>{API_BASE || "(same-origin)"}</span>
             </div>
           </div>
+
+          {/* ✅ Upload progress */}
+          {uploading ? (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.18)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <div style={{ minWidth: 0, fontWeight: 900, fontSize: 12, opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {uploadName || "Uploading..."}
+              </div>
+              <div style={{ flex: 1, height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                <div style={{ width: `${progress}%`, height: 8, background: "rgba(120,180,255,0.55)" }} />
+              </div>
+              <div style={{ width: 40, textAlign: "right", fontSize: 12, opacity: 0.85, fontWeight: 900 }}>{progress}%</div>
+            </div>
+          ) : null}
 
           {/* Upload meta */}
           <div
@@ -544,21 +613,11 @@ export default function AdminMedia() {
                     }}
                   >
                     {isImg(it) && url ? (
-                      <img
-                        src={url}
-                        alt={it.title || it.public_id}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
+                      <img src={url} alt={it.title || it.public_id} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : isVid(it) && url ? (
-                      <video
-                        src={url}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        muted
-                      />
+                      <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
                     ) : (
-                      <div style={{ opacity: 0.7, fontWeight: 900, fontSize: 12 }}>
-                        {String(it.type || "raw").toUpperCase()}
-                      </div>
+                      <div style={{ opacity: 0.7, fontWeight: 900, fontSize: 12 }}>{String(it.type || "raw").toUpperCase()}</div>
                     )}
                   </div>
 
@@ -588,9 +647,7 @@ export default function AdminMedia() {
                           {t}
                         </span>
                       ))}
-                      {it.tags.length > 3 ? (
-                        <span style={{ fontSize: 11, opacity: 0.7 }}>+{it.tags.length - 3}</span>
-                      ) : null}
+                      {it.tags.length > 3 ? <span style={{ fontSize: 11, opacity: 0.7 }}>+{it.tags.length - 3}</span> : null}
                     </div>
                   ) : null}
 
@@ -652,9 +709,7 @@ export default function AdminMedia() {
           </div>
 
           {!selected ? (
-            <div style={{ marginTop: 12, opacity: 0.72, lineHeight: 1.5 }}>
-              Select an item from the grid to preview.
-            </div>
+            <div style={{ marginTop: 12, opacity: 0.72, lineHeight: 1.5 }}>Select an item from the grid to preview.</div>
           ) : (
             <>
               <div
@@ -671,27 +726,15 @@ export default function AdminMedia() {
                 }}
               >
                 {isImg(selected) && selected.secure_url ? (
-                  <img
-                    src={selected.secure_url}
-                    alt={selected.title || selected.public_id}
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                  />
+                  <img src={selected.secure_url} alt={selected.title || selected.public_id} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                 ) : isVid(selected) && selected.secure_url ? (
-                  <video
-                    src={selected.secure_url}
-                    controls
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                  />
+                  <video src={selected.secure_url} controls style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                 ) : (
-                  <div style={{ opacity: 0.75, fontWeight: 900 }}>
-                    {String(selected.type || "raw").toUpperCase()}
-                  </div>
+                  <div style={{ opacity: 0.75, fontWeight: 900 }}>{String(selected.type || "raw").toUpperCase()}</div>
                 )}
               </div>
 
-              <div style={{ marginTop: 10, fontWeight: 950, lineHeight: 1.2 }}>
-                {selected.title || selected.original_filename || selected.public_id}
-              </div>
+              <div style={{ marginTop: 10, fontWeight: 950, lineHeight: 1.2 }}>{selected.title || selected.original_filename || selected.public_id}</div>
 
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.78, lineHeight: 1.5 }}>
                 <div>
@@ -798,6 +841,23 @@ export default function AdminMedia() {
                     Open
                   </button>
                 ) : null}
+
+                {selected.public_id ? (
+                  <button
+                    onClick={() => doCopy(selected.public_id)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.16)",
+                      background: "rgba(255,255,255,0.06)",
+                      color: "white",
+                      fontWeight: 900,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Copy public_id
+                  </button>
+                ) : null}
               </div>
 
               <div style={{ marginTop: 12, opacity: 0.65, fontSize: 12, lineHeight: 1.4 }}>
@@ -807,6 +867,13 @@ export default function AdminMedia() {
           )}
         </div>
       </div>
+
+      {/* ✅ small responsive fix so right panel doesn’t break on mobile */}
+      <style>{`
+        @media (max-width: 980px){
+          .admin-media-grid { grid-template-columns: minmax(0,1fr) !important; }
+        }
+      `}</style>
     </AdminSectionSkeleton>
   );
 }
