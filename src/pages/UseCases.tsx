@@ -66,7 +66,7 @@ function useMedia(query: string, initial = false) {
 }
 
 /* ---------------- Scroll reveal (max FPS) ----------------
-   - only opacity + transform (no blur, no filters)
+   - only opacity + transform (no blur filters)
    - slow, smooth
 ---------------------------------------------------------- */
 function useReveal(rootRef: React.RefObject<HTMLElement>, opts?: { rootMargin?: string; threshold?: number }) {
@@ -202,7 +202,10 @@ type MoreText = { title: string; text: string };
 const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
     <div className="uc-bullet">
-      <CheckCircle className="uc-bulletIcon" aria-hidden="true" />
+      <span className="uc-bulletIconWrap" aria-hidden="true">
+        <CheckCircle className="uc-bulletIcon" />
+        <span className="uc-bulletPulse" />
+      </span>
       <span className="uc-body">{text}</span>
     </div>
   );
@@ -283,7 +286,6 @@ const BookSpread = memo(function BookSpread({
           </div>
         </div>
 
-        {/* cheap page edge (no blur) */}
         <div className="uc-edge" aria-hidden="true" />
       </div>
 
@@ -338,7 +340,6 @@ export default function UseCases() {
   const ctaServices = t("useCases.cta.services");
   const ctaSchedule = t("useCases.cta.schedule");
 
-  // Keep diagram/tint freedom but preserve AV text tone
   const CASE_META: Array<{ icon: LucideIcon; tint: Tint }> = useMemo(
     () => [
       { icon: ShoppingBag, tint: "cyan" },
@@ -423,12 +424,11 @@ export default function UseCases() {
 
       <style>{`
         /* =========================================================
-          USE CASES — BOOK MODE (MAX FPS)
+          USE CASES — HERO CENTER + SIDE-INTEGRATED DIAGRAM (MAX FPS)
           - no backdrop-filter
           - no blur filters
           - no fixed grain
-          - fewer gradients, lighter shadows
-          - content-visibility for offscreen
+          - slow reveal via opacity+transform only
         ========================================================= */
 
         html, body{
@@ -457,7 +457,7 @@ export default function UseCases() {
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        /* AV TEXT TONE (your original vibe) */
+        /* AV TEXT TONE (keep) */
         .uc-title, .uc-h1, .uc-h, .uc-moreTitle, .uc-finalTitle{
           color: rgba(255,255,255,.94);
         }
@@ -468,7 +468,7 @@ export default function UseCases() {
         .uc-metricV{ color: rgba(170,225,255,.82); }
         .uc-metricS{ color: rgba(170,225,255,.62); }
 
-        /* Tint variables (for diagrams / holo only) */
+        /* Tints */
         [data-tint="cyan"]{ --a: rgba(47,184,255,.92); --b: rgba(47,184,255,.14); }
         [data-tint="violet"]{ --a: rgba(42,125,255,.92); --b: rgba(42,125,255,.14); }
         [data-tint="ice"]{ --a: rgba(170,225,255,.95); --b: rgba(170,225,255,.14); }
@@ -479,8 +479,8 @@ export default function UseCases() {
           opacity: 0;
           transform: translate3d(0, 18px, 0) scale(.992);
           transition:
-            opacity 0.95s cubic-bezier(.16,.88,.16,1),
-            transform 0.95s cubic-bezier(.16,.88,.16,1);
+            opacity 1.05s cubic-bezier(.16,.88,.16,1),
+            transform 1.05s cubic-bezier(.16,.88,.16,1);
           transition-delay: var(--d, 0ms);
           will-change: opacity, transform;
         }
@@ -490,32 +490,38 @@ export default function UseCases() {
         }
 
         @media (prefers-reduced-motion: reduce){
-          .uc-page.uc-io [data-reveal]{
-            opacity: 1 !important;
-            transform:none !important;
-            transition:none !important;
+          .uc-page.uc-io [data-reveal]{ opacity:1 !important; transform:none !important; transition:none !important; }
+          .uc-bulletPulse{ display:none !important; }
+        }
+
+        .uc-shell{ max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+
+        /* HERO — centered title, integrated side panels */
+        .uc-hero{
+          padding: 88px 0 46px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* “stage” grid: left rail + center + right rail */
+        .uc-heroStage{
+          display:grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 720px) minmax(0, 1fr);
+          gap: 14px;
+          align-items: stretch;
+        }
+        @media (max-width: 980px){
+          .uc-heroStage{
+            grid-template-columns: 1fr;
+            gap: 12px;
           }
         }
 
-        .uc-shell{
-          max-width: 1280px;
-          margin: 0 auto;
-          padding: 0 16px;
-        }
-
-        /* HERO */
-        .uc-hero{
-          padding: 92px 0 44px;
-        }
-        .uc-heroGrid{
-          display:grid;
-          grid-template-columns: 1.1fr .9fr;
-          gap: 18px;
-          align-items: center;
-        }
-        @media (max-width: 980px){
-          .uc-hero{ padding-top: 84px; }
-          .uc-heroGrid{ grid-template-columns: 1fr; }
+        .uc-heroCenter{
+          text-align: center;
+          padding: 8px 8px 0;
+          position: relative;
+          z-index: 2;
         }
 
         .uc-tag{
@@ -544,10 +550,10 @@ export default function UseCases() {
 
         .uc-h1{
           margin-top: 18px;
-          font-size: clamp(40px, 5.4vw, 70px);
+          font-size: clamp(40px, 5.5vw, 72px);
           line-height: 1.03;
-          font-weight: 900;
-          letter-spacing: -0.035em;
+          font-weight: 950;
+          letter-spacing: -0.04em;
         }
         .uc-grad{
           background: linear-gradient(90deg, #fff 0%, rgba(170,225,255,.96) 35%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
@@ -556,15 +562,16 @@ export default function UseCases() {
           color: transparent;
         }
         .uc-heroP{
-          margin-top: 14px;
+          margin: 14px auto 0;
           font-size: 16px;
           line-height: 1.9;
-          max-width: 62ch;
+          max-width: 70ch;
         }
 
         .uc-ctaRow{
           margin-top: 20px;
           display:flex;
+          justify-content:center;
           flex-wrap: wrap;
           gap: 10px;
           align-items:center;
@@ -599,54 +606,124 @@ export default function UseCases() {
           .uc-btnA:hover, .uc-btnB:hover{ transform:none; }
         }
 
-        /* right hero “dossier” (light) */
-        .uc-dossier{
+        /* INTEGRATED HERO DIAGRAM — left + right rails that slide in and “connect” */
+        .uc-rail{
+          position: relative;
           border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.12);
-          background:
-            radial-gradient(760px 260px at 20% 10%, rgba(47,184,255,.10), transparent 62%),
-            radial-gradient(720px 240px at 86% 16%, rgba(42,125,255,.08), transparent 64%),
-            rgba(255,255,255,.02);
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.015);
           box-shadow: 0 18px 70px rgba(0,0,0,.55);
           overflow: hidden;
+          min-height: 180px;
         }
-        .uc-dossierIn{
-          padding: 16px;
-          display:grid;
-          gap: 12px;
+        @media (max-width: 980px){
+          .uc-rail{ min-height: 150px; }
         }
-        .uc-dossierTag{
+
+        .uc-railInner{
+          padding: 14px;
+          height: 100%;
+          display:flex;
+          flex-direction: column;
+          gap: 10px;
+          justify-content: space-between;
+        }
+
+        .uc-railKicker{
           display:inline-flex;
           align-items:center;
           gap: 8px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.03);
           padding: 9px 12px;
           border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(255,255,255,.03);
           width: fit-content;
           letter-spacing: .14em;
           text-transform: uppercase;
           font-size: 11px;
           color: rgba(255,255,255,.78);
         }
-        .uc-dossierTitle{
-          font-weight: 900;
-          font-size: 18px;
-          color: rgba(255,255,255,.92);
+
+        .uc-railTitle{
+          font-weight: 950;
+          font-size: 16px;
+          color: rgba(255,255,255,.90);
           letter-spacing: -0.01em;
+          line-height: 1.2;
         }
-        .uc-dossierText{
-          color: rgba(170,225,255,.70);
-          line-height: 1.9;
-          font-size: 14px;
-        }
-
-        /* SECTION */
-        .uc-section{
-          padding: 44px 0 80px;
+        .uc-railText{
+          color: rgba(170,225,255,.66);
+          line-height: 1.75;
+          font-size: 13px;
         }
 
-        /* BOOK SPREAD */
+        .uc-railGrid{
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        .uc-chip{
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,.10);
+          background:
+            radial-gradient(460px 140px at 18% 10%, rgba(255,255,255,.05), transparent 62%),
+            radial-gradient(420px 130px at 86% 16%, var(--b), transparent 64%),
+            rgba(255,255,255,.02);
+          padding: 12px;
+        }
+        .uc-chipK{ font-weight: 950; font-size: 16px; color: rgba(255,255,255,.92); }
+        .uc-chipV{ margin-top: 4px; font-weight: 800; font-size: 12px; color: rgba(170,225,255,.78); }
+        .uc-chipS{ margin-top: 6px; font-size: 11px; line-height: 1.55; color: rgba(170,225,255,.60); }
+
+        /* Rail accents (cheap) */
+        .uc-rail::before{
+          content:"";
+          position:absolute; inset:-40% -40%;
+          background:
+            radial-gradient(520px 220px at 20% 20%, rgba(47,184,255,.12), transparent 60%),
+            radial-gradient(520px 220px at 80% 30%, rgba(42,125,255,.10), transparent 60%);
+          opacity: .8;
+          pointer-events:none;
+        }
+        .uc-rail::after{
+          content:"";
+          position:absolute; inset:0;
+          background: linear-gradient(90deg, rgba(255,255,255,.04), transparent 38%, transparent 62%, rgba(255,255,255,.04));
+          opacity: .35;
+          pointer-events:none;
+        }
+
+        /* Connection line between rails (desktop only) */
+        .uc-bridge{
+          position: relative;
+          height: 1px;
+          margin: 18px auto 0;
+          max-width: 980px;
+          opacity: .9;
+          background: linear-gradient(90deg, transparent, rgba(47,184,255,.20), rgba(255,255,255,.10), rgba(42,125,255,.18), transparent);
+        }
+        @media (max-width: 980px){ .uc-bridge{ display:none; } }
+
+        /* Rail “slide in” variations */
+        .uc-railL{ transform: translate3d(-24px, 0, 0); }
+        .uc-railR{ transform: translate3d(24px, 0, 0); }
+
+        .uc-page.uc-io .uc-railL[data-reveal]{
+          transform: translate3d(-34px, 18px, 0) scale(.992);
+        }
+        .uc-page.uc-io .uc-railR[data-reveal]{
+          transform: translate3d(34px, 18px, 0) scale(.992);
+        }
+        .uc-page.uc-io .uc-railL[data-reveal].is-in{
+          transform: translate3d(0,0,0) scale(1);
+        }
+        .uc-page.uc-io .uc-railR[data-reveal].is-in{
+          transform: translate3d(0,0,0) scale(1);
+        }
+
+        /* Book spreads (same as before) */
+        .uc-section{ padding: 42px 0 80px; }
         .uc-spread{
           display:grid;
           grid-template-columns: 1fr 22px 1fr;
@@ -654,7 +731,6 @@ export default function UseCases() {
           align-items: stretch;
           margin: 0 auto 22px;
           padding: 14px 0;
-          /* perf */
           content-visibility: auto;
           contain-intrinsic-size: 860px;
         }
@@ -676,7 +752,6 @@ export default function UseCases() {
           position: relative;
         }
 
-        /* Left page (paper feeling, no heavy layers) */
         .uc-pageL{
           background:
             radial-gradient(860px 280px at 20% 10%, rgba(255,255,255,.06), transparent 62%),
@@ -716,7 +791,7 @@ export default function UseCases() {
           color: rgba(255,255,255,.86);
         }
 
-        .uc-title{ font-weight: 900; font-size: 18px; }
+        .uc-title{ font-weight: 950; font-size: 18px; }
         .uc-sub{ margin-top: 2px; font-size: 13px; }
 
         .uc-pageBody{ padding: 12px 16px 16px; }
@@ -733,24 +808,56 @@ export default function UseCases() {
           max-width: 72ch;
         }
 
-        .uc-list{
-          margin-top: 14px;
-          display:grid;
-          gap: 10px;
-        }
+        .uc-list{ margin-top: 14px; display:grid; gap: 10px; }
 
+        /* Bullet — premium breathing but still cheap (no blur) */
         .uc-bullet{
           display:flex;
           align-items:flex-start;
           gap: 10px;
+          position: relative;
         }
-        .uc-bulletIcon{
-          width: 18px;
-          height: 18px;
+        .uc-bulletIconWrap{
+          position: relative;
+          width: 20px;
+          height: 20px;
           margin-top: 2px;
-          color: rgba(47,184,255,.95);
           flex: 0 0 auto;
         }
+        .uc-bulletIcon{
+          width: 20px;
+          height: 20px;
+          color: rgba(47,184,255,.96);
+          filter: drop-shadow(0 0 10px rgba(47,184,255,.18));
+        }
+        .uc-bulletPulse{
+          position:absolute;
+          inset: -2px;
+          border-radius: 999px;
+          border: 1px solid rgba(47,184,255,.34);
+          opacity: .55;
+          transform: scale(.88);
+          pointer-events:none;
+        }
+        @media (prefers-reduced-motion: no-preference){
+          .uc-bulletPulse{
+            animation: ucPulse 1.95s ease-in-out infinite;
+          }
+          .uc-bulletIcon{
+            animation: ucBreath 1.95s ease-in-out infinite;
+          }
+        }
+        @keyframes ucPulse{
+          0%{ opacity:.15; transform: scale(.86); }
+          50%{ opacity:.62; transform: scale(1.08); }
+          100%{ opacity:.18; transform: scale(.90); }
+        }
+        @keyframes ucBreath{
+          0%{ transform: translate3d(0,0,0) scale(1); }
+          50%{ transform: translate3d(0,-1px,0) scale(1.06); }
+          100%{ transform: translate3d(0,0,0) scale(1); }
+        }
+
         .uc-body{
           font-size: 15px;
           line-height: 1.9;
@@ -765,7 +872,6 @@ export default function UseCases() {
           gap: 10px;
         }
 
-        /* Spine */
         .uc-spine{
           border-radius: 999px;
           position: relative;
@@ -778,7 +884,6 @@ export default function UseCases() {
           opacity: .9;
         }
 
-        /* Right page (holo) — keep cool but light */
         .uc-pageR{
           background:
             radial-gradient(820px 280px at 18% 10%, var(--b), transparent 62%),
@@ -854,8 +959,6 @@ export default function UseCases() {
           pointer-events:none;
         }
 
-        /* Slight “book opening” feel (still cheap)
-           - only transform, no perspective on mobile */
         @media (min-width: 741px){
           .uc-page.uc-io .uc-pageL[data-reveal]{
             transform: translate3d(-6px, 18px, 0) rotateY(-10deg) scale(.992);
@@ -877,16 +980,15 @@ export default function UseCases() {
           }
         }
 
-        /* MORE — asymmetric: left sticky lite + right list */
+        /* MORE / FINAL keep from previous */
         .uc-more{
           display:grid;
           grid-template-columns: .95fr 1.05fr;
           gap: 14px;
           align-items:start;
         }
-        @media (max-width: 980px){
-          .uc-more{ grid-template-columns: 1fr; }
-        }
+        @media (max-width: 980px){ .uc-more{ grid-template-columns: 1fr; } }
+
         .uc-moreLeft{
           position: sticky;
           top: 92px;
@@ -900,9 +1002,8 @@ export default function UseCases() {
           padding: 16px;
           overflow:hidden;
         }
-        @media (max-width: 980px){
-          .uc-moreLeft{ position: relative; top: auto; }
-        }
+        @media (max-width: 980px){ .uc-moreLeft{ position: relative; top:auto; } }
+
         .uc-moreKicker{
           display:inline-flex;
           align-items:center;
@@ -917,6 +1018,7 @@ export default function UseCases() {
           font-size: 11px;
           color: rgba(255,255,255,.78);
         }
+
         .uc-moreTitle{
           margin-top: 12px;
           font-weight: 950;
@@ -926,10 +1028,7 @@ export default function UseCases() {
         }
         .uc-moreSub{ margin-top: 10px; line-height: 1.9; }
 
-        .uc-moreRight{
-          display:grid;
-          gap: 12px;
-        }
+        .uc-moreRight{ display:grid; gap: 12px; }
         .uc-mini{
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.12);
@@ -940,21 +1039,10 @@ export default function UseCases() {
           box-shadow: 0 18px 70px rgba(0,0,0,.55);
           padding: 16px;
         }
-        .uc-miniTop{
-          display:flex;
-          align-items:center;
-          gap: 10px;
-        }
-        .uc-miniTitle{
-          font-weight: 900;
-          color: rgba(255,255,255,.92);
-        }
-        .uc-miniText{
-          margin-top: 10px;
-          line-height: 1.9;
-        }
+        .uc-miniTop{ display:flex; align-items:center; gap: 10px; }
+        .uc-miniTitle{ font-weight: 900; color: rgba(255,255,255,.92); }
+        .uc-miniText{ margin-top: 10px; line-height: 1.9; }
 
-        /* FINAL CTA */
         .uc-final{
           display:grid;
           grid-template-columns: 1.1fr .9fr;
@@ -969,9 +1057,8 @@ export default function UseCases() {
           box-shadow: 0 18px 70px rgba(0,0,0,.60);
           padding: 16px;
         }
-        @media (max-width: 980px){
-          .uc-final{ grid-template-columns: 1fr; }
-        }
+        @media (max-width: 980px){ .uc-final{ grid-template-columns: 1fr; } }
+
         .uc-finalPill{
           color: rgba(255,255,255,.72);
           letter-spacing: .14em;
@@ -985,32 +1072,60 @@ export default function UseCases() {
           line-height: 1.08;
           letter-spacing: -0.03em;
         }
-        @media (max-width: 980px){
-          .uc-finalTitle{ font-size: 28px; }
-        }
+        @media (max-width: 980px){ .uc-finalTitle{ font-size: 28px; } }
         .uc-finalSub{ margin-top: 10px; line-height: 1.9; }
+
         .uc-finalActions{
           display:flex;
           justify-content:flex-end;
           gap: 10px;
           flex-wrap: wrap;
         }
-        @media (max-width: 980px){
-          .uc-finalActions{ justify-content:flex-start; }
-        }
+        @media (max-width: 980px){ .uc-finalActions{ justify-content:flex-start; } }
       `}</style>
 
       {/* HERO */}
       <section className="uc-hero" aria-label={t("useCases.aria.hero")}>
         <div className="uc-shell">
-          <div className="uc-heroGrid">
-            <div>
-              <div className="uc-tag" data-reveal data-delay="0">
-                <span className="uc-dot" aria-hidden="true" />
-                <span className="uc-tagText">{t("useCases.hero.crumb")}</span>
+          <div className="uc-heroStage">
+            {/* LEFT RAIL */}
+            <div className="uc-rail uc-railL" data-tint="cyan" data-reveal data-delay="240">
+              <div className="uc-railInner">
+                <div className="uc-railKicker">
+                  <span className="uc-dot" aria-hidden="true" style={{ width: 8, height: 8 }} />
+                  <span>LEFT PANEL</span>
+                </div>
+
+                <div>
+                  <div className="uc-railTitle">{t("useCases.moreSection.title")}</div>
+                  <div className="uc-railText">{t("useCases.moreSection.subtitle.before")}</div>
+                </div>
+
+                <div className="uc-railGrid">
+                  <div className="uc-chip">
+                    <div className="uc-chipK">SLA</div>
+                    <div className="uc-chipV">Realtime</div>
+                    <div className="uc-chipS">Flow aware</div>
+                  </div>
+                  <div className="uc-chip">
+                    <div className="uc-chipK">AI</div>
+                    <div className="uc-chipV">Assist</div>
+                    <div className="uc-chipS">Auto actions</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER HERO */}
+            <div className="uc-heroCenter">
+              <div className="flex justify-center" data-reveal data-delay="0">
+                <div className="uc-tag">
+                  <span className="uc-dot" aria-hidden="true" />
+                  <span className="uc-tagText">{t("useCases.hero.crumb")}</span>
+                </div>
               </div>
 
-              <h1 className="uc-h1" data-reveal data-delay="120">
+              <h1 className="uc-h1" data-reveal data-delay="110">
                 {t("useCases.hero.title.before")}{" "}
                 <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
                 {t("useCases.hero.title.after")}
@@ -1028,23 +1143,40 @@ export default function UseCases() {
                   {t("useCases.cta.services")}
                 </Link>
               </div>
+
+              <div className="uc-bridge" data-reveal data-delay="420" />
             </div>
 
-            <div className="uc-dossier" data-reveal data-delay="180">
-              <div className="uc-dossierIn">
-                <div className="uc-dossierTag">
+            {/* RIGHT RAIL */}
+            <div className="uc-rail uc-railR" data-tint="violet" data-reveal data-delay="260">
+              <div className="uc-railInner">
+                <div className="uc-railKicker">
                   <Sparkles className="w-4 h-4" aria-hidden="true" />
-                  <span>BOOK MODE</span>
+                  <span>RIGHT PANEL</span>
                 </div>
-                <div className="uc-dossierTitle">{t("useCases.moreSection.title")}</div>
-                <div className="uc-dossierText">
-                  {t("useCases.moreSection.subtitle.before")}{" "}
-                  <span className="uc-grad">{t("useCases.moreSection.subtitle.highlight")}</span>
-                  {t("useCases.moreSection.subtitle.after")}
+
+                <div>
+                  <div className="uc-railTitle">{t("useCases.final.pill")}</div>
+                  <div className="uc-railText">{t("useCases.final.subtitle")}</div>
+                </div>
+
+                <div className="uc-railGrid">
+                  <div className="uc-chip">
+                    <div className="uc-chipK">Ops</div>
+                    <div className="uc-chipV">Stable</div>
+                    <div className="uc-chipS">No downtime</div>
+                  </div>
+                  <div className="uc-chip">
+                    <div className="uc-chipK">UX</div>
+                    <div className="uc-chipV">Clean</div>
+                    <div className="uc-chipS">Mobile ready</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* On mobile: rails become stacked below hero automatically by grid */}
         </div>
       </section>
 
