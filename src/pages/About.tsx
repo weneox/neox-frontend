@@ -437,7 +437,7 @@ export default function About() {
         }
         @media (max-width: 860px){
           .ab-hero{
-            padding-top: calc(94px + env(safe-area-inset-top, 0px)); /* mobil: header ilə 100% məsafə */
+            padding-top: calc(102px + env(safe-area-inset-top, 0px));
             padding-bottom: 58px;
           }
         }
@@ -462,7 +462,7 @@ export default function About() {
           z-index: 2;
         }
 
-        /* ✅ başlıq mobil üçün daha yığcam */
+        /* ✅ title mobile layout */
         .ab-title{
           margin-top: 12px;
           font-size: clamp(30px, 7.2vw, 72px);
@@ -471,6 +471,16 @@ export default function About() {
           font-weight: 660;
           text-align:center;
           text-wrap: balance;
+          max-width: 920px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        @media (max-width: 560px){
+          .ab-title{
+            max-width: 560px;
+            font-size: clamp(28px, 7.1vw, 44px);
+            line-height: 1.05;
+          }
         }
         @media (max-width: 420px){
           .ab-title{ font-size: 30px; line-height: 1.05; }
@@ -481,14 +491,17 @@ export default function About() {
           text-align:center;
           text-wrap: balance;
         }
+        .ab-titleLine2{ margin-top: 10px; }
+        @media (max-width: 560px){
+          .ab-titleLine2{ margin-top: 8px; }
+        }
 
         .ab-quoteWrap{
           display:inline-flex;
           align-items: baseline;
           gap: .06em;
-          white-space: nowrap;
+          white-space: nowrap; /* “gözəl görünsün” parçalanmasın */
         }
-
         .ab-quote{
           display:inline-block;
           opacity:.92;
@@ -1060,9 +1073,9 @@ export default function About() {
         <div className="ab-heroFade" aria-hidden="true" />
 
         <div className="ab-container">
-          {/* Kicker pill */}
+          {/* Kicker pill (✅ bir az aşağı) */}
           <div
-            style={{ display: "flex", justifyContent: "center", ...d(0) }}
+            style={{ display: "flex", justifyContent: "center", marginTop: isMobile ? 14 : 8, ...d(0) }}
             className={cx("ab-enter", enter && "ab-in")}
           >
             <div className="ab-kickerPill">
@@ -1071,19 +1084,19 @@ export default function About() {
             </div>
           </div>
 
-          {/* Title (✅ mobil üçün daha yığcam quruluş) */}
+          {/* Title (✅ dırnaq fix + 3-4 sətir layout) */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
             <span className="ab-titleLine">
-              {t("about.hero.title.0")} “
+              {t("about.hero.title.0")}{" "}
               <span className="ab-quoteWrap" aria-label="quote">
                 <span className="ab-quote" aria-hidden="true">“</span>
                 <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
                 <span className="ab-quote" aria-hidden="true">”</span>
-              </span>
+              </span>{" "}
               {t("about.hero.title.1")}
             </span>
-            {/* ✅ mobil: əlavə forced <br/> yoxdur, özü balanslayır */}
-            <span style={{ display: "block", marginTop: 10 }}>
+
+            <span className={cx("ab-titleLine", "ab-titleLine2")}>
               {t("about.hero.title.2")}{" "}
               <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
               <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
