@@ -10,7 +10,6 @@ import {
   Truck,
   TrendingUp,
   CheckCircle,
-  ArrowRight,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -48,22 +47,64 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/* ---------------- Reveal (MAX FPS: only opacity + transform) ---------------- */
-function useReveal(rootRef: React.RefObject<HTMLElement>, opts?: { rootMargin?: string; threshold?: number }) {
-  const { rootMargin = "0px 0px -14% 0px", threshold = 0.16 } = opts || {};
+/* ---------------- Mobile break ---------------- */
+function useMedia(query: string, initial = false) {
+  const [v, setV] = useState(initial);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setV(!!mq.matches);
+    on();
+    mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on);
+    };
+  }, [query]);
+  return v;
+}
+
+/* ---------------- Reveal: scoped + batched (FPS safe) ---------------- */
+function useRevealScopedBatched(
+  rootRef: React.RefObject<HTMLElement>,
+  opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
+) {
+  const { rootMargin = "0px 0px -16% 0px", batchSize = 3, batchDelayMs = 90 } = opts || {};
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
     root.classList.add("uc-io");
-    const els = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
+
+    const els = Array.from(root.querySelectorAll<HTMLElement>(".uc-reveal"));
     if (!els.length) return;
+
+    const revealNow = (el: HTMLElement) => el.classList.add("is-in");
 
     const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (prefersReduced || typeof IntersectionObserver === "undefined") {
-      els.forEach((el) => el.classList.add("is-in"));
+      els.forEach(revealNow);
       return;
     }
+
+    const queue = new Set<HTMLElement>();
+    let flushing = false;
+    let timer: number | null = null;
+
+    const flush = () => {
+      flushing = true;
+      timer = window.setTimeout(() => {
+        let n = 0;
+        for (const el of queue) {
+          revealNow(el);
+          queue.delete(el);
+          n++;
+          if (n >= batchSize) break;
+        }
+        flushing = false;
+        if (queue.size) flush();
+      }, batchDelayMs);
+    };
 
     const io = new IntersectionObserver(
       (entries) => {
@@ -71,18 +112,26 @@ function useReveal(rootRef: React.RefObject<HTMLElement>, opts?: { rootMargin?: 
           if (!e.isIntersecting) continue;
           const el = e.target as HTMLElement;
           io.unobserve(el);
-
-          const delay = el.getAttribute("data-delay");
-          if (delay) el.style.setProperty("--d", `${delay}ms`);
-          el.classList.add("is-in");
+          queue.add(el);
         }
+        if (queue.size && !flushing) flush();
       },
-      { threshold, rootMargin }
+      { threshold: 0.12, rootMargin }
     );
 
     els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [rootRef, rootMargin, threshold]);
+
+    const fallback = window.setTimeout(() => {
+      els.forEach(revealNow);
+      io.disconnect();
+    }, 2200);
+
+    return () => {
+      window.clearTimeout(fallback);
+      if (timer) window.clearTimeout(timer);
+      io.disconnect();
+    };
+  }, [rootRef, rootMargin, batchSize, batchDelayMs]);
 }
 
 /* ---------------- SEO (native head inject) ---------------- */
@@ -99,6 +148,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
       }
       return el;
     };
+
     const ensureLink = (selector: string, create: () => HTMLLinkElement) => {
       let el = document.head.querySelector(selector) as HTMLLinkElement | null;
       if (!el) {
@@ -107,6 +157,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
       }
       return el;
     };
+
     const setMetaName = (name: string, content: string) => {
       const el = ensureMeta(`meta[name="${name}"]`, () => {
         const m = document.createElement("meta");
@@ -115,6 +166,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
       });
       el.setAttribute("content", content);
     };
+
     const setMetaProp = (property: string, content: string) => {
       const el = ensureMeta(`meta[property="${property}"]`, () => {
         const m = document.createElement("meta");
@@ -154,7 +206,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
 }
 
 /* ---------------- types ---------------- */
-type Tint = "cyan" | "violet" | "ice" | "amber";
+type Tint = "cyan" | "violet" | "pink" | "amber";
 
 type CaseItem = {
   icon: LucideIcon;
@@ -176,35 +228,121 @@ type CaseText = {
 
 type MoreText = { title: string; text: string };
 
-/* ---------------- UI atoms ---------------- */
+/* ---------------- UI parts ---------------- */
+const BreadcrumbPill = memo(function BreadcrumbPill({
+  text,
+  enter,
+  delayMs,
+}: {
+  text: string;
+  enter: boolean;
+  delayMs: number;
+}) {
+  return (
+    <div className={cx("uc-crumb uc-enter", enter && "uc-in")} style={{ ["--d" as any]: `${delayMs}ms` }} aria-label="Breadcrumb">
+      <span className="uc-crumbDot" aria-hidden="true" />
+      <span className="uc-crumbText">{text}</span>
+    </div>
+  );
+});
+
+const TintChip = memo(function TintChip({ t, label }: { t: Tint; label: string }) {
+  const map: Record<Tint, string> = {
+    cyan: "border-[rgba(47,184,255,.22)] bg-[rgba(47,184,255,.07)] text-[rgba(220,248,255,.92)]",
+    violet: "border-[rgba(42,125,255,.22)] bg-[rgba(42,125,255,.07)] text-[rgba(224,242,255,.92)]",
+    pink: "border-[rgba(170,225,255,.22)] bg-[rgba(170,225,255,.06)] text-[rgba(236,252,255,.92)]",
+    amber: "border-[rgba(80,170,255,.22)] bg-[rgba(80,170,255,.06)] text-[rgba(230,248,255,.92)]",
+  };
+  return <span className={cx("text-[11px] px-3 py-1 rounded-full border tracking-[.08em] uppercase", map[t])}>{label}</span>;
+});
+
 const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
-    <div className="uc-bullet">
-      <span className="uc-bulletIconWrap" aria-hidden="true">
-        <CheckCircle className="uc-bulletIcon" />
-        <span className="uc-bulletPulse" />
-      </span>
-      <span className="uc-body">{text}</span>
+    <div className="uc-bullet flex items-start gap-2">
+      <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
+      <span className="text-white/75 leading-[1.65] break-words">{text}</span>
     </div>
   );
 });
 
-const Metric = memo(function Metric({ k, v, sub }: { k: string; v: string; sub: string }) {
+const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
   return (
-    <div className="uc-metric" data-reveal data-delay="120">
-      <div className="uc-metricK">{k}</div>
-      <div className="uc-metricV">{v}</div>
-      <div className="uc-metricS">{sub}</div>
+    <div className="uc-tile uc-pop uc-contain">
+      <div className="uc-tileK">{k}</div>
+      <div className="uc-tileV mt-1">{v}</div>
+      <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
     </div>
   );
 });
 
-/* ---------------- Edge Integrated Case ----------------
-   - left panel touches LEFT viewport edge
-   - right panel touches RIGHT viewport edge
-   - center gutter remains empty => "not a centered block"
--------------------------------------------------------- */
-const EdgeCase = memo(function EdgeCase({
+const CreativeHUD = memo(function CreativeHUD({
+  tint,
+  icon: Icon,
+  metric,
+  chips,
+  metricLabel,
+  statusLabel,
+  statusValue,
+}: {
+  tint: Tint;
+  icon: LucideIcon;
+  metric: string;
+  chips: { a: string; b: string; c: string };
+  metricLabel: string;
+  statusLabel: string;
+  statusValue: string;
+}) {
+  const tintMap: Record<Tint, { a: string; b: string; c: string }> = {
+    cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.14)", c: "rgba(170,225,255,.12)" },
+    violet: { a: "rgba(42,125,255,.18)", b: "rgba(47,184,255,.12)", c: "rgba(170,225,255,.10)" },
+    pink: { a: "rgba(170,225,255,.16)", b: "rgba(47,184,255,.12)", c: "rgba(42,125,255,.10)" },
+    amber: { a: "rgba(80,170,255,.16)", b: "rgba(47,184,255,.12)", c: "rgba(42,125,255,.10)" },
+  };
+  const tt = tintMap[tint];
+
+  return (
+    <div
+      className="uc-hud uc-pop uc-contain"
+      data-tint={tint}
+      style={{
+        background: `
+          radial-gradient(700px 360px at 35% 10%, ${tt.a}, transparent 60%),
+          radial-gradient(700px 360px at 80% 20%, ${tt.b}, transparent 62%),
+          radial-gradient(900px 460px at 50% 120%, rgba(255,255,255,.05), transparent 64%),
+          rgba(255,255,255,.012)
+        `,
+        boxShadow: "0 14px 46px rgba(0,0,0,.55)",
+      }}
+      aria-label="Visual panel"
+    >
+      <div className="uc-hudGrid" aria-hidden="true" />
+      <div className="uc-hudScan" aria-hidden="true" />
+
+      <div className="uc-hudInner">
+        <div className="uc-hudOrbit" aria-hidden="true" />
+        <div className="uc-hudRing" aria-hidden="true" />
+        <Icon className="uc-hudIcon" aria-hidden="true" />
+        <div className="uc-hudChips" aria-hidden="true">
+          <span className="uc-hudChip">{chips.a}</span>
+          <span className="uc-hudChip">{chips.b}</span>
+          <span className="uc-hudChip">{chips.c}</span>
+        </div>
+
+        <div className="uc-hudBadge">
+          <div className="uc-hudBadgeTop">{metricLabel}</div>
+          <div className="uc-hudBadgeVal">{metric}</div>
+        </div>
+
+        <div className="uc-hudBadge uc-hudBadge2">
+          <div className="uc-hudBadgeTop">{statusLabel}</div>
+          <div className="uc-hudBadgeVal">{statusValue}</div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const CaseRow = memo(function CaseRow({
   c,
   flip,
   tCaseLabel,
@@ -213,6 +351,10 @@ const EdgeCase = memo(function EdgeCase({
   toServices,
   ctaPrimary,
   ctaSecondary,
+  hudChips,
+  hudMetricLabel,
+  hudStatusLabel,
+  hudStatusValue,
 }: {
   c: CaseItem;
   flip: boolean;
@@ -222,87 +364,72 @@ const EdgeCase = memo(function EdgeCase({
   toServices: string;
   ctaPrimary: string;
   ctaSecondary: string;
+  hudChips: { a: string; b: string; c: string };
+  hudMetricLabel: string;
+  hudStatusLabel: string;
+  hudStatusValue: string;
 }) {
   const Icon = c.icon;
 
   return (
-    <section className={cx("uc-edgeRow", flip && "is-flip")} data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-      {/* LEFT EDGE PANEL (text) */}
-      <div className="uc-edgePanel uc-edgePanelL" data-reveal data-delay="0">
-        <div className="uc-edgeInner">
-          <header className="uc-head">
-            <div className="uc-tag">
-              <span className="uc-dot" aria-hidden="true" />
-              <span className="uc-tagText">{tCaseLabel}</span>
-            </div>
-
-            <div className="uc-sector">
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-center uc-stack" data-tint={c.tint}>
+      {/* TEXT */}
+      <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
+        <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
+          <header className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="uc-ic" aria-hidden="true">
-                <Icon className="w-5 h-5" />
+                <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="uc-title">{c.sektor}</div>
-                <div className="uc-sub">{tRealScenario}</div>
+                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
+                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
               </div>
             </div>
+            <TintChip t={c.tint} label={tCaseLabel} />
           </header>
 
-          <div className="uc-bodyBlock">
-            <h3 className="uc-h">{c.basliq}</h3>
-            <p className="uc-p">{c.hekayə}</p>
+          <div className="mt-4 uc-line" />
 
-            <div className="uc-list">
-              {c.maddeler.map((m, i) => (
-                <div key={`${m}-${i}`} data-reveal data-delay={String(80 + i * 90)}>
-                  <Bullet text={m} />
-                </div>
-              ))}
-            </div>
+          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
+          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
 
-            <div className="uc-actions" data-reveal data-delay="280">
-              <Link to={toContact} className="uc-btnA">
-                {ctaPrimary} <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </Link>
-              <Link to={toServices} className="uc-btnB">
-                {ctaSecondary}
-              </Link>
-            </div>
+          <div className="mt-5 space-y-3">
+            {c.maddeler.map((b) => (
+              <Bullet key={b} text={b} />
+            ))}
           </div>
 
-          <span className="uc-notch uc-notchR" aria-hidden="true" />
-        </div>
-      </div>
-
-      {/* CENTER GUTTER (empty on purpose, only a connector line) */}
-      <div className="uc-gutter" aria-hidden="true">
-        <div className="uc-connector" />
-      </div>
-
-      {/* RIGHT EDGE PANEL (visual/metrics) */}
-      <div className="uc-edgePanel uc-edgePanelR" data-reveal data-delay="90">
-        <div className="uc-edgeInner uc-edgeInnerHolo">
-          <div className="uc-holoTop">
-            <div className="uc-holoPill">
-              <span className="uc-dot" aria-hidden="true" style={{ width: 8, height: 8 }} />
-              <span>HOLOGRAM</span>
-            </div>
-            <div className="uc-bars" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            {c.neticeler.map((r) => (
+              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
+            ))}
           </div>
 
-          <div className="uc-holoIcon" aria-hidden="true">
-            <Icon className="w-40 h-40" />
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link to={toContact} className="uc-btn">
+              {ctaPrimary} <span aria-hidden="true">→</span>
+            </Link>
+            <Link to={toServices} className="uc-btn uc-btnGhost">
+              {ctaSecondary}
+            </Link>
           </div>
-
-          <div className="uc-metrics">{c.neticeler.map((r) => <Metric key={`${r.k}-${r.v}`} {...r} />)}</div>
-
-          <span className="uc-notch uc-notchL" aria-hidden="true" />
-        </div>
+        </article>
       </div>
-    </section>
+
+      {/* VISUAL */}
+      <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
+        <CreativeHUD
+          tint={c.tint}
+          icon={Icon}
+          metric={c.neticeler[0]?.k || "+0%"}
+          chips={hudChips}
+          metricLabel={hudMetricLabel}
+          statusLabel={hudStatusLabel}
+          statusValue={hudStatusValue}
+        />
+      </div>
+    </div>
   );
 });
 
@@ -313,7 +440,15 @@ export default function UseCases() {
   const lang = getLangFromPath(pathname);
 
   const reduced = usePrefersReducedMotion();
+  const isMobile = useMedia("(max-width: 560px)", false);
   const rootRef = useRef<HTMLElement | null>(null);
+
+  const [enter, setEnter] = useState(false);
+  useEffect(() => {
+    const tt = window.setTimeout(() => setEnter(true), 220);
+    return () => window.clearTimeout(tt);
+  }, []);
+  const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.7) : ms}ms` });
 
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
@@ -325,11 +460,20 @@ export default function UseCases() {
   const ctaServices = t("useCases.cta.services");
   const ctaSchedule = t("useCases.cta.schedule");
 
+  const hudChips = {
+    a: t("useCases.hud.chips.a"),
+    b: t("useCases.hud.chips.b"),
+    c: t("useCases.hud.chips.c"),
+  };
+  const hudMetricLabel = t("useCases.hud.metricLabel");
+  const hudStatusLabel = t("useCases.hud.statusLabel");
+  const hudStatusValue = t("useCases.hud.statusValue");
+
   const CASE_META: Array<{ icon: LucideIcon; tint: Tint }> = useMemo(
     () => [
       { icon: ShoppingBag, tint: "cyan" },
       { icon: Landmark, tint: "violet" },
-      { icon: Stethoscope, tint: "ice" },
+      { icon: Stethoscope, tint: "pink" },
       { icon: Truck, tint: "amber" },
     ],
     []
@@ -386,7 +530,7 @@ export default function UseCases() {
     canonicalPath: withLang("/use-cases", lang),
   });
 
-  useReveal(rootRef, { rootMargin: "0px 0px -14% 0px", threshold: 0.16 });
+  useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
 
   return (
     <main ref={rootRef as any} className="uc-page">
@@ -408,664 +552,541 @@ export default function UseCases() {
       />
 
       <style>{`
-        /* =========================================================
-          USE CASES — HERO CENTER + EDGE-INTEGRATED PANELS (MAX FPS)
-          - hero has NO side panels
-          - cases are full-bleed edge panels (left & right)
-          - no backdrop-filter, no heavy blur
-          - reveal: opacity + transform only
-        ========================================================= */
-
+        /* ✅ ROOT-LEVEL FIX — eyni Blog/Contact kimi (kökdən bağlayır) */
         html, body{
           background:#000 !important;
-          margin:0; padding:0;
+          margin:0;
+          padding:0;
           width:100%;
           overflow-x: clip;
           overscroll-behavior-x: none;
         }
-        #root{ width:100%; overflow-x: clip; }
+        #root{
+          width:100%;
+          overflow-x: clip;
+        }
 
         .uc-page{
-          background:
-            radial-gradient(1100px 700px at 20% -10%, rgba(47,184,255,.08), transparent 60%),
-            radial-gradient(900px 600px at 80% 0%, rgba(42,125,255,.06), transparent 60%),
-            radial-gradient(900px 700px at 55% 110%, rgba(170,225,255,.05), transparent 60%),
-            #000 !important;
+          background:#000 !important;
           color: rgba(255,255,255,.92);
           min-height: 100vh;
           width: 100%;
-          overflow-x: clip;
+          overflow-x: clip; /* ✅ hidden yox, clip */
+          overscroll-behavior-x: none;
+          word-break: break-word;
+          overflow-wrap: anywhere;
           isolation: isolate;
+          text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
-          text-rendering: geometricPrecision;
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        /* Keep your AV text tone */
-        .uc-h1, .uc-title, .uc-h{ color: rgba(255,255,255,.94); }
-        .uc-sub, .uc-p, .uc-body{ color: rgba(170,225,255,.72); }
-        .uc-metricK{ color: rgba(255,255,255,.94); }
-        .uc-metricV{ color: rgba(170,225,255,.82); }
-        .uc-metricS{ color: rgba(170,225,255,.62); }
-
-        /* Reveal (slow & premium, but cheap) */
-        .uc-page.uc-io [data-reveal]{
-          opacity: 0;
-          transform: translate3d(0, 18px, 0) scale(.992);
-          transition:
-            opacity 1.15s cubic-bezier(.16,.88,.16,1),
-            transform 1.15s cubic-bezier(.16,.88,.16,1);
-          transition-delay: var(--d, 0ms);
-          will-change: opacity, transform;
-        }
-        .uc-page.uc-io [data-reveal].is-in{
-          opacity: 1;
-          transform: translate3d(0,0,0) scale(1);
-        }
-
-        @media (prefers-reduced-motion: reduce){
-          .uc-page.uc-io [data-reveal]{ opacity:1 !important; transform:none !important; transition:none !important; }
-          .uc-bulletPulse{ display:none !important; }
-          .uc-bulletIcon{ animation:none !important; }
-        }
-
-        /* Tints */
-        [data-tint="cyan"]{ --a: rgba(47,184,255,.92); --b: rgba(47,184,255,.14); }
-        [data-tint="violet"]{ --a: rgba(42,125,255,.92); --b: rgba(42,125,255,.14); }
-        [data-tint="ice"]{ --a: rgba(170,225,255,.95); --b: rgba(170,225,255,.14); }
-        [data-tint="amber"]{ --a: rgba(255,190,80,.92); --b: rgba(255,190,80,.12); }
-
-        .uc-shell{ max-width: 1200px; margin: 0 auto; padding: 0 16px; }
-
-        /* HERO — center only */
-        .uc-hero{
-          padding: 92px 0 42px;
+        /* ✅ hover scale daşımasın */
+        .uc-stack{
           position: relative;
-          overflow: hidden;
-        }
-        .uc-hero::before{
-          content:"";
-          position:absolute; inset:-10% -10%;
-          background:
-            radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.08), transparent 62%),
-            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
-            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
-          opacity: .95;
-          pointer-events:none;
-        }
-        .uc-hero::after{
-          content:"";
-          position:absolute; inset:0;
-          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.12), rgba(0,0,0,.85));
-          pointer-events:none;
+          isolation: isolate;
+          overflow: clip; /* ✅ bu əsas fixlərdən biridir */
         }
 
-        .uc-heroCenter{
-          position: relative;
-          z-index: 1;
-          text-align: center;
-          max-width: 980px;
-          margin: 0 auto;
-        }
-
-        .uc-tag{
-          display:inline-flex;
-          align-items:center;
-          gap:10px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.04);
-          padding: 10px 14px;
-          border-radius: 999px;
-        }
-        .uc-dot{
-          width: 9px; height: 9px;
-          border-radius: 999px;
-          background: rgba(47,184,255,1);
-          box-shadow: 0 0 0 5px rgba(47,184,255,.14);
-          flex: 0 0 auto;
-        }
-        .uc-tagText{
-          font-size: 12px;
-          letter-spacing: .16em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,.72);
-          white-space: nowrap;
-        }
-
-        .uc-h1{
-          margin-top: 18px;
-          font-size: clamp(40px, 5.6vw, 72px);
-          line-height: 1.03;
-          font-weight: 950;
-          letter-spacing: -0.04em;
-        }
-        .uc-grad{
-          background: linear-gradient(90deg, #fff 0%, rgba(170,225,255,.96) 35%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
+        /* palette */
+        .uc-page .uc-grad{
+          background: linear-gradient(
+            90deg,
+            #ffffff 0%,
+            rgba(170,225,255,.96) 34%,
+            rgba(47,184,255,.95) 68%,
+            rgba(42,125,255,.95) 100%
+          );
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
         }
-        .uc-heroP{
-          margin: 14px auto 0;
-          font-size: 16px;
-          line-height: 1.9;
-          max-width: 70ch;
-          color: rgba(170,225,255,.72);
-        }
 
-        .uc-ctaRow{
-          margin-top: 22px;
-          display:flex;
-          justify-content:center;
-          flex-wrap: wrap;
-          gap: 10px;
-          align-items:center;
-        }
-        .uc-btnA, .uc-btnB{
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          gap:10px;
-          padding: 12px 18px;
-          border-radius: 999px;
-          font-weight: 900;
-          font-size: 14px;
-          letter-spacing: -0.01em;
-          user-select:none;
-          -webkit-tap-highlight-color: transparent;
-          transition: transform .16s ease, border-color .16s ease;
-          will-change: transform;
-        }
-        .uc-btnA{
-          border: 1px solid rgba(47,184,255,.28);
-          color: rgba(255,255,255,.92);
-          background: rgba(255,255,255,.04);
-        }
-        .uc-btnB{
-          border: 1px solid rgba(255,255,255,.14);
-          color: rgba(255,255,255,.88);
-          background: rgba(255,255,255,.03);
-        }
-        .uc-btnA:hover, .uc-btnB:hover{ transform: translate3d(0,-2px,0); }
-        @media (hover: none){
-          .uc-btnA:hover, .uc-btnB:hover{ transform:none; }
-        }
+        .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
 
-        /* Spacer after hero (as you asked) */
-        .uc-spacer{ height: 52px; }
-        @media (max-width: 520px){ .uc-spacer{ height: 34px; } }
+        .uc-enter{
+          opacity: 0;
+          transform: translate3d(0, 16px, 0);
+          filter: blur(7px);
+          transition: opacity .62s ease, transform .62s ease, filter .62s ease;
+          transition-delay: var(--d, 0ms);
+          will-change: opacity, transform, filter;
+        }
+        .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-        /* ===========================================
-           EDGE CASE ROW — full-bleed panels
-        =========================================== */
-        .uc-edgeRow{
-          display:grid;
-          grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr);
-          gap: 0;
-          align-items: stretch;
-          margin: 0 auto;
-          padding: 26px 0;
-          content-visibility: auto;
-          contain-intrinsic-size: 900px;
-        }
-        .uc-edgeRow.is-flip{ direction: rtl; }
-        .uc-edgeRow.is-flip > *{ direction: ltr; }
-
-        /* Mobile stacks */
-        @media (max-width: 920px){
-          .uc-edgeRow{
-            grid-template-columns: 1fr;
-            gap: 12px;
-            padding: 18px 0;
-          }
-          .uc-gutter{ display:none; }
-          .uc-edgeRow.is-flip{ direction:ltr; }
-        }
-
-        /* Panels touch viewport edges:
-           use 100vw and offset to align with viewport, while still living in normal flow. */
-        .uc-edgePanel{
-          position: relative;
-          overflow: hidden;
-        }
-        .uc-edgePanelL{
-          width: 100vw;
-          margin-left: calc(50% - 50vw);   /* stick to left viewport edge */
-        }
-        .uc-edgePanelR{
-          width: 100vw;
-          margin-right: calc(50% - 50vw);  /* stick to right viewport edge */
-          justify-self: end;
-        }
-
-        .uc-edgeInner{
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.02);
-          box-shadow: 0 18px 70px rgba(0,0,0,.60);
-          position: relative;
-          overflow: hidden;
-          height: 100%;
-        }
-
-        /* Left panel background */
-        .uc-edgePanelL .uc-edgeInner{
-          background:
-            radial-gradient(860px 280px at 20% 10%, rgba(255,255,255,.06), transparent 62%),
-            radial-gradient(720px 240px at 86% 16%, rgba(47,184,255,.08), transparent 64%),
-            rgba(255,255,255,.02);
-        }
-
-        /* Right holo panel background */
-        .uc-edgeInnerHolo{
-          background:
-            radial-gradient(820px 280px at 18% 10%, var(--b), transparent 62%),
-            radial-gradient(720px 240px at 86% 16%, rgba(255,255,255,.06), transparent 64%),
-            rgba(255,255,255,.015);
-        }
-
-        /* Make inside content still feel “contained” */
-        .uc-edgePanelL .uc-edgeInner,
-        .uc-edgePanelR .uc-edgeInner{
-          padding: 0;
-        }
-        .uc-edgePanelL .uc-head,
-        .uc-edgePanelL .uc-bodyBlock{
-          max-width: 720px;
-          margin-left: auto; /* pull content toward center */
-          padding-left: 18px;
-          padding-right: 18px;
-        }
-        .uc-edgePanelR .uc-edgeInner{
-          padding: 0;
-        }
-        .uc-edgePanelR .uc-metrics,
-        .uc-edgePanelR .uc-holoTop{
-          max-width: 720px;
-          margin-right: auto; /* pull content toward center */
-          padding-left: 18px;
-          padding-right: 18px;
-        }
-
-        @media (max-width: 920px){
-          .uc-edgePanelL, .uc-edgePanelR{
-            width: 100%;
-            margin: 0;
-          }
-          .uc-edgePanelL .uc-head,
-          .uc-edgePanelL .uc-bodyBlock,
-          .uc-edgePanelR .uc-metrics,
-          .uc-edgePanelR .uc-holoTop{
-            max-width: 100%;
-            margin: 0;
-          }
-        }
-
-        /* Gutter connector */
-        .uc-gutter{
-          position: relative;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          pointer-events:none;
-        }
-        .uc-connector{
-          width: 100%;
-          height: 1px;
-          opacity: .7;
-          background: linear-gradient(90deg, transparent, rgba(47,184,255,.20), rgba(255,255,255,.10), rgba(42,125,255,.18), transparent);
-        }
-
-        /* Header inside left panel */
-        .uc-head{
-          padding-top: 16px;
-          display:flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .uc-sector{
-          display:flex;
-          gap: 12px;
-          align-items:center;
-          min-width:0;
-        }
-        .uc-ic{
-          width: 40px; height: 40px;
-          border-radius: 14px;
-          display:grid;
-          place-items:center;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.03);
-          color: rgba(255,255,255,.86);
-        }
-        .uc-title{ font-weight: 950; font-size: 18px; }
-        .uc-sub{ margin-top: 2px; font-size: 13px; }
-
-        .uc-bodyBlock{ padding-top: 12px; padding-bottom: 18px; }
-        .uc-h{
-          margin-top: 10px;
-          font-weight: 950;
-          font-size: 24px;
-          letter-spacing: -0.02em;
-        }
-        .uc-p{
-          margin-top: 10px;
-          line-height: 1.95;
-          font-size: 15px;
-          max-width: 72ch;
-        }
-
-        .uc-list{ margin-top: 14px; display:grid; gap: 10px; }
-        .uc-actions{
-          margin-top: 16px;
-          display:flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-
-        /* Bullet breathing (premium but light) */
-        .uc-bullet{
-          display:flex;
-          align-items:flex-start;
-          gap: 10px;
-          position: relative;
-        }
-        .uc-bulletIconWrap{
-          position: relative;
-          width: 20px;
-          height: 20px;
-          margin-top: 2px;
-          flex: 0 0 auto;
-        }
-        .uc-bulletIcon{
-          width: 20px;
-          height: 20px;
-          color: rgba(47,184,255,.96);
-          filter: drop-shadow(0 0 10px rgba(47,184,255,.18));
-        }
-        .uc-bulletPulse{
-          position:absolute;
-          inset: -2px;
-          border-radius: 999px;
-          border: 1px solid rgba(47,184,255,.34);
-          opacity: .55;
-          transform: scale(.88);
-          pointer-events:none;
-        }
-        @media (prefers-reduced-motion: no-preference){
-          .uc-bulletPulse{ animation: ucPulse 1.95s ease-in-out infinite; }
-          .uc-bulletIcon{ animation: ucBreath 1.95s ease-in-out infinite; }
-        }
-        @keyframes ucPulse{
-          0%{ opacity:.15; transform: scale(.86); }
-          50%{ opacity:.62; transform: scale(1.08); }
-          100%{ opacity:.18; transform: scale(.90); }
-        }
-        @keyframes ucBreath{
-          0%{ transform: translate3d(0,0,0) scale(1); }
-          50%{ transform: translate3d(0,-1px,0) scale(1.06); }
-          100%{ transform: translate3d(0,0,0) scale(1); }
-        }
-
-        /* Holo panel bits */
-        .uc-holoTop{
-          padding-top: 14px;
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-        .uc-holoPill{
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
-          padding: 8px 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.03);
-          color: rgba(255,255,255,.72);
-          letter-spacing: .14em;
-          text-transform: uppercase;
-          font-size: 11px;
-        }
-        .uc-bars{ display:flex; gap: 6px; }
-        .uc-bars span{
-          width: 14px; height: 8px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, var(--a), transparent);
-          opacity: .55;
-        }
-
-        .uc-holoIcon{
-          position:absolute;
-          left: 50%;
-          top: 46%;
-          transform: translate(-50%, -50%);
-          opacity: .11;
-          color: rgba(255,255,255,.92);
-          pointer-events:none;
-        }
-
-        .uc-metrics{
-          padding-top: 14px;
-          padding-bottom: 18px;
-          display:grid;
-          gap: 10px;
+        .uc-pop{
           position: relative;
           z-index: 1;
-        }
-        .uc-metric{
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.12);
-          background:
-            radial-gradient(420px 130px at 18% 10%, rgba(255,255,255,.06), transparent 62%),
-            radial-gradient(420px 130px at 86% 14%, var(--b), transparent 64%),
-            rgba(255,255,255,.02);
-          padding: 12px;
-        }
-        .uc-metricK{ font-weight: 950; font-size: 20px; letter-spacing: -0.02em; }
-        .uc-metricV{ margin-top: 4px; font-weight: 800; font-size: 13px; }
-        .uc-metricS{ margin-top: 6px; font-size: 12px; line-height: 1.55; }
-
-        /* Notches to make it feel like page-integrated */
-        .uc-notch{
-          position:absolute;
-          top: 18px;
-          width: 26px; height: 26px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(0,0,0,.55);
-          opacity: .8;
-          pointer-events:none;
-        }
-        .uc-notchR{ right: 14px; }
-        .uc-notchL{ left: 14px; }
-
-        /* Buttons */
-        .uc-btnA, .uc-btnB{
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          gap:10px;
-          padding: 12px 18px;
-          border-radius: 999px;
-          font-weight: 900;
-          font-size: 14px;
-          letter-spacing: -0.01em;
-          user-select:none;
-          -webkit-tap-highlight-color: transparent;
-          transition: transform .16s ease, border-color .16s ease;
+          transform: translate3d(0,0,0) scale(1);
+          transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
           will-change: transform;
         }
-        .uc-btnA{
-          border: 1px solid rgba(47,184,255,.28);
-          color: rgba(255,255,255,.92);
+        .uc-pop:hover, .uc-pop:focus-within{
+          z-index: 60;
+          transform: translate3d(0,-10px,0) scale(1.03);
+        }
+
+        .uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
+        .uc-heroInner{
+          min-height: clamp(520px, 78vh, 860px);
+          display: grid;
+          place-items: center;
+          padding: 64px 0 26px;
+        }
+        @media (max-width: 560px){
+          .uc-heroInner{ min-height:auto; padding-top: 84px; padding-bottom: 18px; }
+        }
+
+        .uc-heroBG{ pointer-events:none; position:absolute; inset:0; opacity: 1; }
+        .uc-heroBG::before{
+          content:"";
+          position:absolute;
+          inset:-10% -10%;
+          background:
+            radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.09), transparent 62%),
+            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
+            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
+          opacity: .92;
+        }
+        .uc-heroBG::after{
+          content:"";
+          position:absolute;
+          inset:0;
+          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
+        }
+
+        .uc-divider{
+          height: 1px;
+          width: 100%;
+          max-width: 920px;
+          margin: 42px auto 0;
+          background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
+          opacity: .95;
+        }
+        .uc-spacer{ height: 34px; }
+
+        .uc-crumb{
+          display:inline-flex;
+          align-items:center;
+          gap:10px;
+          border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
+          padding: 10px 14px;
+          border-radius: 999px;
         }
-        .uc-btnB{
-          border: 1px solid rgba(255,255,255,.14);
-          color: rgba(255,255,255,.88);
-          background: rgba(255,255,255,.03);
+        .uc-crumbDot{
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
+          flex: 0 0 auto;
         }
-
-        /* Sections */
-        .uc-section{ padding: 0 0 34px; }
-
-        /* MORE + FINAL (lightweight, keep center) */
-        .uc-moreGrid{
-          margin-top: 18px;
-          display:grid;
-          grid-template-columns: repeat(4, minmax(0,1fr));
-          gap: 12px;
-        }
-        @media (max-width: 980px){ .uc-moreGrid{ grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 520px){ .uc-moreGrid{ grid-template-columns: 1fr; } }
-
-        .uc-mini{
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.12);
-          background:
-            radial-gradient(720px 240px at 18% 10%, rgba(255,255,255,.05), transparent 62%),
-            radial-gradient(620px 220px at 86% 16%, rgba(47,184,255,.08), transparent 64%),
-            rgba(255,255,255,.02);
-          box-shadow: 0 18px 70px rgba(0,0,0,.55);
-          padding: 16px;
-        }
-        .uc-miniTop{ display:flex; align-items:center; gap: 10px; }
-        .uc-miniTitle{ font-weight: 900; color: rgba(255,255,255,.92); }
-        .uc-miniText{ margin-top: 10px; line-height: 1.9; color: rgba(170,225,255,.72); }
-
-        .uc-final{
-          margin-top: 14px;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.12);
-          background:
-            radial-gradient(900px 300px at 18% 10%, rgba(47,184,255,.10), transparent 62%),
-            radial-gradient(820px 280px at 86% 16%, rgba(42,125,255,.08), transparent 64%),
-            rgba(255,255,255,.02);
-          box-shadow: 0 18px 70px rgba(0,0,0,.60);
-          padding: 16px;
-          display:flex;
-          flex-wrap: wrap;
-          justify-content: space-between;
-          align-items: center;
-          gap: 14px;
-        }
-        .uc-finalPill{
-          color: rgba(255,255,255,.72);
+        .uc-crumbText{
+          font-size: 12px;
           letter-spacing: .14em;
           text-transform: uppercase;
-          font-size: 12px;
+          color: rgba(255,255,255,.70);
+          white-space: nowrap;
         }
-        .uc-finalTitle{
-          margin-top: 8px;
-          font-weight: 950;
-          font-size: 32px;
-          line-height: 1.08;
-          letter-spacing: -0.03em;
-          color: rgba(255,255,255,.94);
+
+        .uc-btn{
+          display:inline-flex; align-items:center; justify-content:center; gap:10px;
+          padding:12px 18px;
+          border-radius:999px;
+          font-weight:700;
+          font-size:14px;
+          letter-spacing:-.01em;
+          border:1px solid rgba(47,184,255,.28);
+          color:rgba(255,255,255,.92);
+          background:
+            radial-gradient(120px 60px at 30% 30%, rgba(170,225,255,.18), transparent 62%),
+            linear-gradient(180deg, rgba(10,24,40,.72), rgba(5,10,18,.55));
+          box-shadow: 0 10px 26px rgba(0,0,0,.55), 0 0 0 1px rgba(47,184,255,.10) inset;
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+          will-change: transform;
         }
-        @media (max-width: 520px){ .uc-finalTitle{ font-size: 26px; } }
-        .uc-finalSub{
-          margin-top: 10px;
-          line-height: 1.9;
-          color: rgba(170,225,255,.72);
-          max-width: 72ch;
+        .uc-btn:hover{
+          transform: translate3d(0,-2px,0);
+          border-color: rgba(47,184,255,.46);
+          box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 22px rgba(47,184,255,.12);
         }
-        .uc-finalActions{
-          display:flex;
-          gap: 10px;
-          flex-wrap: wrap;
+        .uc-btn:active{ transform: translate3d(0,-1px,0); }
+        .uc-btnGhost{
+          border-color: rgba(255,255,255,.14);
+          background: rgba(255,255,255,.03);
+          box-shadow: 0 10px 26px rgba(0,0,0,.55);
+        }
+        .uc-btnGhost:hover{
+          border-color: rgba(47,184,255,.26);
+          box-shadow: 0 14px 34px rgba(0,0,0,.62);
+        }
+
+        .uc-card{
+          position: relative;
+          border: 1px solid rgba(255,255,255,.10);
+          background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.016));
+          box-shadow: 0 16px 56px rgba(0,0,0,.60);
+          border-radius: 22px;
+          overflow: hidden;
+          padding: 18px;
+        }
+        .uc-line{
+          height: 1px;
+          background: linear-gradient(90deg, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18));
+          opacity: .95;
+        }
+        .uc-ic{
+          width: 40px; height: 40px; border-radius: 14px;
+          display: grid; place-items: center;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.03);
+          box-shadow: 0 12px 36px rgba(0,0,0,.45);
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+        }
+        .uc-pop:hover .uc-ic{
+          transform: translate3d(0,-2px,0);
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 16px 44px rgba(0,0,0,.60);
+        }
+
+        .uc-tile{
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.02);
+          box-shadow: 0 12px 36px rgba(0,0,0,.45);
+          padding: 12px 12px;
+        }
+        .uc-tileK{
+          font-weight: 900;
+          font-size: 22px;
+          line-height: 1;
+          background: linear-gradient(90deg, #fff 0%, rgba(47,184,255,.98) 60%, rgba(42,125,255,.95) 100%);
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+        }
+        .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
+
+        .uc-hud{
+          position: relative;
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.10);
+          overflow: hidden;
+          transform: translate3d(0,0,0);
+        }
+        .uc-hudInner{
+          position: relative;
+          min-height: 360px;
+          display: grid;
+          place-items: center;
+          padding: 28px;
+        }
+        .uc-hudGrid{
+          position:absolute; inset:0;
+          background:
+            linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+          background-size: 34px 34px;
+          opacity: .10;
+          mask-image: radial-gradient(120% 90% at 50% 10%, #000 56%, transparent 100%);
+          -webkit-mask-image: radial-gradient(120% 90% at 50% 10%, #000 56%, transparent 100%);
+          pointer-events:none;
+        }
+        .uc-hudScan{
+          position:absolute; inset:-40px 0 0 0;
+          background: repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0px, rgba(255,255,255,.05) 1px, transparent 1px, transparent 10px);
+          opacity: .07;
+          pointer-events:none;
+        }
+        .uc-hudRing{
+          position:absolute;
+          width: 260px; height: 260px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          box-shadow: 0 0 0 8px rgba(47,184,255,.06), 0 0 0 1px rgba(0,0,0,.4) inset;
+          opacity: .55;
+          pointer-events:none;
+        }
+        .uc-hudOrbit{
+          position:absolute;
+          width: 320px; height: 320px;
+          border-radius: 999px;
+          border: 1px dashed rgba(255,255,255,.12);
+          opacity: .22;
+          pointer-events:none;
+        }
+        .uc-hudIcon{
+          width: 168px; height: 168px;
+          opacity: .12;
+          color: rgba(255,255,255,.92);
+        }
+        .uc-hudChips{
+          position:absolute;
+          bottom: 18px; left: 18px;
+          display:flex; gap: 8px; flex-wrap: wrap;
+          max-width: 70%;
+        }
+        .uc-hudChip{
+          font-size: 11px;
+          letter-spacing: .10em;
+          text-transform: uppercase;
+          padding: 7px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.03);
+          color: rgba(255,255,255,.76);
+        }
+        .uc-hudBadge{
+          position:absolute;
+          top: 18px; right: 18px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+          padding: 12px 14px;
+          box-shadow: 0 14px 44px rgba(0,0,0,.35);
+          min-width: 120px;
+        }
+        .uc-hudBadge2{ top:auto; bottom: 18px; right: 18px; min-width: 110px; }
+        .uc-hudBadgeTop{
+          color: rgba(255,255,255,.66);
+          font-size: 11px;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+        }
+        .uc-hudBadgeVal{
+          color: rgba(255,255,255,.92);
+          font-weight: 700;
+          margin-top: 6px;
+          font-size: 16px;
+        }
+        @media (max-width: 560px){
+          .uc-hudInner{ min-height: 320px; }
+          .uc-hudIcon{ width: 150px; height: 150px; }
+        }
+
+        .uc-section{ background: transparent !important; }
+
+        .uc-reveal{ opacity: 1; transform: none; }
+        .uc-page.uc-io .uc-reveal{
+          opacity: 0;
+          transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
+          transition: opacity .45s ease, transform .45s ease;
+          will-change: transform, opacity;
+        }
+        .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
+        .reveal-left{ --rx: -18px; --ry: 0px; }
+        .reveal-right{ --rx: 18px; --ry: 0px; }
+        .reveal-top{ --rx: 0px; --ry: 14px; }
+        .reveal-bottom{ --rx: 0px; --ry: -14px; }
+
+        @media (prefers-reduced-motion: reduce){
+          .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
+          .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
+          .uc-pop{ transition:none !important; transform:none !important; }
+          .uc-btn{ transition:none !important; }
+          .uc-hudOrbit{ animation: none !important; }
+        }
+        @media (hover: none){
+          .uc-pop:hover{ transform:none !important; }
+          .uc-btn:hover{ transform:none !important; }
+        }
+
+        /* Tint vars */
+        [data-tint="cyan"]{ --tA: rgba(47,184,255,.62); --tB: rgba(170,225,255,.28); }
+        [data-tint="violet"]{ --tA: rgba(42,125,255,.66); --tB: rgba(47,184,255,.22); }
+        [data-tint="pink"]{ --tA: rgba(170,225,255,.55); --tB: rgba(47,184,255,.20); }
+        [data-tint="amber"]{ --tA: rgba(80,170,255,.58); --tB: rgba(47,184,255,.20); }
+
+        .uc-card::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          border-radius: 24px;
+          pointer-events:none;
+          opacity: 0;
+          transform: translate3d(-14px, 0, 0);
+          transition: opacity .22s ease, transform .22s ease;
+          background:
+            radial-gradient(620px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
+            radial-gradient(520px 240px at 80% 12%, var(--tB), transparent 62%),
+            linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+          mix-blend-mode: screen;
+        }
+        .uc-pop:hover.uc-card::before,
+        .uc-pop:focus-within.uc-card::before{
+          opacity: 1;
+          transform: translate3d(0,0,0);
+        }
+
+        .uc-card::after{
+          content:"";
+          position:absolute;
+          inset:0;
+          border-radius: 22px;
+          pointer-events:none;
+          opacity: 0;
+          transition: opacity .22s ease;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 0 0 1px rgba(0,0,0,.35);
+        }
+        .uc-pop:hover.uc-card::after,
+        .uc-pop:focus-within.uc-card::after{ opacity: 1; }
+
+        .uc-bullet{ position: relative; padding-left: 2px; }
+        .uc-bullet::before{
+          content:"";
+          position:absolute;
+          left: 9px;
+          top: 14px;
+          width: 28px;
+          height: 1px;
+          background: linear-gradient(90deg, var(--tA), transparent);
+          opacity: .65;
+        }
+
+        .uc-hud::before{
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          opacity:.65;
+          background:
+            radial-gradient(820px 260px at 20% 0%, var(--tB), transparent 60%),
+            radial-gradient(700px 240px at 80% 10%, rgba(255,255,255,.06), transparent 62%);
+          mix-blend-mode: screen;
+        }
+
+        @media (prefers-reduced-motion: no-preference){
+          .uc-hudOrbit{ animation: uc-orbit 10.5s linear infinite; transform-origin: 50% 50%; }
+        }
+        @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+
+        @media (min-width: 1024px){
+          .uc-stack::after{
+            content:"";
+            position:absolute;
+            left: 50%;
+            top: 50%;
+            width: min(220px, 18vw);
+            height: 1px;
+            transform: translate3d(-50%, -50%, 0);
+            background: linear-gradient(90deg, transparent, rgba(47,184,255,.18), transparent);
+            opacity: .55;
+            pointer-events:none;
+            transition: opacity .18s ease;
+          }
+          .uc-stack:hover::after{
+            opacity: .85;
+            background: linear-gradient(90deg, transparent, var(--tA), transparent);
+          }
         }
       `}</style>
 
-      {/* HERO (center only) */}
-      <section className="uc-hero" aria-label={t("useCases.aria.hero")}>
-        <div className="uc-shell">
-          <div className="uc-heroCenter">
-            <div className="flex justify-center" data-reveal data-delay="0">
-              <div className="uc-tag">
-                <span className="uc-dot" aria-hidden="true" />
-                <span className="uc-tagText">{t("useCases.hero.crumb")}</span>
+      {/* HERO */}
+      <section className="uc-hero uc-section" aria-label={t("useCases.aria.hero")}>
+        <div className="uc-heroBG" aria-hidden="true" />
+
+        <div className="uc-heroInner">
+          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
+            <div className="mx-auto max-w-[980px] text-center">
+              <div className="flex justify-center">
+                <BreadcrumbPill text={t("useCases.hero.crumb")} enter={enter} delayMs={0} />
               </div>
+
+              <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
+                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
+                  {t("useCases.hero.title.before")} <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
+                  {t("useCases.hero.title.after")}
+                </span>
+              </h1>
+
+              <p
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter",
+                  enter && "uc-in"
+                )}
+                style={d(180)}
+              >
+                {t("useCases.hero.subtitle")}
+              </p>
+
+              <div className={cx("mt-8 flex flex-wrap items-center justify-center gap-3 uc-enter", enter && "uc-in")} style={d(270)}>
+                <Link to={toContact} className="uc-btn" aria-label={t("useCases.aria.contact")}>
+                  {ctaOwnCase} <span aria-hidden="true">→</span>
+                </Link>
+                <Link to={toServices} className="uc-btn uc-btnGhost" aria-label={t("useCases.aria.services")}>
+                  {ctaServices}
+                </Link>
+              </div>
+
+              <div className="uc-divider" />
             </div>
+          </div>
+        </div>
 
-            <h1 className="uc-h1" data-reveal data-delay="110">
-              {t("useCases.hero.title.before")} <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
-              {t("useCases.hero.title.after")}
-            </h1>
+        <div className="uc-spacer" />
+      </section>
 
-            <p className="uc-heroP" data-reveal data-delay="220">
-              {t("useCases.hero.subtitle")}
-            </p>
-
-            <div className="uc-ctaRow" data-reveal data-delay="320">
-              <Link to={toContact} className="uc-btnA" aria-label={t("useCases.aria.contact")}>
-                {t("useCases.cta.ownCase")} <span aria-hidden="true">→</span>
-              </Link>
-              <Link to={toServices} className="uc-btnB" aria-label={t("useCases.aria.services")}>
-                {t("useCases.cta.services")}
-              </Link>
-            </div>
+      {/* CASES */}
+      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.caseStudies")}>
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="space-y-12">
+            {CASES.map((c, idx) => (
+              <CaseRow
+                key={c.basliq || String(idx)}
+                c={c}
+                flip={idx % 2 === 1}
+                tCaseLabel={caseLabel}
+                tRealScenario={realScenario}
+                toContact={toContact}
+                toServices={toServices}
+                ctaPrimary={ctaOwnCase}
+                ctaSecondary={ctaServices}
+                hudChips={hudChips}
+                hudMetricLabel={hudMetricLabel}
+                hudStatusLabel={hudStatusLabel}
+                hudStatusValue={hudStatusValue}
+              />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Spacer (exactly as you asked) */}
-      <div className="uc-spacer" aria-hidden="true" />
-
-      {/* CASES (edge integrated, not centered blocks) */}
-      <section className="uc-section" aria-label={t("useCases.aria.caseStudies")}>
-        <div className="uc-shell">
-          {CASES.map((c, idx) => (
-            <EdgeCase
-              key={c.basliq || String(idx)}
-              c={c}
-              flip={idx % 2 === 1}
-              tCaseLabel={caseLabel}
-              tRealScenario={realScenario}
-              toContact={toContact}
-              toServices={toServices}
-              ctaPrimary={ctaOwnCase}
-              ctaSecondary={ctaServices}
-            />
-          ))}
-        </div>
-      </section>
-
       {/* MORE */}
-      <section className="uc-section" aria-label={t("useCases.aria.more")}>
-        <div className="uc-shell">
-          <div className="text-center" data-reveal data-delay="0">
+      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.more")}>
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
             <div className="flex justify-center">
-              <div className="uc-tag">
-                <span className="uc-dot" aria-hidden="true" style={{ width: 8, height: 8 }} />
-                <span className="uc-tagText">{t("useCases.moreSection.pill")}</span>
+              <div className={cx("uc-reveal reveal-top", "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2")}>
+                <span className="uc-crumbDot" aria-hidden="true" style={{ width: 7, height: 7 }} />
+                <span className="text-[12px] tracking-[0.14em] uppercase text-white/70">{t("useCases.moreSection.pill")}</span>
               </div>
             </div>
 
-            <h2 className="uc-finalTitle" style={{ marginTop: 14 }} data-reveal data-delay="120">
+            <h2 className={cx("uc-reveal reveal-bottom", "mt-4 text-[28px] sm:text-[40px] font-semibold text-white")}>
               {t("useCases.moreSection.title")}
             </h2>
-            <p className="uc-finalSub" style={{ marginLeft: "auto", marginRight: "auto" }} data-reveal data-delay="220">
+            <p className={cx("uc-reveal reveal-bottom", "mt-3 text-white/65 max-w-[820px] mx-auto leading-[1.7]")}>
               {t("useCases.moreSection.subtitle.before")} <span className="uc-grad">{t("useCases.moreSection.subtitle.highlight")}</span>
               {t("useCases.moreSection.subtitle.after")}
             </p>
           </div>
 
-          <div className="uc-moreGrid">
+          <div className="mt-10 grid gap-4 md:grid-cols-4 uc-stack">
             {MORE.map((m, i) => {
+              const dir = i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
               const Icon = MORE_META[i]?.icon || Building2;
               return (
-                <div key={m.title || String(i)} className="uc-mini" data-reveal data-delay={String(80 + i * 110)}>
-                  <div className="uc-miniTop">
-                    <div className="uc-ic" aria-hidden="true">
-                      <Icon className="w-5 h-5" />
+                <div key={m.title || String(i)} className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain")} data-tint={i % 2 === 0 ? "cyan" : "violet"}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="uc-ic flex-shrink-0" aria-hidden="true">
+                      <Icon className="h-5 w-5" />
                     </div>
-                    <div className="uc-miniTitle">{m.title}</div>
+                    <div className="text-white font-semibold break-words">{m.title}</div>
                   </div>
-                  <div className="uc-miniText">{m.text}</div>
+                  <div className="mt-4 uc-line" />
+                  <p className="mt-4 text-white/70 leading-[1.75] break-words">{m.text}</p>
                 </div>
               );
             })}
@@ -1074,25 +1095,27 @@ export default function UseCases() {
       </section>
 
       {/* FINAL CTA */}
-      <section className="uc-section" aria-label={t("useCases.aria.finalCta")}>
-        <div className="uc-shell">
-          <div className="uc-final" data-reveal data-delay="0">
-            <div style={{ maxWidth: 760 }}>
-              <div className="uc-finalPill">{t("useCases.final.pill")}</div>
-              <div className="uc-finalTitle">
-                {t("useCases.final.title.before")} <span className="uc-grad">{t("useCases.final.title.highlight")}</span>
-                {t("useCases.final.title.after")}
+      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.finalCta")}>
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className={cx("uc-reveal reveal-bottom", "uc-card uc-pop uc-contain")} style={{ padding: 22 }} data-tint="cyan">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="max-w-[740px] min-w-0">
+                <div className="text-white/70 text-[12px] tracking-[0.14em] uppercase">{t("useCases.final.pill")}</div>
+                <div className="mt-2 text-white text-[24px] sm:text-[32px] font-semibold break-words">
+                  {t("useCases.final.title.before")} <span className="uc-grad">{t("useCases.final.title.highlight")}</span>
+                  {t("useCases.final.title.after")}
+                </div>
+                <p className="mt-3 text-white/70 leading-[1.75] break-words">{t("useCases.final.subtitle")}</p>
               </div>
-              <p className="uc-finalSub">{t("useCases.final.subtitle")}</p>
-            </div>
 
-            <div className="uc-finalActions">
-              <Link to={toContact} className="uc-btnA">
-                {ctaSchedule} <span aria-hidden="true">→</span>
-              </Link>
-              <Link to={toServices} className="uc-btnB">
-                {ctaServices}
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link to={toContact} className="uc-btn">
+                  {ctaSchedule} <span aria-hidden="true">→</span>
+                </Link>
+                <Link to={toServices} className="uc-btn uc-btnGhost">
+                  {ctaServices}
+                </Link>
+              </div>
             </div>
           </div>
         </div>
