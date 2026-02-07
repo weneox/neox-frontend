@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + mobile click fix + stable polling)
+// src/components/NeoxAIWidget.tsx (ELITE — modal overlay lock + operator toggle + mobile fixes)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -172,6 +172,33 @@ function isApiBaseValid(base: string) {
   return /^https?:\/\/[^ "]+$/i.test(base);
 }
 
+/* lock body scroll when open */
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+
+    const body = document.body;
+    const docEl = document.documentElement;
+
+    const prevOverflow = body.style.overflow;
+    const prevTouch = body.style.touchAction;
+    const prevPadRight = body.style.paddingRight;
+
+    // compensate scrollbar to avoid layout shift on desktop
+    const scrollBarW = window.innerWidth - docEl.clientWidth;
+    if (scrollBarW > 0) body.style.paddingRight = `${scrollBarW}px`;
+
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.touchAction = prevTouch;
+      body.style.paddingRight = prevPadRight;
+    };
+  }, [locked]);
+}
+
 export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
@@ -188,6 +215,8 @@ export default function NeoxAIWidget() {
 
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
+
+  useBodyScrollLock(open);
 
   const welcomeIdRef = useRef<string>(uid());
 
@@ -309,6 +338,7 @@ export default function NeoxAIWidget() {
       if (fresh.length === 0) return;
       for (const it of fresh) seenAdminIdsRef.current.add(it.id);
 
+      // If admin replied, keep handoff ON (but user can toggle off manually)
       if (fresh.some((x) => x.source === "admin")) {
         setHandoff(true);
         setStoredHandoff(sessionIdRef.current, true);
@@ -404,7 +434,9 @@ export default function NeoxAIWidget() {
     if (!tt || typing) return;
 
     const autoOp = detectOperatorIntent(tt);
-    const requestOperator = opts?.requestOperator === true || autoOp === true;
+
+    // If user toggled operator OFF, we should not request operator.
+    const requestOperator = handoff ? true : (opts?.requestOperator === true || autoOp === true);
 
     const sessionId = sessionIdRef.current;
     const lang = getLangSafe(i18n.language);
@@ -442,6 +474,7 @@ export default function NeoxAIWidget() {
         request_operator: requestOperator ? true : false,
       };
 
+      // Only set handoff true if we are requesting operator now.
       if (requestOperator) {
         setHandoff(true);
         setStoredHandoff(sessionId, true);
@@ -472,9 +505,16 @@ export default function NeoxAIWidget() {
         setLeadIdLive(newLeadId);
       }
 
+      // Only accept server handoff if we didn't manually turn it off.
       const serverHandoff = Boolean((data as any)?.handoff);
-      setHandoff(serverHandoff);
-      setStoredHandoff(sessionId, serverHandoff);
+      if (requestOperator) {
+        setHandoff(serverHandoff);
+        setStoredHandoff(sessionId, serverHandoff);
+      } else {
+        // keep user's manual choice (AI mode)
+        setHandoff(false);
+        setStoredHandoff(sessionId, false);
+      }
 
       const full = String((data as any)?.text ?? (data as any)?.reply ?? "").trim();
       if (!full) throw new Error("Empty response from backend");
@@ -522,21 +562,35 @@ export default function NeoxAIWidget() {
     send(q);
   }
 
-  function requestOperator() {
+  function requestOperatorTextByLang() {
+    const l = getLangSafe(i18n.language);
+    const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
+    const enText = "I want a human operator. Please connect me to live support.";
+    const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
+    const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
+    const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
+    return l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
+  }
+
+  function toggleOperator() {
     setOpen(true);
     setTab("chat");
 
+    // If currently operator ON -> turn OFF (AI ON) without clearing messages
     if (handoff) {
+      const sessionId = sessionIdRef.current;
+      setHandoff(false);
+      setStoredHandoff(sessionId, false);
+
       setMsgs((p) => [
         ...p,
         {
           id: uid(),
           role: "ai",
           text:
-            (t("neoxAi.operator.alreadyOn") as string) &&
-            !String(t("neoxAi.operator.alreadyOn")).includes("neoxAi.operator.alreadyOn")
-              ? (t("neoxAi.operator.alreadyOn") as string)
-              : "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
+            ((t("neoxAi.operator.off") as string) && !String(t("neoxAi.operator.off")).includes("neoxAi.operator.off"))
+              ? (t("neoxAi.operator.off") as string)
+              : "✅ Operator OFF • AI ON. Mesajlar saxlanıldı — AI yenidən cavab verə bilər.",
           ts: Date.now(),
           source: "ai",
           kind: "system",
@@ -545,15 +599,8 @@ export default function NeoxAIWidget() {
       return;
     }
 
-    const l = getLangSafe(i18n.language);
-
-    const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
-    const enText = "I want a human operator. Please connect me to live support.";
-    const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
-    const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
-    const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
-
-    const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
+    // Operator OFF -> request operator
+    const txt = requestOperatorTextByLang();
     send(txt, { requestOperator: true });
   }
 
@@ -578,17 +625,33 @@ export default function NeoxAIWidget() {
 
   return (
     <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"}>
+      {/* ✅ overlay catches clicks + blocks scroll behind */}
+      <div
+        className={cx("neox-ai-overlay", open && "is-open")}
+        aria-hidden="true"
+        onPointerDown={(e) => {
+          // stop click reaching header/nav
+          e.preventDefault();
+          e.stopPropagation();
+          // optional: close when tapping outside
+          // setOpen(false);
+        }}
+        onWheel={(e) => {
+          // prevent background scroll on desktop
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
+
       <button
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
         onPointerDown={(e) => {
-          // ✅ mobile: make sure tap isn't "stolen"
           e.preventDefault();
           e.stopPropagation();
           setOpen((s) => !s);
         }}
         onClick={(e) => {
-          // ✅ fallback for browsers that don't fire pointerdown as expected
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -606,7 +669,7 @@ export default function NeoxAIWidget() {
       <div
         className={cx("neox-ai-panel", open && "is-open")}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-label={t("neoxAi.panelAria")}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -639,7 +702,7 @@ export default function NeoxAIWidget() {
                 <div className="neox-ai-controls">
                   <span className="neox-ai-modePill">{modeText}</span>
 
-                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
+                  <button type="button" onClick={toggleOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
                     {OP_LABEL}
                   </button>
 
@@ -720,6 +783,7 @@ export default function NeoxAIWidget() {
                 />
                 <button type="button" className={cx("neox-ai-send", !canSend && "is-disabled")} onClick={() => send(input)} disabled={!canSend}>
                   {t("neoxAi.input.send")}
+                  <span className="neox-ai-sendIcon" aria-hidden="true">→</span>
                 </button>
               </div>
             </>
