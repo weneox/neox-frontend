@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + mobile click fix + stable polling)
+// src/components/NeoxAIWidget.tsx (FINAL PRO — mobile fit + pro mode pills + symmetry)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -567,14 +567,16 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.chat.ai") as string)
       : "NEOX AI";
 
-  const modeText =
-    handoff
-      ? ((t("neoxAi.mode.operatorOn") as string) && !String(t("neoxAi.mode.operatorOn")).includes("neoxAi.mode.operatorOn")
-          ? (t("neoxAi.mode.operatorOn") as string)
-          : "Operator ON • AI OFF")
-      : ((t("neoxAi.mode.aiOn") as string) && !String(t("neoxAi.mode.aiOn")).includes("neoxAi.mode.aiOn")
-          ? (t("neoxAi.mode.aiOn") as string)
-          : "AI ON • Operator OFF");
+  const aiOn = !handoff;
+  const opOn = handoff;
+
+  const modeText = opOn
+    ? ((t("neoxAi.mode.operatorOn") as string) && !String(t("neoxAi.mode.operatorOn")).includes("neoxAi.mode.operatorOn")
+        ? (t("neoxAi.mode.operatorOn") as string)
+        : "Operator ON • AI OFF")
+    : ((t("neoxAi.mode.aiOn") as string) && !String(t("neoxAi.mode.aiOn")).includes("neoxAi.mode.aiOn")
+        ? (t("neoxAi.mode.aiOn") as string)
+        : "AI ON • Operator OFF");
 
   return (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
@@ -582,13 +584,11 @@ export default function NeoxAIWidget() {
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
         onPointerDown={(e) => {
-          // ✅ mobile: make sure tap isn't "stolen"
           e.preventDefault();
           e.stopPropagation();
           setOpen((s) => !s);
         }}
         onClick={(e) => {
-          // ✅ fallback for browsers that don't fire pointerdown as expected
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -628,6 +628,7 @@ export default function NeoxAIWidget() {
               <div className="neox-ai-brandText">
                 <div className="neox-ai-titleRow">
                   <div className="neox-ai-title">{t("neoxAi.brand")}</div>
+
                   <div className="neox-ai-status" title={modeText}>
                     <span className="neox-ai-statusDot" />
                     <span className="neox-ai-statusTxt">{t("neoxAi.status")}</span>
@@ -636,16 +637,33 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                <div className="neox-ai-controls">
-                  <span className="neox-ai-modePill">{modeText}</span>
+                {/* ✅ PRO MODE BAR (clean + readable + symmetric) */}
+                <div className="neox-ai-modeBar" aria-label={modeText}>
+                  <div className="neox-ai-modePair">
+                    <span className={cx("neox-ai-modeChip", "is-ai", aiOn && "is-on")}>
+                      <span className="neox-ai-dot" aria-hidden="true" />
+                      <span className="neox-ai-modeLbl">AI</span>
+                      <span className="neox-ai-modeState">{aiOn ? "ON" : "OFF"}</span>
+                    </span>
 
-                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
-                    {OP_LABEL}
-                  </button>
+                    <span className={cx("neox-ai-modeChip", "is-op", opOn && "is-on")}>
+                      <span className="neox-ai-dot" aria-hidden="true" />
+                      <span className="neox-ai-modeLbl">{OP_LABEL}</span>
+                      <span className="neox-ai-modeState">{opOn ? "ON" : "OFF"}</span>
+                    </span>
+                  </div>
 
-                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
-                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
-                  </button>
+                  <div className="neox-ai-actions">
+                    <button type="button" onClick={requestOperator} className={cx("neox-ai-actionBtn", "is-primary", opOn && "is-on")}>
+                      {OP_LABEL}
+                    </button>
+
+                    <button type="button" onClick={hardResetChat} className={cx("neox-ai-actionBtn", "is-ghost")}>
+                      {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset")
+                        ? (t("neoxAi.reset") as string)
+                        : "Reset"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

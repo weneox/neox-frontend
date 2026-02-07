@@ -38,7 +38,6 @@ function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-// App.tsx-dəki dillərin prefixi
 const LANGS = ["az", "tr", "en", "ru", "es"] as const;
 type Lang = (typeof LANGS)[number];
 
@@ -51,7 +50,6 @@ function withLang(lang: Lang, path: string) {
   return `/${lang}${p}`;
 }
 
-// tarix label-i dili görə
 function safeDateLabel(d: string, lang: Lang) {
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return d;
@@ -100,10 +98,7 @@ function useMedia(query: string, initial = false) {
 }
 
 /**
- * Reveal (BATCH 3-3) — FPS FRIENDLY:
- * - yalnız container daxilində axtarır
- * - default görünür (IO aktivdirsə gizlənib reveal olur) => “yox olur” bug yoxdur
- * - filter/search dəyişəndə yenidən qurulur
+ * Reveal (BATCH 3-3) — FPS FRIENDLY
  */
 function useRevealWithinBatched(
   containerRef: React.RefObject<HTMLElement>,
@@ -235,12 +230,16 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
     setMetaProp("og:title", opts.title);
     setMetaProp("og:description", opts.description);
     setMetaProp("og:url", canonicalUrl);
-    if (opts.ogImage) setMetaProp("og:image", base + opts.ogImage);
+
+    if (opts.ogImage) {
+      const img = /^https?:\/\//i.test(opts.ogImage) ? opts.ogImage : base + opts.ogImage;
+      setMetaProp("og:image", img);
+      setMetaName("twitter:image", img);
+    }
 
     setMetaName("twitter:card", "summary_large_image");
     setMetaName("twitter:title", opts.title);
     setMetaName("twitter:description", opts.description);
-    if (opts.ogImage) setMetaName("twitter:image", base + opts.ogImage);
 
     return () => {
       document.title = prevTitle;
@@ -277,7 +276,7 @@ const BreadcrumbPill = memo(function BreadcrumbPill({
   );
 });
 
-function normalizePosts(rows: any[], fallbackLang: Lang): BlogPost[] {
+function normalizePosts(rows: any[]): BlogPost[] {
   const out: BlogPost[] = [];
   for (const r of rows || []) {
     const a = (r || {}) as ApiPost;
@@ -285,13 +284,7 @@ function normalizePosts(rows: any[], fallbackLang: Lang): BlogPost[] {
     const slug = String(a.slug || "").trim();
     if (!title || !slug) continue;
 
-    const date =
-      a.published_at ||
-      a.publishedAt ||
-      a.date ||
-      a.createdAt ||
-      new Date().toISOString();
-
+    const date = a.published_at || a.publishedAt || a.date || a.createdAt || new Date().toISOString();
     const cover = a.coverUrl || a.cover_url || a.image_url || "";
 
     out.push({
@@ -321,7 +314,6 @@ export default function Blog() {
   const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "";
   const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
 
-  // page enter (hero top->down)
   const [enter, setEnter] = useState(false);
   useEffect(() => {
     const tt = window.setTimeout(() => setEnter(true), 220);
@@ -329,7 +321,6 @@ export default function Blog() {
   }, []);
   const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.7) : ms}ms` });
 
-  // SEO (lang-aware)
   useSeo({
     title: t("blog.seo.title"),
     description: t("blog.seo.description"),
@@ -338,11 +329,11 @@ export default function Blog() {
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasBackend, setHasBackend] = useState<boolean>(!!API_BASE);
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>(t("blog.filters.all"));
 
-  // cat dili dəyişəndə “Hamısı” label-i də düzgün otursun
   useEffect(() => {
     setCat((prev) => (prev === t("blog.filters.all", { lng: "az" }) ? t("blog.filters.all") : prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -351,17 +342,19 @@ export default function Blog() {
   useEffect(() => {
     fetchPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  }, [lang, API_BASE]);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
 
-      // backend yoxdursa sample göstər
       if (!API_BASE) {
+        setHasBackend(false);
         setPosts([]);
         return;
       }
+
+      setHasBackend(true);
 
       const res = await fetch(`${API_BASE}/api/posts?lang=${encodeURIComponent(lang)}`, {
         headers: { Accept: "application/json" },
@@ -369,19 +362,20 @@ export default function Blog() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const j = await res.json();
-      const rows = Array.isArray(j) ? j : (j?.posts || j?.data || []);
-      const norm = normalizePosts(rows, lang);
-
-      setPosts(norm);
+      const rows =
+        Array.isArray(j) ? j : Array.isArray(j?.posts) ? j.posts : Array.isArray(j?.data) ? j.data : Array.isArray(j?.items) ? j.items : [];
+      setPosts(normalizePosts(rows));
     } catch (err) {
       console.error("Postları gətirərkən xəta:", err);
+      // backend var, amma xəta oldusa sample göstərməyək, empty göstərək:
+      setHasBackend(!!API_BASE);
       setPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Sample posts (AZ-only content) — UI tərcümə olacaq, post kontenti yox
+  // Sample posts yalnız backend YOXdursa
   const samplePosts: BlogPost[] = [
     {
       id: "ai-automation-trends-2024",
@@ -418,9 +412,8 @@ export default function Blog() {
     },
   ];
 
-  const displayPosts = posts.length ? posts : samplePosts;
+  const displayPosts = hasBackend ? posts : samplePosts;
 
-  // categories: "Hamısı" + uniq
   const categories = useMemo(() => {
     const s = new Set<string>();
     displayPosts.forEach((p) => s.add(p.category || t("blog.filters.general")));
@@ -429,13 +422,10 @@ export default function Blog() {
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
-
     return displayPosts.filter((p) => {
       const c = p.category || t("blog.filters.general");
-
       const inCat = cat === t("blog.filters.all") ? true : c === cat;
       if (!inCat) return false;
-
       if (!qq) return true;
       const hay = `${p.title} ${p.excerpt} ${p.author} ${c}`.toLowerCase();
       return hay.includes(qq);
@@ -457,7 +447,7 @@ export default function Blog() {
           __html: JSON.stringify(
             {
               "@context": "https://schema.org",
-              "@type": "WebPage",
+              "@type": "CollectionPage",
               name: t("blog.ld.name"),
               description: t("blog.ld.description"),
               inLanguage: lang,
@@ -469,7 +459,6 @@ export default function Blog() {
       />
 
       <style>{`
-        /* ✅ ROOT-LEVEL FIX (kökdən) — sağda ağ zolaq / horizontal scroll OFF */
         html, body{
           background:#000 !important;
           margin:0;
@@ -477,17 +466,14 @@ export default function Blog() {
           width:100%;
           overflow-x: clip;
         }
-        #root{
-          width:100%;
-          overflow-x: clip;
-        }
+        #root{ width:100%; overflow-x: clip; }
 
         .bl-page{
           background:#000 !important;
           color: rgba(255,255,255,.92);
           min-height: 100vh;
           width: 100%;
-          overflow-x: clip; /* ✅ hidden yox, clip */
+          overflow-x: clip;
           word-break: break-word;
           overflow-wrap: anywhere;
           isolation: isolate;
@@ -496,196 +482,98 @@ export default function Blog() {
           -moz-osx-font-smoothing: grayscale;
         }
         .bl-page *{ min-width:0; max-width:100%; }
-
-        /* ✅ hover scale grid-də daşmanı konteyner səviyyəsində kəs */
         .bl-stack{ position: relative; isolation: isolate; overflow: clip; }
 
-        /* NEOX palette */
         .bl-page .bl-gradient{
-          background: linear-gradient(
-            90deg,
-            #ffffff 0%,
-            rgba(170,225,255,.96) 34%,
-            rgba(47,184,255,.95) 68%,
-            rgba(42,125,255,.95) 100%
-          );
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
+          background: linear-gradient(90deg,#ffffff 0%,rgba(170,225,255,.96) 34%,rgba(47,184,255,.95) 68%,rgba(42,125,255,.95) 100%);
+          -webkit-background-clip:text; background-clip:text; color:transparent;
         }
 
-        /* ---------- Enter (hero top->down) ---------- */
         .bl-enter{
-          opacity: 0;
-          transform: translate3d(0,16px,0);
-          filter: blur(7px);
+          opacity:0; transform: translate3d(0,16px,0); filter: blur(7px);
           transition: opacity .62s ease, transform .62s ease, filter .62s ease;
-          transition-delay: var(--d, 0ms);
+          transition-delay: var(--d,0ms);
           will-change: opacity, transform, filter;
         }
-        .bl-enter.bl-in{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-          filter: blur(0px);
-        }
+        .bl-enter.bl-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-        /* ---------- Breadcrumb pill ---------- */
-        .bl-crumb{
-          display:inline-flex;
-          align-items:center;
-          gap:10px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
-          padding: 10px 14px;
-          border-radius: 999px;
-        }
-        .bl-crumbDot{
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: rgba(47,184,255,1);
-          box-shadow:
-            0 0 0 4px rgba(47,184,255,.14),
-            0 0 18px rgba(47,184,255,.42);
-          flex: 0 0 auto;
-        }
-        .bl-crumbText{
-          font-size: 12px;
-          letter-spacing: .14em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,.70);
-          white-space: nowrap;
-        }
+        .bl-crumb{ display:inline-flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); padding:10px 14px; border-radius:999px; }
+        .bl-crumbDot{ width:8px; height:8px; border-radius:999px; background: rgba(47,184,255,1); box-shadow:0 0 0 4px rgba(47,184,255,.14),0 0 18px rgba(47,184,255,.42); flex:0 0 auto; }
+        .bl-crumbText{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; color: rgba(255,255,255,.70); white-space:nowrap; }
 
-        /* ---------- Reveal ---------- */
         .bl-reveal{ opacity: 1; transform: none; }
         .bl-page.bl-io .bl-reveal{
-          opacity: 0;
-          transform: translate3d(var(--rx, 0px), var(--ry, 16px), 0);
+          opacity:0; transform: translate3d(var(--rx, 0px), var(--ry, 16px), 0);
           transition: opacity .45s ease, transform .45s ease;
           will-change: transform, opacity;
         }
-        .bl-page.bl-io .bl-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
-        .bl-reveal-left{ --rx: -18px; --ry: 0px; }
-        .bl-reveal-right{ --rx: 18px; --ry: 0px; }
-        .bl-reveal-top{ --rx: 0px; --ry: 14px; }
-        .bl-reveal-bottom{ --rx: 0px; --ry: -14px; }
+        .bl-page.bl-io .bl-reveal.is-in{ opacity:1; transform: translate3d(0,0,0); }
+        .bl-reveal-left{ --rx:-18px; --ry:0px; }
+        .bl-reveal-right{ --rx:18px; --ry:0px; }
+        .bl-reveal-bottom{ --rx:0px; --ry:-14px; }
 
-        /* ---------- Perf contain ---------- */
-        .bl-contain{
-          contain: layout paint style;
-          transform: translateZ(0);
-          backface-visibility: hidden;
-        }
+        .bl-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility:hidden; }
 
-        /* ---------- Hero ---------- */
-        .bl-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
-        .bl-heroInner{
-          min-height: clamp(520px, 78vh, 860px);
-          display: grid;
-          place-items: center;
-          padding: 64px 0 26px;
-        }
-        @media (max-width: 560px){
-          .bl-heroInner{
-            min-height: auto;
-            padding-top: 84px;
-            padding-bottom: 18px;
-          }
-        }
+        .bl-hero{ position: relative; padding: 22px 0 0; overflow:hidden; }
+        .bl-heroInner{ min-height: clamp(520px, 78vh, 860px); display:grid; place-items:center; padding:64px 0 26px; }
+        @media (max-width:560px){ .bl-heroInner{ min-height:auto; padding-top:84px; padding-bottom:18px; } }
 
-        /* lightweight bg (no heavy blur) */
-        .bl-heroBG{
-          pointer-events:none;
-          position:absolute;
-          inset:0;
-          opacity: 1;
-        }
+        .bl-heroBG{ pointer-events:none; position:absolute; inset:0; }
         .bl-heroBG::before{
-          content:"";
-          position:absolute;
-          inset:-10% -10%;
+          content:""; position:absolute; inset:-10% -10%;
           background:
             radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.09), transparent 62%),
             radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
             radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
-          opacity: .92;
+          opacity:.92;
         }
         .bl-heroBG::after{
-          content:"";
-          position:absolute;
-          inset:0;
+          content:""; position:absolute; inset:0;
           background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
         }
 
         .bl-divider{
-          height: 1px;
-          width: 100%;
-          max-width: 920px;
-          margin: 42px auto 0;
+          height:1px; width:100%; max-width:920px; margin:42px auto 0;
           background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
-          opacity: .95;
+          opacity:.95;
         }
-        .bl-spacer{ height: 34px; }
+        .bl-spacer{ height:34px; }
 
-        /* ---------- Panels ---------- */
         .bl-panel{
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.03);
+          border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03);
           box-shadow: 0 14px 52px rgba(0,0,0,.60);
-          position: relative;
-          overflow: hidden;
+          position:relative; overflow:hidden;
         }
-        /* subtle aura (no blur) */
         .bl-panel::before{
-          content:"";
-          position:absolute;
-          inset:-30% -40%;
-          pointer-events:none;
-          opacity: .18;
+          content:""; position:absolute; inset:-30% -40%; pointer-events:none;
+          opacity:.18;
           background:
             radial-gradient(520px 220px at 20% 0%, rgba(47,184,255,.18), transparent 62%),
             radial-gradient(520px 220px at 85% 0%, rgba(42,125,255,.12), transparent 64%);
-          transform: translate3d(0,0,0);
           transition: opacity .22s ease;
         }
-        .bl-panel:hover::before{ opacity: .30; }
+        .bl-panel:hover::before{ opacity:.30; }
 
-        /* ---------- Pop ---------- */
         .bl-pop{
-          position: relative;
-          z-index: 1;
+          position:relative; z-index:1;
           transform: translate3d(0,0,0) scale(1);
           transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
           will-change: transform;
         }
-        .bl-pop:hover,
-        .bl-pop:focus-within{
-          z-index: 60;
-          transform: translate3d(0,-10px,0) scale(1.03);
-        }
+        .bl-pop:hover, .bl-pop:focus-within{ z-index:60; transform: translate3d(0,-10px,0) scale(1.03); }
 
-        /* ---------- Card (ELITE) ---------- */
         .bl-card{
-          position: relative;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.10);
+          position:relative;
+          border-radius:22px;
+          border:1px solid rgba(255,255,255,.10);
           background: linear-gradient(180deg, rgba(255,255,255,.032), rgba(255,255,255,.018));
           box-shadow: 0 16px 56px rgba(0,0,0,.62);
-          padding: 16px;
-          overflow: hidden;
+          padding:16px;
+          overflow:hidden;
         }
-
-        /* specular sweep layer */
         .bl-card::before{
-          content:"";
-          position:absolute;
-          inset:-2px;
-          border-radius: 24px;
-          pointer-events:none;
-          opacity: 0;
-          transform: translate3d(-14px, 0, 0);
+          content:""; position:absolute; inset:-2px; border-radius:24px; pointer-events:none;
+          opacity:0; transform: translate3d(-14px,0,0);
           transition: opacity .22s ease, transform .22s ease;
           background:
             radial-gradient(620px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
@@ -693,122 +581,61 @@ export default function Blog() {
             linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
           mix-blend-mode: screen;
         }
-        .bl-pop:hover.bl-card::before,
-        .bl-pop:focus-within.bl-card::before{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-        }
-
-        /* border glow */
+        .bl-pop:hover.bl-card::before, .bl-pop:focus-within.bl-card::before{ opacity:1; transform: translate3d(0,0,0); }
         .bl-card::after{
-          content:"";
-          position:absolute;
-          inset:0;
-          border-radius: 22px;
-          pointer-events:none;
-          opacity: 0;
-          transition: opacity .22s ease;
-          box-shadow:
-            0 0 0 1px rgba(255,255,255,.08) inset,
-            0 0 24px rgba(47,184,255,.08);
+          content:""; position:absolute; inset:0; border-radius:22px; pointer-events:none;
+          opacity:0; transition: opacity .22s ease;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 0 24px rgba(47,184,255,.08);
         }
-        .bl-pop:hover.bl-card::after,
-        .bl-pop:focus-within.bl-card::after{
-          opacity: 1;
-        }
+        .bl-pop:hover.bl-card::after, .bl-pop:focus-within.bl-card::after{ opacity:1; }
 
-        /* image wrap */
         .bl-imgWrap{
-          position: relative;
-          overflow: hidden;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.10);
+          position:relative; overflow:hidden;
+          border-radius:18px; border:1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.03);
         }
         .bl-imgWrap::before{
-          content:"";
-          position:absolute; inset:0;
+          content:""; position:absolute; inset:0;
           background:
             radial-gradient(700px 420px at 60% 0%, rgba(255,255,255,.05), transparent 62%),
             radial-gradient(700px 420px at 20% 0%, rgba(47,184,255,.08), transparent 70%),
             linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.62));
-          pointer-events:none;
-          opacity: .95;
+          pointer-events:none; opacity:.95;
         }
         .bl-imgWrap::after{
-          content:"";
-          position:absolute; inset:0;
+          content:""; position:absolute; inset:0;
           box-shadow: inset 0 -90px 90px rgba(0,0,0,.55);
-          pointer-events:none;
-          opacity:.95;
+          pointer-events:none; opacity:.95;
         }
 
-        /* chips */
         .bl-chip{
-          display:inline-flex;
-          align-items:center;
-          gap:8px;
-          padding: 7px 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
+          display:inline-flex; align-items:center; gap:8px;
+          padding:7px 10px; border-radius:999px;
+          border:1px solid rgba(255,255,255,.10);
           background: rgba(0,0,0,.28);
           color: rgba(255,255,255,.86);
-          font-size: 12px;
-          max-width: 100%;
-          position: relative;
-          overflow: hidden;
+          font-size:12px;
+          max-width:100%;
+          position:relative; overflow:hidden;
         }
-        .bl-chip::before{
-          content:"";
-          position:absolute;
-          inset:-30% -40%;
-          opacity: .0;
-          transition: opacity .20s ease;
-          background: radial-gradient(260px 120px at 30% 20%, rgba(255,255,255,.10), transparent 70%);
-          pointer-events:none;
-        }
-        .group:hover .bl-chip::before{ opacity: .55; }
-
         .bl-chip--soft{
           border-color: rgba(47,184,255,.22);
           background: rgba(47,184,255,.10);
         }
 
-        /* buttons */
         .bl-btn{
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          gap:10px;
+          display:inline-flex; align-items:center; justify-content:center; gap:10px;
           width:100%;
-          padding: 12px 14px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.10);
+          padding:12px 14px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.03);
           color: rgba(255,255,255,.90);
           text-decoration:none;
           transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
           will-change: transform;
-          position: relative;
-          overflow: hidden;
+          position:relative; overflow:hidden;
         }
-        .bl-btn::before{
-          content:"";
-          position:absolute;
-          inset:-40% -40%;
-          opacity: 0;
-          transform: translate3d(-12px,0,0);
-          transition: opacity .22s ease, transform .22s ease;
-          background:
-            radial-gradient(420px 180px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
-            radial-gradient(420px 180px at 80% 0%, rgba(47,184,255,.10), transparent 70%);
-          pointer-events:none;
-        }
-        .bl-btn:hover::before{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-        }
-
         .bl-btn:hover{
           transform: translate3d(0,-2px,0);
           border-color: rgba(47,184,255,.24);
@@ -819,32 +646,21 @@ export default function Blog() {
           border-color: rgba(47,184,255,.24);
           background: linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
         }
-        .bl-btn--primary:hover{
-          border-color: rgba(47,184,255,.38);
-          box-shadow: 0 20px 70px rgba(0,0,0,.70);
-        }
+        .bl-btn--primary:hover{ border-color: rgba(47,184,255,.38); box-shadow: 0 20px 70px rgba(0,0,0,.70); }
 
-        /* ONLY transform hover for images (fps) */
-        .bl-img{
-          transform: translate3d(0,0,0) scale(1);
-          transition: transform .55s ease;
-          will-change: transform;
-        }
+        .bl-img{ transform: translate3d(0,0,0) scale(1); transition: transform .55s ease; will-change: transform; }
         .group:hover .bl-img{ transform: translate3d(0,-2px,0) scale(1.045); }
 
-        /* select option color fix */
         .bl-select option{ color: #0b1020; }
 
         @media (prefers-reduced-motion: reduce){
           .bl-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
           .bl-page.bl-io .bl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
           .bl-pop{ transform:none !important; transition:none !important; }
-          .bl-card::before, .bl-card::after{ transition:none !important; opacity: 0 !important; }
           .bl-btn{ transition:none !important; }
-          .bl-btn::before{ display:none !important; }
           .bl-img{ transition:none !important; transform:none !important; }
         }
-        @media (hover: none){
+        @media (hover:none){
           .bl-pop:hover{ transform:none !important; }
           .bl-btn:hover{ transform:none !important; }
           .group:hover .bl-img{ transform:none !important; }
@@ -863,18 +679,21 @@ export default function Blog() {
 
               <h1 className={cx("mt-6 text-white break-words bl-enter", enter && "bl-in")} style={d(90)}>
                 <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
-                  {t("blog.hero.title.before")} <span className="bl-gradient">{t("blog.hero.title.highlight")}</span>
+                  {t("blog.hero.title.before")}{" "}
+                  <span className="bl-gradient">{t("blog.hero.title.highlight")}</span>
                 </span>
               </h1>
 
               <p
-                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words bl-enter", enter && "bl-in")}
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words bl-enter",
+                  enter && "bl-in"
+                )}
                 style={d(180)}
               >
                 {t("blog.hero.subtitle")}
               </p>
 
-              {/* Search + filter */}
               <div
                 className={cx(
                   "mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 bl-enter",
@@ -914,7 +733,6 @@ export default function Blog() {
             </div>
           </div>
         </div>
-
         <div className="bl-spacer" />
       </section>
 
@@ -974,11 +792,7 @@ export default function Blog() {
                     </div>
 
                     <div className="mt-5">
-                      <Link
-                        to={withLang(lang, `/blog/${post.slug}`)}
-                        className="bl-btn bl-btn--primary"
-                        aria-label={t("blog.actions.readAria")}
-                      >
+                      <Link to={withLang(lang, `/blog/${post.slug}`)} className="bl-btn bl-btn--primary" aria-label={t("blog.actions.readAria")}>
                         {t("blog.actions.read")} <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                       </Link>
                     </div>
@@ -988,18 +802,17 @@ export default function Blog() {
             </div>
           ) : (
             <div className="bl-panel bl-contain text-center bl-reveal bl-reveal-bottom" style={{ padding: 18 }}>
-              <div className="text-white font-semibold text-[18px]">{t("blog.empty.title")}</div>
-              <div className="mt-2 text-white/70">{t("blog.empty.subtitle")}</div>
+              <div className="text-white font-semibold text-[18px]">
+                {hasBackend ? t("blog.empty.title") : t("blog.empty.title")}
+              </div>
+              <div className="mt-2 text-white/70">
+                {hasBackend ? t("blog.empty.subtitle") : t("blog.empty.subtitle")}
+              </div>
               <div className="mt-4 flex flex-wrap justify-center gap-3">
                 <button className="bl-btn" onClick={() => setQ("")} type="button" style={{ width: "auto", paddingInline: 16 }}>
                   {t("blog.empty.clearSearch")}
                 </button>
-                <button
-                  className="bl-btn"
-                  onClick={() => setCat(t("blog.filters.all"))}
-                  type="button"
-                  style={{ width: "auto", paddingInline: 16 }}
-                >
+                <button className="bl-btn" onClick={() => setCat(t("blog.filters.all"))} type="button" style={{ width: "auto", paddingInline: 16 }}>
                   {t("blog.empty.resetFilter")}
                 </button>
               </div>
