@@ -10456,3 +10456,91 @@ html {
   text-transform: uppercase;
 }
 
+/* =========================================================
+   NEOX AI Widget — MINIMAL MOBILE PATCH (NO DESIGN OVERRIDE)
+   Paste at END of index.css
+   ========================================================= */
+
+/* Widget root klikləri bloklamasın */
+.neox-ai {
+  pointer-events: none;
+  position: fixed; /* bəzi layoutlarda relative qalırsa mobil klik qırılır */
+  right: 0;
+  bottom: 0;
+  z-index: 2147481000;
+}
+
+/* FAB həmişə kliklənə bilsin */
+.neox-ai-fab {
+  pointer-events: auto;
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Panel “open” olanda klik qəbul etsin */
+.neox-ai-panel {
+  z-index: 2147482000;
+  pointer-events: none; /* closed state */
+}
+
+/* sən artıq is-open class verirsən — onu istifadə edirik */
+.neox-ai.is-open .neox-ai-panel,
+.neox-ai-panel.is-open {
+  pointer-events: auto;
+}
+
+/* Dekor layer-lər tap/click oğurlamasın (mobil açılmama səbəblərindən biri budur) */
+.neox-ai-decorFrame,
+.neox-ai-decorCorners,
+.neox-ai-scan,
+.neox-ai-noise,
+.neox-ai-markGlow,
+.neox-ai-markRing,
+.neox-ai-fabRing,
+.neox-ai-fabCore,
+.neox-ai-fabPing {
+  pointer-events: none !important;
+}
+
+/* Mesajlar “altına girməsin” — input hündürlüyü qədər bottom padding */
+.neox-ai-list {
+  padding-bottom: 92px; /* sadəcə rezerv yer */
+}
+
+/* Bubbles daşmasın */
+.neox-ai-bubble,
+.neox-ai-msg,
+.neox-ai-text {
+  min-width: 0;
+}
+.neox-ai-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Mobil: panel ekranın üstündən daşmasın, X düyməsi əlçatan olsun */
+@media (max-width: 520px) {
+  .neox-ai-panel {
+    inset: 10px;              /* sağ/sol/yuxarı/aşağı boşluq */
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .neox-ai-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .neox-ai-x {
+    touch-action: manipulation;
+  }
+}
