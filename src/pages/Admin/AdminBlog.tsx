@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminSectionSkeleton from "./AdminSectionSkeleton";
+import { useAdmin } from "./adminContext";
 
 /* =========================
    Helpers
@@ -65,43 +66,6 @@ type AdminPost = {
   updatedAt?: string;
 };
 
-/* =========================
-   Admin auth + API base
-   (sənin Admin pages-lərdə necədirsə, bu adaptivdir)
-========================= */
-const LS_TOKEN_KEYS = ["neox_admin_token", "ADMIN_TOKEN", "admin_token"];
-
-function readTokenFromStorage(): string {
-  for (const k of LS_TOKEN_KEYS) {
-    try {
-      const v = localStorage.getItem(k);
-      if (v && String(v).trim()) return String(v).trim();
-    } catch {}
-  }
-  return "";
-}
-
-function readApiBase(): string {
-  const raw = (import.meta as any)?.env?.VITE_API_BASE || "";
-  return String(raw || "").replace(/\/+$/, "");
-}
-
-function adminHeaders(token: string) {
-  const t = String(token || "").trim();
-  const h: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-  if (t) {
-    h["Authorization"] = `Bearer ${t}`;
-    h["x-admin-token"] = t; // legacy
-  }
-  return h;
-}
-
-/* =========================
-   UI types
-========================= */
 type EditDraft = {
   id?: string; // undefined => new
   lang: Lang;
@@ -124,7 +88,6 @@ type EditDraft = {
 function toDraft(p: AdminPost, fallbackLang: Lang): EditDraft {
   const lang = (p.lang as Lang) || fallbackLang;
   const status = p.status || (p.published ? "published" : "draft");
-
   const seoTitle = p.seo_title || p.seo?.title || "";
   const seoDesc = p.seo_description || p.seo?.description || "";
 
@@ -166,6 +129,30 @@ function emptyDraft(lang: Lang): EditDraft {
 }
 
 /* =========================
+   Media picker types
+========================= */
+type MediaItem = {
+  id: number;
+  secure_url: string;
+  url?: string;
+  public_id: string;
+  title?: string;
+  tags?: string[];
+  type?: string;
+  resource_type?: string;
+  deleted?: boolean;
+};
+
+function normalizeBase(v: any) {
+  return String(v || "").trim().replace(/\/+$/, "");
+}
+
+function isImage(m: MediaItem) {
+  const t = (m.type || m.resource_type || "").toLowerCase();
+  return t === "image";
+}
+
+/* =========================
    Main
 ========================= */
 export default function AdminBlog() {
@@ -173,8 +160,9 @@ export default function AdminBlog() {
   const nav = useNavigate();
   const langFromUrl = getLangFromPath(location.pathname);
 
-  const API_BASE = useMemo(() => readApiBase(), []);
-  const [token, setToken] = useState<string>(() => readTokenFromStorage());
+  // ✅ unified admin context
+  const { apiBase, token } = useAdmin();
+  const API_BASE = normalizeBase(apiBase);
 
   // list state
   const [rows, setRows] = useState<AdminPost[]>([]);
@@ -190,17 +178,31 @@ export default function AdminBlog() {
   const [editing, setEditing] = useState<EditDraft>(() => emptyDraft(langFromUrl));
   const [dirty, setDirty] = useState(false);
 
-  // cover upload
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  // toast
+  const [note, setNote] = useState<string | null>(null);
 
-  // keep token in sync if user logs in elsewhere
-  useEffect(() => {
-    const t = readTokenFromStorage();
-    if (t && t !== token) setToken(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  // ===== Media Picker modal =====
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickLoading, setPickLoading] = useState(false);
+  const [pickErr, setPickErr] = useState<string>("");
+  const [pickQ, setPickQ] = useState("");
+  const [pickItems, setPickItems] = useState<MediaItem[]>([]);
+
+  // ===== helpers =====
+  const updateField = <K extends keyof EditDraft>(k: K, v: EditDraft[K]) => {
+    setEditing((prev) => ({ ...prev, [k]: v }));
+    setDirty(true);
+  };
+
+  const adminHeaders = useCallback(() => {
+    const t = String(token || "").trim();
+    const h: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+    if (t) {
+      h["Authorization"] = `Bearer ${t}`;
+      h["x-admin-token"] = t;
+    }
+    return h;
+  }, [token]);
 
   // ====== API calls ======
   const fetchPosts = useCallback(async () => {
@@ -210,12 +212,12 @@ export default function AdminBlog() {
 
       if (!API_BASE) {
         setRows([]);
-        setErr("VITE_API_BASE tapılmadı. Frontend env-də API base olmalıdır.");
+        setErr("API base tapılmadı (adminContext apiBase).");
         return;
       }
       if (!token) {
         setRows([]);
-        setErr("Admin token tapılmadı. Login et, sonra yenilə.");
+        setErr("Admin token yoxdur. Login et, sonra yenilə.");
         return;
       }
 
@@ -227,22 +229,14 @@ export default function AdminBlog() {
       // primary endpoint
       let res = await fetch(`${API_BASE}/api/admin/posts?${params.toString()}`, {
         method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-          "x-admin-token": token,
-        },
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "x-admin-token": token },
       });
 
-      // fallback: legacy path (sənin skeleton chips-də /api/admin/blog yazılıb)
+      // fallback legacy
       if (!res.ok) {
         res = await fetch(`${API_BASE}/api/admin/blog?${params.toString()}`, {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-            "x-admin-token": token,
-          },
+          headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "x-admin-token": token },
         });
       }
 
@@ -288,8 +282,6 @@ export default function AdminBlog() {
         .filter(Boolean) as AdminPost[];
 
       setRows(norm);
-
-      // if nothing selected yet, keep current draft
     } catch (e: any) {
       setErr(String(e?.message || e));
       setRows([]);
@@ -305,27 +297,22 @@ export default function AdminBlog() {
   const openNew = useCallback(() => {
     setEditing(emptyDraft(langFromUrl));
     setDirty(false);
-    setUploadNote(null);
+    setNote(null);
   }, [langFromUrl]);
 
   const openEdit = useCallback(
     (p: AdminPost) => {
       setEditing(toDraft(p, langFromUrl));
       setDirty(false);
-      setUploadNote(null);
+      setNote(null);
     },
     [langFromUrl]
   );
 
-  const updateField = <K extends keyof EditDraft>(k: K, v: EditDraft[K]) => {
-    setEditing((prev) => ({ ...prev, [k]: v }));
-    setDirty(true);
-  };
-
-  // auto slug from title when creating new (and slug empty or matches old auto)
+  // auto slug for new posts
   const lastAutoSlug = useRef<string>("");
   useEffect(() => {
-    if (editing.id) return; // existing post
+    if (editing.id) return;
     const auto = safeSlugify(editing.title);
     const current = String(editing.slug || "");
     const canAuto = !current || current === lastAutoSlug.current;
@@ -335,11 +322,10 @@ export default function AdminBlog() {
     }
   }, [editing.title, editing.slug, editing.id]);
 
-  // save (create/update)
   const saveDraft = useCallback(async () => {
     try {
       setErr(null);
-      if (!API_BASE) throw new Error("VITE_API_BASE yoxdur.");
+      if (!API_BASE) throw new Error("API base yoxdur.");
       if (!token) throw new Error("Admin token yoxdur.");
 
       const body: any = {
@@ -352,113 +338,89 @@ export default function AdminBlog() {
         category: editing.category.trim(),
         author: editing.author.trim(),
         read_time: editing.read_time.trim(),
-        seo: {
-          title: editing.seo_title.trim(),
-          description: editing.seo_description.trim(),
-        },
+        seo: { title: editing.seo_title.trim(), description: editing.seo_description.trim() },
         status: editing.status || "draft",
       };
 
       if (!body.title) throw new Error("Title boşdur.");
       if (!body.slug) throw new Error("Slug boşdur.");
 
-      // create
       if (!editing.id) {
-        // primary
-        let res = await fetch(`${API_BASE}/api/admin/posts`, {
-          method: "POST",
-          headers: adminHeaders(token),
-          body: JSON.stringify(body),
-        });
-
-        // fallback legacy
+        let res = await fetch(`${API_BASE}/api/admin/posts`, { method: "POST", headers: adminHeaders(), body: JSON.stringify(body) });
         if (!res.ok) {
-          res = await fetch(`${API_BASE}/api/admin/blog`, {
-            method: "POST",
-            headers: adminHeaders(token),
-            body: JSON.stringify(body),
-          });
+          res = await fetch(`${API_BASE}/api/admin/blog`, { method: "POST", headers: adminHeaders(), body: JSON.stringify(body) });
         }
-
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j = await res.json();
         const created = (j?.post || j?.data || j) as any;
         const newId = String(created?.id ?? created?.post_id ?? "");
         if (newId) setEditing((p) => ({ ...p, id: newId }));
       } else {
-        // update
         let res = await fetch(`${API_BASE}/api/admin/posts/${encodeURIComponent(editing.id)}`, {
           method: "PATCH",
-          headers: adminHeaders(token),
+          headers: adminHeaders(),
           body: JSON.stringify(body),
         });
-
-        // fallback legacy
         if (!res.ok) {
           res = await fetch(`${API_BASE}/api/admin/blog/${encodeURIComponent(editing.id)}`, {
             method: "PATCH",
-            headers: adminHeaders(token),
+            headers: adminHeaders(),
             body: JSON.stringify(body),
           });
         }
-
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       }
 
       setDirty(false);
       await fetchPosts();
-      setUploadNote("✅ Saved");
-      window.setTimeout(() => setUploadNote(null), 1200);
+      setNote("✅ Saved");
+      window.setTimeout(() => setNote(null), 1200);
     } catch (e: any) {
       setErr(String(e?.message || e));
     }
-  }, [API_BASE, token, editing, fetchPosts]);
+  }, [API_BASE, token, editing, adminHeaders, fetchPosts]);
 
-  // publish/unpublish (tries dedicated endpoints, falls back to PATCH)
   const setPublish = useCallback(
     async (publish: boolean) => {
       try {
         setErr(null);
         if (!editing.id) throw new Error("Əvvəl save et (post ID lazımdır).");
-        if (!API_BASE) throw new Error("VITE_API_BASE yoxdur.");
+        if (!API_BASE) throw new Error("API base yoxdur.");
         if (!token) throw new Error("Admin token yoxdur.");
 
         const id = editing.id;
 
-        // try: /publish or /unpublish
         const tryEndpoints = async () => {
           const url1 = publish
             ? `${API_BASE}/api/admin/posts/${encodeURIComponent(id)}/publish`
             : `${API_BASE}/api/admin/posts/${encodeURIComponent(id)}/unpublish`;
-          let res = await fetch(url1, { method: "POST", headers: adminHeaders(token) });
+          let res = await fetch(url1, { method: "POST", headers: adminHeaders() });
           if (res.ok) return true;
 
-          // legacy
           const url2 = publish
             ? `${API_BASE}/api/admin/blog/${encodeURIComponent(id)}/publish`
             : `${API_BASE}/api/admin/blog/${encodeURIComponent(id)}/unpublish`;
-          res = await fetch(url2, { method: "POST", headers: adminHeaders(token) });
+          res = await fetch(url2, { method: "POST", headers: adminHeaders() });
           return res.ok;
         };
 
         const ok = await tryEndpoints();
 
         if (!ok) {
-          // fallback: patch status/published flag
           const patchBody: any = publish
             ? { status: "published", published: true, published_at: nowIso() }
             : { status: "draft", published: false, published_at: null };
 
           let res = await fetch(`${API_BASE}/api/admin/posts/${encodeURIComponent(id)}`, {
             method: "PATCH",
-            headers: adminHeaders(token),
+            headers: adminHeaders(),
             body: JSON.stringify(patchBody),
           });
 
           if (!res.ok) {
             res = await fetch(`${API_BASE}/api/admin/blog/${encodeURIComponent(id)}`, {
               method: "PATCH",
-              headers: adminHeaders(token),
+              headers: adminHeaders(),
               body: JSON.stringify(patchBody),
             });
           }
@@ -469,115 +431,58 @@ export default function AdminBlog() {
         setEditing((p) => ({ ...p, status: publish ? "published" : "draft" }));
         setDirty(false);
         await fetchPosts();
-        setUploadNote(publish ? "✅ Published" : "✅ Unpublished");
-        window.setTimeout(() => setUploadNote(null), 1200);
+        setNote(publish ? "✅ Published" : "✅ Unpublished");
+        window.setTimeout(() => setNote(null), 1200);
       } catch (e: any) {
         setErr(String(e?.message || e));
       }
     },
-    [API_BASE, token, editing.id, fetchPosts]
+    [API_BASE, token, editing.id, adminHeaders, fetchPosts]
   );
 
-  // ====== Cloudinary signed upload ======
-  const uploadCover = useCallback(
-    async (file: File) => {
-      try {
-        setErr(null);
-        setUploadNote(null);
-        if (!API_BASE) throw new Error("VITE_API_BASE yoxdur.");
-        if (!token) throw new Error("Admin token yoxdur.");
+  // ===== Media Picker =====
+  const loadMediaImages = useCallback(async () => {
+    setPickLoading(true);
+    setPickErr("");
+    try {
+      if (!API_BASE) throw new Error("API base yoxdur.");
+      if (!token) throw new Error("Admin token yoxdur.");
 
-        setUploading(true);
+      const sp = new URLSearchParams();
+      sp.set("type", "image");
+      sp.set("limit", "200");
+      if (pickQ.trim()) sp.set("q", pickQ.trim());
 
-        // 1) sign
-        const signRes = await fetch(`${API_BASE}/api/admin/media/sign`, {
-          method: "POST",
-          headers: adminHeaders(token),
-          body: JSON.stringify({
-            // optional hints to backend (safe if ignored)
-            kind: "blog_cover",
-            lang: editing.lang,
-          }),
-        });
-        if (!signRes.ok) throw new Error(`Sign HTTP ${signRes.status}`);
-        const sign = await signRes.json();
+      const res = await fetch(`${API_BASE}/api/admin/media?${sp.toString()}`, { headers: adminHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      const arr = (j?.media || j?.items || []) as MediaItem[];
+      const safe = Array.isArray(arr) ? arr : [];
+      setPickItems(safe.filter((x) => !x.deleted && isImage(x) && (x.secure_url || x.url)));
+    } catch (e: any) {
+      setPickErr(String(e?.message || e));
+      setPickItems([]);
+    } finally {
+      setPickLoading(false);
+    }
+  }, [API_BASE, token, pickQ, adminHeaders]);
 
-        const uploadUrl =
-          sign.upload_url || sign.uploadUrl || sign.url || "https://api.cloudinary.com/v1_1/" + sign.cloud_name + "/auto/upload";
+  useEffect(() => {
+    if (!pickOpen) return;
+    loadMediaImages();
+  }, [pickOpen, loadMediaImages]);
 
-        // expected fields
-        const signature = sign.signature;
-        const timestamp = sign.timestamp;
-        const apiKey = sign.api_key || sign.apiKey;
-        const folder = sign.folder || sign.params?.folder;
-
-        if (!signature || !timestamp || !apiKey) {
-          throw new Error("Sign response natamamdır (signature/timestamp/api_key).");
-        }
-
-        // 2) upload to Cloudinary
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("api_key", String(apiKey));
-        fd.append("timestamp", String(timestamp));
-        fd.append("signature", String(signature));
-        if (folder) fd.append("folder", String(folder));
-
-        // allow backend-provided extra params
-        const extra = sign.params && typeof sign.params === "object" ? sign.params : null;
-        if (extra) {
-          for (const [k, v] of Object.entries(extra)) {
-            if (v === undefined || v === null) continue;
-            if (k === "signature" || k === "timestamp" || k === "api_key" || k === "file") continue;
-            fd.append(k, String(v));
-          }
-        }
-
-        const upRes = await fetch(String(uploadUrl), { method: "POST", body: fd });
-        if (!upRes.ok) throw new Error(`Cloudinary HTTP ${upRes.status}`);
-        const up = await upRes.json();
-
-        const secureUrl = up.secure_url || up.url;
-        if (!secureUrl) throw new Error("Cloudinary cavabında secure_url yoxdur.");
-
-        // 3) store in media library (optional but recommended)
-        try {
-          await fetch(`${API_BASE}/api/admin/media`, {
-            method: "POST",
-            headers: adminHeaders(token),
-            body: JSON.stringify({
-              kind: "blog_cover",
-              tags: ["blog", "cover", editing.lang],
-              cloudinary: up,
-            }),
-          });
-        } catch {
-          // ignore – coverUrl yenə işləyəcək
-        }
-
-        updateField("coverUrl", String(secureUrl));
-        setUploadNote("✅ Cover uploaded");
-        window.setTimeout(() => setUploadNote(null), 1400);
-      } catch (e: any) {
-        setErr(String(e?.message || e));
-      } finally {
-        setUploading(false);
-      }
+  const pickCover = useCallback(
+    (m: MediaItem) => {
+      const u = m.secure_url || m.url || "";
+      if (!u) return;
+      updateField("coverUrl", u);
+      setPickOpen(false);
     },
-    [API_BASE, token, editing.lang]
+    [updateField]
   );
 
-  const onPickFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      e.target.value = "";
-      if (!f) return;
-      await uploadCover(f);
-    },
-    [uploadCover]
-  );
-
-  // ====== derived ======
+  // ===== derived =====
   const filteredRows = useMemo(() => {
     const qq = q.trim().toLowerCase();
     return rows
@@ -598,30 +503,16 @@ export default function AdminBlog() {
 
   const isPublished = editing.status === "published";
 
-  /* =========================
-     UI
-  ========================= */
   return (
     <AdminSectionSkeleton
       title="Blog"
-      subtitle="Post list + editor + publish. Cover upload Cloudinary signed media ilə işləyir."
-      chips={[
-        "/api/posts, /api/admin/posts",
-        "GET list",
-        "POST create",
-        "PATCH update",
-        "publish/unpublish",
-        "Cloudinary signed cover",
-      ]}
+      subtitle="Post list + editor + publish. Cover seçimi Media Library-dən 1 kliklə."
+      chips={["/api/admin/posts", "GET list", "POST create", "PATCH update", "publish/unpublish", "cover: pick from /api/admin/media"]}
     >
       {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            className="px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition"
-            onClick={openNew}
-            type="button"
-          >
+          <button className="px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition" onClick={openNew} type="button">
             + New post
           </button>
 
@@ -669,15 +560,11 @@ export default function AdminBlog() {
             Open Media
           </button>
 
-          {uploadNote ? <span className="text-white/70 text-sm ml-2">{uploadNote}</span> : null}
+          {note ? <span className="text-white/70 text-sm ml-2">{note}</span> : null}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            className="px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition"
-            onClick={fetchPosts}
-            type="button"
-          >
+          <button className="px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition" onClick={fetchPosts} type="button">
             Refresh
           </button>
         </div>
@@ -737,12 +624,7 @@ export default function AdminBlog() {
                 {filteredRows.map((p) => {
                   const pub = p.status === "published" || p.published;
                   return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => openEdit(p)}
-                      className="w-full text-left p-3 hover:bg-white/[0.04] transition"
-                    >
+                    <button key={p.id} type="button" onClick={() => openEdit(p)} className="w-full text-left p-3 hover:bg-white/[0.04] transition">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-white font-semibold truncate">{p.title}</div>
@@ -752,7 +634,9 @@ export default function AdminBlog() {
                           <span
                             className={cx(
                               "text-[11px] px-2 py-1 rounded-full border",
-                              pub ? "border-[rgba(47,184,255,.35)] bg-[rgba(47,184,255,.10)] text-white/85" : "border-white/10 bg-white/[0.03] text-white/60"
+                              pub
+                                ? "border-[rgba(47,184,255,.35)] bg-[rgba(47,184,255,.10)] text-white/85"
+                                : "border-white/10 bg-white/[0.03] text-white/60"
                             )}
                           >
                             {pub ? "Published" : "Draft"}
@@ -778,9 +662,7 @@ export default function AdminBlog() {
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
           <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-white font-semibold truncate">
-                {editing.id ? `Edit: ${editing.title || "Untitled"}` : "New post"}
-              </div>
+              <div className="text-white font-semibold truncate">{editing.id ? `Edit: ${editing.title || "Untitled"}` : "New post"}</div>
               <div className="text-white/55 text-xs truncate mt-0.5">
                 Status: {String(editing.status || "draft")} • Lang: {editing.lang.toUpperCase()}
               </div>
@@ -861,23 +743,19 @@ export default function AdminBlog() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="text-white/80 font-semibold">Cover</div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={onPickFile}
-                    className="hidden"
-                  />
                   <button
                     type="button"
-                    className={cx(
-                      "px-3 py-2 rounded-xl border transition",
-                      uploading ? "border-white/10 bg-white/[0.02] opacity-60" : "border-[rgba(47,184,255,.35)] bg-[rgba(47,184,255,.10)] hover:bg-[rgba(47,184,255,.14)]"
-                    )}
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploading}
+                    className="px-3 py-2 rounded-xl border border-[rgba(47,184,255,.35)] bg-[rgba(47,184,255,.10)] hover:bg-[rgba(47,184,255,.14)] transition"
+                    onClick={() => setPickOpen(true)}
                   >
-                    {uploading ? "Uploading…" : "Upload cover"}
+                    Pick from Media
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.06] transition"
+                    onClick={() => nav(`/${langFromUrl}/admin/media`)}
+                  >
+                    Upload in Media
                   </button>
                   <button
                     type="button"
@@ -901,13 +779,7 @@ export default function AdminBlog() {
 
               {editing.coverUrl ? (
                 <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
-                  <img
-                    src={editing.coverUrl}
-                    alt="cover"
-                    className="w-full h-[220px] object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  <img src={editing.coverUrl} alt="cover" className="w-full h-[220px] object-cover" loading="lazy" decoding="async" />
                 </div>
               ) : null}
             </div>
@@ -932,9 +804,7 @@ export default function AdminBlog() {
                 className="w-full min-h-[240px] rounded-xl border border-white/10 bg-black/20 px-3 py-2 outline-none text-white/90 placeholder:text-white/35 font-mono text-[13px]"
                 placeholder="Write your post content (plain text or HTML)…"
               />
-              <div className="text-white/45 text-[11px] mt-1">
-                İpucu: HTML göndərsən, public BlogPost onu render edəcək.
-              </div>
+              <div className="text-white/45 text-[11px] mt-1">İpucu: HTML göndərsən, public BlogPost onu render edəcək.</div>
             </div>
 
             {/* SEO */}
@@ -962,13 +832,143 @@ export default function AdminBlog() {
               </div>
             </div>
 
-            {/* Footer hints */}
             <div className="text-white/45 text-xs">
               API base: <span className="text-white/65">{API_BASE || "—"}</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ===== Media Picker Modal ===== */}
+      {pickOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.55)",
+            backdropFilter: "blur(8px)",
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 14,
+          }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPickOpen(false);
+          }}
+        >
+          <div
+            style={{
+              width: "min(980px, 100%)",
+              maxHeight: "85vh",
+              overflow: "hidden",
+              borderRadius: 18,
+              border: "1px solid rgba(255,255,255,.12)",
+              background: "rgba(10,10,12,.92)",
+              boxShadow: "0 28px 90px rgba(0,0,0,.55)",
+              display: "grid",
+              gridTemplateRows: "auto 1fr",
+            }}
+          >
+            <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,.10)", display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ fontWeight: 950, color: "rgba(255,255,255,.9)" }}>Pick cover from Media</div>
+              <div style={{ flex: 1 }} />
+              <input
+                value={pickQ}
+                onChange={(e) => setPickQ(e.target.value)}
+                placeholder="Search (title, tags, filename)…"
+                style={{
+                  width: 320,
+                  maxWidth: "52vw",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "white",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={loadMediaImages}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                {pickLoading ? "..." : "Search"}
+              </button>
+              <button
+                onClick={() => setPickOpen(false)}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "white",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ padding: 12, overflow: "auto" }}>
+              {pickErr ? (
+                <div style={{ marginBottom: 10, color: "#ffb3b3", fontWeight: 800 }}>Error: {pickErr}</div>
+              ) : null}
+
+              {pickLoading ? (
+                <div style={{ opacity: 0.75 }}>Loading…</div>
+              ) : pickItems.length ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+                  {pickItems.map((m) => {
+                    const url = m.secure_url || m.url || "";
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => pickCover(m)}
+                        style={{
+                          textAlign: "left",
+                          borderRadius: 16,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.03)",
+                          color: "white",
+                          padding: 10,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div
+                          style={{
+                            borderRadius: 12,
+                            overflow: "hidden",
+                            border: "1px solid rgba(255,255,255,0.10)",
+                            background: "rgba(255,255,255,0.03)",
+                            height: 110,
+                          }}
+                        >
+                          <img src={url} alt={m.title || m.public_id} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                        <div style={{ marginTop: 8, fontWeight: 900, fontSize: 12, lineHeight: 1.2 }}>
+                          {m.title || m.public_id}
+                        </div>
+                        {m.tags?.length ? <div style={{ marginTop: 6, opacity: 0.7, fontSize: 11 }}>{m.tags.slice(0, 3).join(", ")}</div> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ opacity: 0.75 }}>No images found.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminSectionSkeleton>
   );
 }

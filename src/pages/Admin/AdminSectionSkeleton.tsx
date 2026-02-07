@@ -232,5 +232,4 @@ function SkelRow() {
       <div style={{ height: 10, width: 60, borderRadius: 999, background: "rgba(255,255,255,.06)" }} />
     </div>
   );
-	req: any;
 }
