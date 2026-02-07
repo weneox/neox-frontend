@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (ELITE — modal overlay hard-lock + soft open + clean operator off)
+// src/components/NeoxAIWidget.tsx (FINAL — hard modal lock + soft open + no double arrow + clean operator OFF)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -172,7 +172,7 @@ function isApiBaseValid(base: string) {
   return /^https?:\/\/[^ "]+$/i.test(base);
 }
 
-/* ✅ iOS-safe body scroll lock (prevents background scroll + click) */
+/* ✅ iOS-safe body scroll lock (no background scroll) */
 function useBodyScrollLock(locked: boolean) {
   const scrollYRef = useRef(0);
 
@@ -193,25 +193,19 @@ function useBodyScrollLock(locked: boolean) {
     const prevTouch = body.style.touchAction;
     const prevPadRight = body.style.paddingRight;
 
-    // desktop scrollbar compensation
     const scrollBarW = window.innerWidth - docEl.clientWidth;
     if (scrollBarW > 0) body.style.paddingRight = `${scrollBarW}px`;
 
     body.style.overflow = "hidden";
     body.style.touchAction = "none";
 
-    // iOS hard lock
     body.style.position = "fixed";
     body.style.top = `-${scrollYRef.current}px`;
     body.style.left = "0";
     body.style.right = "0";
     body.style.width = "100%";
 
-    const prevent = (e: TouchEvent) => {
-      e.preventDefault();
-    };
-
-    // IMPORTANT: passive:false
+    const prevent = (e: TouchEvent) => e.preventDefault();
     document.addEventListener("touchmove", prevent, { passive: false });
 
     return () => {
@@ -226,7 +220,6 @@ function useBodyScrollLock(locked: boolean) {
       body.style.touchAction = prevTouch;
       body.style.paddingRight = prevPadRight;
 
-      // restore scroll position
       window.scrollTo(0, scrollYRef.current || 0);
     };
   }, [locked]);
@@ -236,10 +229,15 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
+  // ✅ do not show in admin panel
   if (isAdminPath(location.pathname)) return null;
 
+  // ✅ never "disappear": if API invalid, still show UI (fallback works)
   const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
-  if (!apiOk) return null;
+  if (!apiOk) {
+    // show nothing only if API_BASE is totally broken (very rare)
+    return null;
+  }
 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "suallar">("chat");
@@ -249,7 +247,7 @@ export default function NeoxAIWidget() {
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
 
-  // ✅ once open => add anim flag for soft entrance
+  // soft open flag for CSS
   const [animReady, setAnimReady] = useState(false);
   useEffect(() => {
     if (!open) {
@@ -531,7 +529,6 @@ export default function NeoxAIWidget() {
         hardResetChat();
         throw new Error("Unauthorized");
       }
-
       if (!r.ok) {
         const txt = await r.text().catch(() => "");
         throw new Error(`${r.status} ${txt || "Request failed"}`);
@@ -610,7 +607,7 @@ export default function NeoxAIWidget() {
     return l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
   }
 
-  // ✅ later we’ll implement proper backend endpoint; now: safe best-effort
+  // best-effort; backend endpointi sonra əlavə edəcəyik
   async function notifyHandoffToBackend(on: boolean) {
     try {
       const session_id = sessionIdRef.current;
@@ -638,14 +635,7 @@ export default function NeoxAIWidget() {
 
       setMsgs((p) => [
         ...p,
-        {
-          id: uid(),
-          role: "ai",
-          text: "Operator OFF • AI ON",
-          ts: Date.now(),
-          source: "ai",
-          kind: "system",
-        },
+        { id: uid(), role: "ai", text: "Operator OFF • AI ON", ts: Date.now(), source: "ai", kind: "system" },
       ]);
       return;
     }
@@ -674,40 +664,9 @@ export default function NeoxAIWidget() {
           : "AI ON • Operator OFF");
 
   return (
-    <div
-      className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")}
-      data-open={open ? "1" : "0"}
-      data-anim={animReady ? "1" : "0"}
-    >
-      {/* ✅ overlay MUST fully block background */}
-      <div
-        className={cx("neox-ai-overlay", open && "is-open")}
-        aria-hidden="true"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onPointerUp={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onTouchMove={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onWheel={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      />
+    <div className={cx("neox-ai", open && "is-open", handoff ? "is-operator" : "is-ai")} data-open={open ? "1" : "0"} data-anim={animReady ? "1" : "0"}>
+      {/* overlay: blocks EVERYTHING behind */}
+      <div className={cx("neox-ai-overlay", open && "is-open")} aria-hidden="true" />
 
       <button
         type="button"
@@ -737,38 +696,14 @@ export default function NeoxAIWidget() {
         role="dialog"
         aria-modal="true"
         aria-label={t("neoxAi.panelAria")}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onTouchMove={(e) => {
-          // keep scroll ONLY inside list; CSS will allow list scrolling
-          e.stopPropagation();
-        }}
-        onWheel={(e) => {
-          // prevent background wheel bubbling
-          e.stopPropagation();
-        }}
       >
         <div className="neox-ai-shell">
-          <div className="neox-ai-decorFrame" aria-hidden="true" />
-          <div className="neox-ai-decorCorners" aria-hidden="true" />
           <div className="neox-ai-scan" aria-hidden="true" />
           <div className="neox-ai-noise" aria-hidden="true" />
 
           <div className="neox-ai-top">
             <div className="neox-ai-brand">
               <div className="neox-ai-mark" aria-hidden="true">
-                <div className="neox-ai-markGlow" />
-                <div className="neox-ai-markRing" />
                 <RobotHeadIcon className="neox-ai-robot" />
               </div>
 
@@ -791,9 +726,7 @@ export default function NeoxAIWidget() {
                   </button>
 
                   <button type="button" onClick={hardResetChat} className={cx("neox-ai-pillBtn", "is-reset")}>
-                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset")
-                      ? (t("neoxAi.reset") as string)
-                      : "Reset"}
+                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
                   </button>
                 </div>
               </div>
@@ -811,11 +744,6 @@ export default function NeoxAIWidget() {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
-              }}
               aria-label={t("common.close")}
             >
               ✕
@@ -827,11 +755,7 @@ export default function NeoxAIWidget() {
               {t("neoxAi.tabs.chat")}
             </button>
 
-            <button
-              type="button"
-              className={cx("neox-ai-tab", tab === "suallar" && "is-active")}
-              onClick={() => setTab("suallar")}
-            >
+            <button type="button" className={cx("neox-ai-tab", tab === "suallar" && "is-active")} onClick={() => setTab("suallar")}>
               {t("neoxAi.tabs.quick")}
             </button>
 
@@ -880,12 +804,7 @@ export default function NeoxAIWidget() {
                     }
                   }}
                 />
-                <button
-                  type="button"
-                  className={cx("neox-ai-send", !canSend && "is-disabled")}
-                  onClick={() => send(input)}
-                  disabled={!canSend}
-                >
+                <button type="button" className={cx("neox-ai-send", !canSend && "is-disabled")} onClick={() => send(input)} disabled={!canSend}>
                   {t("neoxAi.input.send")}
                 </button>
               </div>

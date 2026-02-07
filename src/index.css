@@ -9481,51 +9481,24 @@ html {
 }
 
 /* =========================================================
-   NEOX AI WIDGET — ELITE MODAL (HARD LOCK + SOFT OPEN)
-   FIXES:
-   - overlay REALLY blocks clicks/scroll behind (navbar/X bug fixed)
-   - blur is instant on open (no transparent -> blur flash)
-   - soft opening animation for panel (smooth)
+   NEOX AI WIDGET — FINAL (VISIBLE + HARD MODAL LOCK)
 ========================================================= */
 
 .neox-ai{
-  --neox-bg: rgba(6, 10, 18, 0.96);
-  --neox-bg2: rgba(10, 16, 30, 0.94);
-  --neox-stroke: rgba(255,255,255,0.14);
-  --neox-stroke2: rgba(255,255,255,0.08);
-
-  --neox-text: rgba(255,255,255,0.92);
-  --neox-muted: rgba(255,255,255,0.66);
-
-  --neox-accent: #2f7bff;
-  --neox-accent2: #7bb0ff;
-  --neox-good: #62ffbf;
-  --neox-warn: #ffb24a;
-  --neox-warn2: #ff7a2f;
-
   position: fixed;
   right: 18px;
   bottom: 18px;
   z-index: 2147483000;
-
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
   -webkit-tap-highlight-color: transparent;
 
-  /* Closed: do not block page */
+  /* Closed: don't block page */
   pointer-events: none;
 }
 
-/* IMPORTANT FIX:
-   When OPEN -> allow overlay/panel to actually receive events. */
-.neox-ai.is-open{
-  pointer-events: auto;
-}
+/* OPEN: allow overlay/panel to capture events */
+.neox-ai.is-open{ pointer-events: auto; }
 
-/* FAB always clickable */
-.neox-ai-fab{ pointer-events: auto; }
-.neox-ai-panel{ pointer-events: auto; }
-
-/* ---------- animations ---------- */
 @keyframes neoxBreath {
   0%{ transform: scale(.92); opacity:.55; }
   50%{ transform: scale(1.15); opacity:1; }
@@ -9539,41 +9512,32 @@ html {
   .neox-ai *{ animation:none !important; transition:none !important; }
 }
 
-/* =========================================================
-   OVERLAY — instant blur + blocks background clicks/scroll
-========================================================= */
+/* overlay */
 .neox-ai-overlay{
   position: fixed;
   inset: 0;
-
-  /* Keep blur always defined to avoid "late blur" on iOS */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
 
   background:
     radial-gradient(1200px 700px at 75% 70%, rgba(47,123,255,0.14), transparent 60%),
     radial-gradient(900px 520px at 30% 20%, rgba(255,178,74,0.10), transparent 55%),
     rgba(0,0,0,0.36);
 
-  opacity: 0;
-  pointer-events: none;
-
-  /* performance hints */
-  will-change: opacity, backdrop-filter;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  will-change: opacity;
   transform: translateZ(0);
 }
-
-/* OPEN: show immediately (no transparent->blur flash) */
 .neox-ai.is-open .neox-ai-overlay{
   opacity: 1;
   pointer-events: auto;
   touch-action: none;
 }
 
-/* =========================================================
-   FAB — ELITE
-========================================================= */
+/* FAB */
 .neox-ai-fab{
+  pointer-events: auto;
   position: relative;
   width: 148px;
   height: 54px;
@@ -9600,13 +9564,7 @@ html {
 
   transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
 }
-.neox-ai-fab:hover{
-  transform: translateY(-2px);
-  border-color: rgba(255,255,255,0.18);
-  box-shadow:
-    0 38px 170px rgba(0,0,0,0.86),
-    0 0 0 1px rgba(255,255,255,0.07) inset;
-}
+.neox-ai-fab:hover{ transform: translateY(-2px); }
 .neox-ai-fab.is-open{ transform: translateY(-2px) scale(0.99); }
 
 .neox-ai-fabRing{
@@ -9620,14 +9578,12 @@ html {
   opacity: 0.95;
   pointer-events:none;
 }
-
 .neox-ai-fabCore{
   width: 12px; height: 12px;
   border-radius:999px;
   background: rgba(47,123,255,0.96);
   box-shadow: 0 0 0 7px rgba(47,123,255,0.16), 0 0 28px rgba(47,123,255,0.34);
 }
-
 .neox-ai-fabIcon{
   position:absolute;
   left: 14px;
@@ -9642,7 +9598,6 @@ html {
   color: rgba(255,255,255,0.90);
   filter: drop-shadow(0 0 14px rgba(47,123,255,0.44));
 }
-
 .neox-ai-fabText{
   font-weight: 980;
   letter-spacing: 0.14em;
@@ -9651,7 +9606,6 @@ html {
   color: rgba(255,255,255,0.94);
   padding-left: 30px;
 }
-
 .neox-ai-fabPing{
   position:absolute;
   right:-6px;
@@ -9672,12 +9626,7 @@ html {
   pointer-events:none;
 }
 
-/* =========================================================
-   PANEL — soft opening (smooth)
-   We use:
-   - .is-open for visible
-   - data-anim="0" for first frame (avoid sudden pop)
-========================================================= */
+/* PANEL (soft open) */
 .neox-ai-panel{
   position:absolute;
   right:0;
@@ -9687,48 +9636,24 @@ html {
   height: min(660px, calc(100dvh - 120px));
   max-height: calc(100dvh - 120px);
 
+  opacity:0;
+  transform: translateY(16px) scale(0.985);
   pointer-events:none;
   visibility:hidden;
 
-  /* base hidden */
-  opacity:0;
-  transform: translateY(16px) scale(0.985);
-
-  will-change: opacity, transform;
   transform-origin: bottom right;
 }
-
-/* open: start state (first tick) */
-.neox-ai.is-open[data-anim="0"] .neox-ai-panel{
-  visibility: visible;
-  pointer-events: auto;
-
-  opacity: 0;
-  transform: translateY(16px) scale(0.985);
-}
-
-/* open: final smooth state */
 .neox-ai.is-open[data-anim="1"] .neox-ai-panel{
-  visibility: visible;
-  pointer-events: auto;
-
-  opacity: 1;
+  opacity:1;
   transform: translateY(0) scale(1);
-
+  pointer-events:auto;
+  visibility:visible;
   transition:
     opacity 220ms ease,
     transform 380ms cubic-bezier(.16,1,.22,1);
 }
 
-/* (optional) keep compatibility with old class) */
-.neox-ai-panel.is-open{
-  visibility: visible;
-  pointer-events: auto;
-}
-
-/* =========================================================
-   SHELL
-========================================================= */
+/* shell */
 .neox-ai-shell{
   position:relative;
   width:100%;
@@ -9751,38 +9676,15 @@ html {
 
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-
   padding-bottom: env(safe-area-inset-bottom);
 }
-
-.neox-ai-shell::before{
-  content:"";
-  position:absolute;
-  inset:-2px;
-  border-radius: 22px;
-  background: conic-gradient(
-    from 180deg,
-    rgba(47,123,255,0.0),
-    rgba(47,123,255,0.18),
-    rgba(255,255,255,0.08),
-    rgba(255,178,74,0.10),
-    rgba(47,123,255,0.0)
-  );
-  filter: blur(14px);
-  opacity: 0.55;
-  pointer-events:none;
-}
-
-.neox-ai-decorFrame,
-.neox-ai-decorCorners,
-.neox-ai-scan,
-.neox-ai-noise{ pointer-events:none; }
 
 .neox-ai-scan{
   position:absolute; inset:0;
   background: repeating-linear-gradient(180deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 6px);
   opacity: 0.08;
   mix-blend-mode: overlay;
+  pointer-events:none;
 }
 .neox-ai-noise{
   position:absolute; inset:0;
@@ -9790,33 +9692,21 @@ html {
   background-size: 26px 26px;
   opacity: 0.03;
   filter: blur(0.2px);
+  pointer-events:none;
 }
 
-/* =========================================================
-   TOP BAR
-========================================================= */
+/* top */
 .neox-ai-top{
-  position:relative;
-  z-index: 5;
-  flex: 0 0 auto;
-
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap: 12px;
-
   padding: 14px 14px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   background: rgba(0,0,0,0.18);
 }
 
-.neox-ai-brand{
-  display:flex;
-  align-items:flex-start;
-  gap: 12px;
-  min-width:0;
-}
-
+.neox-ai-brand{ display:flex; gap: 12px; min-width:0; }
 .neox-ai-mark{
   position:relative;
   width: 42px; height:42px;
@@ -9853,7 +9743,6 @@ html {
   overflow:hidden;
   text-overflow: ellipsis;
 }
-
 .neox-ai-status{
   display:inline-flex;
   align-items:center;
@@ -9877,7 +9766,6 @@ html {
   color: rgba(255,255,255,0.84);
   white-space: nowrap;
 }
-
 .neox-ai-x{
   width: 38px; height: 38px;
   border-radius: 12px;
@@ -9886,249 +9774,42 @@ html {
   color: rgba(255,255,255,0.86);
   cursor:pointer;
   touch-action: manipulation;
-
-  /* extra safety: never let it pass events behind */
-  pointer-events: auto;
 }
 
-/* =========================================================
-   CONTROLS
-========================================================= */
-.neox-ai-controls{
-  margin-top: 10px;
-  display:flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items:center;
-}
+/* controls/tabs/list/input — səndəki dizaynla eyni saxlanır */
+.neox-ai-controls{ margin-top: 10px; display:flex; flex-wrap: wrap; gap: 8px; align-items:center; }
+.neox-ai-modePill{ display:inline-flex; align-items:center; gap:10px; padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.22); color: rgba(255,255,255,0.84); font-size: 11px; font-weight: 950; letter-spacing: 0.06em; }
+.neox-ai-modePill::before{ content:""; width: 10px; height: 10px; border-radius: 999px; background: radial-gradient(circle, rgba(47,123,255,1), rgba(47,123,255,0.35)); box-shadow: 0 0 16px rgba(47,123,255,0.40); animation: neoxBreath 1.8s ease-in-out infinite; }
+.neox-ai.is-operator .neox-ai-modePill::before{ background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35)); box-shadow: 0 0 18px rgba(98,255,191,0.42); }
 
-.neox-ai-modePill{
-  display:inline-flex;
-  align-items:center;
-  gap:10px;
-  padding: 7px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.22);
-  color: rgba(255,255,255,0.84);
-  font-size: 11px;
-  font-weight: 950;
-  letter-spacing: 0.06em;
-}
-.neox-ai-modePill::before{
-  content:"";
-  width: 10px; height: 10px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(47,123,255,1), rgba(47,123,255,0.35));
-  box-shadow: 0 0 16px rgba(47,123,255,0.40);
-  animation: neoxBreath 1.8s ease-in-out infinite;
-}
-.neox-ai.is-operator .neox-ai-modePill::before{
-  background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35));
-  box-shadow: 0 0 18px rgba(98,255,191,0.42);
-}
+.neox-ai-pillBtn{ height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.22); color: rgba(255,255,255,0.92); font-size: 11px; font-weight: 950; letter-spacing: 0.08em; cursor:pointer; touch-action: manipulation; display:inline-flex; align-items:center; gap: 8px; }
+.neox-ai-pillBtn.is-on{ border-color: rgba(98,255,191,0.28); background: rgba(98,255,191,0.10); }
+.neox-ai-pillBtn.is-on::before{ content:""; width: 9px; height: 9px; border-radius: 999px; background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35)); box-shadow: 0 0 18px rgba(98,255,191,0.42); animation: neoxBreath 1.5s ease-in-out infinite; }
+.neox-ai-pillBtn.is-reset{ border-color: rgba(255,178,74,0.24); background: rgba(255,178,74,0.08); }
+.neox-ai-pillBtn.is-reset::before{ content:""; width: 9px; height: 9px; border-radius: 999px; background: radial-gradient(circle, rgba(255,178,74,1), rgba(255,122,47,0.35)); box-shadow: 0 0 18px rgba(255,178,74,0.42); animation: neoxBreath 1.7s ease-in-out infinite; }
 
-.neox-ai-pillBtn{
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.22);
-  color: rgba(255,255,255,0.92);
-  font-size: 11px;
-  font-weight: 950;
-  letter-spacing: 0.08em;
-  cursor:pointer;
-  touch-action: manipulation;
-  display:inline-flex;
-  align-items:center;
-  gap: 8px;
-}
+.neox-ai-tabs{ display:flex; align-items:center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.12); }
+.neox-ai-tab{ height: 34px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.22); color: rgba(255,255,255,0.86); font-weight: 950; font-size: 12px; cursor:pointer; touch-action: manipulation; }
+.neox-ai-tab.is-active{ border-color: rgba(47,123,255,0.34); background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(180deg, rgba(47,123,255,0.22), rgba(0,0,0,0.20)); color: rgba(255,255,255,0.94); }
+.neox-ai-join{ margin-left:auto; height: 34px; display:inline-flex; align-items:center; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(47,123,255,0.22); color: rgba(255,255,255,0.92); text-decoration:none; font-weight: 950; font-size: 12px; background: rgba(47,123,255,0.10); white-space: nowrap; }
 
-.neox-ai-pillBtn.is-on{
-  border-color: rgba(98,255,191,0.28);
-  background: rgba(98,255,191,0.10);
-}
-.neox-ai-pillBtn.is-on::before{
-  content:"";
-  width: 9px; height: 9px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(98,255,191,1), rgba(98,255,191,0.35));
-  box-shadow: 0 0 18px rgba(98,255,191,0.42);
-  animation: neoxBreath 1.5s ease-in-out infinite;
-}
-
-.neox-ai-pillBtn.is-reset{
-  border-color: rgba(255,178,74,0.24);
-  background: rgba(255,178,74,0.08);
-}
-.neox-ai-pillBtn.is-reset::before{
-  content:"";
-  width: 9px; height: 9px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255,178,74,1), rgba(255,122,47,0.35));
-  box-shadow: 0 0 18px rgba(255,178,74,0.42);
-  animation: neoxBreath 1.7s ease-in-out infinite;
-}
-
-/* =========================================================
-   TABS
-========================================================= */
-.neox-ai-tabs{
-  position:relative;
-  z-index: 5;
-  flex: 0 0 auto;
-  display:flex;
-  align-items:center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.12);
-}
-
-.neox-ai-tab{
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.22);
-  color: rgba(255,255,255,0.86);
-  font-weight: 950;
-  font-size: 12px;
-  cursor:pointer;
-  touch-action: manipulation;
-}
-.neox-ai-tab.is-active{
-  border-color: rgba(47,123,255,0.34);
-  background:
-    radial-gradient(circle at 30% 20%, rgba(255,255,255,0.10), transparent 55%),
-    linear-gradient(180deg, rgba(47,123,255,0.22), rgba(0,0,0,0.20));
-  color: rgba(255,255,255,0.94);
-}
-
-.neox-ai-join{
-  margin-left:auto;
-  height: 34px;
-  display:inline-flex;
-  align-items:center;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(47,123,255,0.22);
-  color: rgba(255,255,255,0.92);
-  text-decoration:none;
-  font-weight: 950;
-  font-size: 12px;
-  background: rgba(47,123,255,0.10);
-  white-space: nowrap;
-}
-
-/* =========================================================
-   QUICK / LIST (scroll only here, never page)
-========================================================= */
 .neox-ai-quick,
-.neox-ai-list{
-  position:relative;
-  z-index: 4;
-  flex: 1 1 auto;
-  min-height: 0;
-
-  overflow:auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-
-  /* allow only vertical panning inside */
-  touch-action: pan-y;
-
-  padding: 12px 14px 12px;
-}
-
+.neox-ai-list{ flex: 1 1 auto; min-height: 0; overflow:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 12px 14px 12px; }
 .neox-ai-msg{ display:flex; margin: 10px 0; }
 .neox-ai-msg.is-user{ justify-content:flex-end; }
 .neox-ai-msg.is-ai,
 .neox-ai-msg.is-admin{ justify-content:flex-start; }
+.neox-ai-bubble{ max-width: 86%; border-radius: 18px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.22); padding: 10px 12px; box-shadow: 0 18px 44px rgba(0,0,0,0.38); }
+.neox-ai-msg.is-admin .neox-ai-bubble{ border-color: rgba(255,178,74,0.26); }
+.neox-ai-who{ font-size: 10px; font-weight: 950; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.62); margin-bottom: 6px; }
+.neox-ai-text{ white-space: pre-wrap; word-break: break-word; font-size: 12.8px; line-height: 1.48; color: rgba(255,255,255,0.90); }
 
-.neox-ai-bubble{
-  max-width: 86%;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.22);
-  padding: 10px 12px;
-  box-shadow: 0 18px 44px rgba(0,0,0,0.38);
-}
-.neox-ai-msg.is-admin .neox-ai-bubble{
-  border-color: rgba(255,178,74,0.26);
-}
-.neox-ai-who{
-  font-size: 10px;
-  font-weight: 950;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.62);
-  margin-bottom: 6px;
-}
-.neox-ai-text{
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12.8px;
-  line-height: 1.48;
-  color: rgba(255,255,255,0.90);
-}
-
-/* =========================================================
-   INPUT ROW (sticky)
-========================================================= */
-.neox-ai-inputRow{
-  position: sticky;
-  bottom: 0;
-  z-index: 6;
-  display:grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  padding: 12px 14px calc(14px + env(safe-area-inset-bottom)) 14px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.30);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.neox-ai-input{
-  height: 40px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.26);
-  color: rgba(255,255,255,0.92);
-  padding: 0 12px;
-  outline:none;
-}
-
-.neox-ai-send{
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(47,123,255,0.32);
-  background: rgba(47,123,255,0.16);
-  color: rgba(255,255,255,0.94);
-  font-weight: 950;
-  letter-spacing: 0.06em;
-  cursor:pointer;
-
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-
-  white-space: nowrap;
-  line-height: 1;
-  overflow: hidden;
-}
+.neox-ai-inputRow{ position: sticky; bottom: 0; display:grid; grid-template-columns: 1fr auto; gap: 10px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom)) 14px; border-top: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.30); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.neox-ai-input{ height: 40px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.26); color: rgba(255,255,255,0.92); padding: 0 12px; outline:none; }
+.neox-ai-send{ height: 40px; padding: 0 12px; border-radius: 14px; border: 1px solid rgba(47,123,255,0.32); background: rgba(47,123,255,0.16); color: rgba(255,255,255,0.94); font-weight: 950; letter-spacing: 0.06em; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; white-space: nowrap; line-height: 1; overflow: hidden; }
 .neox-ai-send.is-disabled,
-.neox-ai-send:disabled{
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+.neox-ai-send:disabled{ opacity: 0.55; cursor: not-allowed; }
 
-/* =========================================================
-   RESPONSIVE
-========================================================= */
 @media (max-width: 640px){
   .neox-ai{ right: 12px; bottom: 12px; }
   .neox-ai-fab{ width: 146px; }
