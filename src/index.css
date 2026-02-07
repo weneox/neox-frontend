@@ -10463,7 +10463,6 @@ html {
 
 /* Widget root klikləri bloklamasın */
 .neox-ai {
-  pointer-events: none;
   position: fixed; /* bəzi layoutlarda relative qalırsa mobil klik qırılır */
   right: 0;
   bottom: 0;
@@ -10614,3 +10613,6 @@ html {
     z-index: 10;
   }
 }
+
+.neox-ai { pointer-events: auto !important; }
+.neox-ai-fab { pointer-events: auto !important; touch-action: manipulation; }
