@@ -15,15 +15,15 @@ import UseCases from "./pages/UseCases";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost"; // ✅ NEW
 
 // ✅ ADMIN
 import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminLeads from "./pages/Admin/AdminLeads";
 import AdminChats from "./pages/Admin/AdminChats";
-import AdminStub from "./pages/Admin/AdminStub";
 import AdminMagic from "./pages/Admin/AdminMagic";
 
-// ✅ NEW: skeleton admin pages
+// ✅ skeleton admin pages
 import AdminBlog from "./pages/Admin/AdminBlog";
 import AdminProducts from "./pages/Admin/AdminProducts";
 import AdminMedia from "./pages/Admin/AdminMedia";
@@ -96,7 +96,6 @@ function LangGate() {
 
   // URL-də lang səhvdirsə, düz lang-a redirect
   if (!lang || lang !== safeLang) {
-    // "/x/..." -> "/safeLang/..."
     const rest = location.pathname.replace(/^\/[^/]+/, "");
     const next = `/${safeLang}${rest || ""}${location.search}${location.hash}`;
     return <Navigate to={next} replace />;
@@ -115,20 +114,11 @@ function WithLayout() {
 }
 
 /**
- * Admin route-larda Layout daxilində hər hansı widget/supabase işləyirsə,
- * burada "admin-də heç nə əlavə etmə" kimi saxlayırıq.
- * (AdminLayout öz UI-sini verir.)
+ * Admin route-larda Layout daxilində əlavə bir şey işləyirsə
+ * buranı saxlayırıq, amma indi sadə wrapper-dir.
  */
 function AdminOnlyGate({ children }: { children: React.ReactNode }) {
-  const loc = useLocation();
-  const lang = getLangFromPath(loc.pathname) || DEFAULT_LANG;
-  const isAdmin = loc.pathname.startsWith(`/${lang}/admin`) || loc.pathname.startsWith("/admin");
-  return (
-    <>
-      {children}
-      {isAdmin ? null : null}
-    </>
-  );
+  return <>{children}</>;
 }
 
 /** ✅ langsız /admin/magic -> /:lang/admin/magic (query/hash saxlanır) */
@@ -207,13 +197,10 @@ export default function App() {
                 <Route path="chats" element={<AdminChats />} />
                 <Route path="chats/:id" element={<AdminChats />} />
 
-                {/* ✅ Stub -> real skeleton pages */}
+                {/* ✅ Admin pages */}
                 <Route path="blog" element={<AdminBlog />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="media" element={<AdminMedia />} />
-
-                {/* istəsən AdminStub-u başqa yerdə saxla */}
-                {/* <Route path="something" element={<AdminStub title="Coming soon" />} /> */}
               </Route>
 
               {/* ✅ normal pages: Layout VAR */}
@@ -224,7 +211,10 @@ export default function App() {
                 <Route path="use-cases" element={<UseCases />} />
                 <Route path="pricing" element={<Pricing />} />
                 <Route path="contact" element={<Contact />} />
+
+                {/* ✅ Blog */}
                 <Route path="blog" element={<Blog />} />
+                <Route path="blog/:slug" element={<BlogPost />} />
               </Route>
             </Route>
 
