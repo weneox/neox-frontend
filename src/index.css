@@ -10455,3 +10455,118 @@ html {
   letter-spacing: .12em;
   text-transform: uppercase;
 }
+
+/* ===== NEOX AI Widget layout fix ===== */
+.neox-ai-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(420px, calc(100vw - 20px));
+  height: min(640px, calc(100dvh - 20px));
+  max-height: calc(100dvh - 20px);
+}
+
+.neox-ai-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* IMPORTANT */
+}
+
+.neox-ai-top,
+.neox-ai-tabs {
+  flex: 0 0 auto;
+}
+
+.neox-ai-list {
+  flex: 1 1 auto;
+  min-height: 0;            /* IMPORTANT */
+  overflow: auto;
+  padding-bottom: 84px;     /* input row üçün yer */
+  overscroll-behavior: contain;
+}
+
+.neox-ai-inputRow {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* bubbles never overflow */
+.neox-ai-msg { min-width: 0; }
+.neox-ai-bubble {
+  max-width: min(78%, 560px);
+  min-width: 0;
+}
+.neox-ai-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* controls wrap nicely */
+.neox-ai-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.neox-ai-modePill {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .85;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.22);
+}
+.neox-ai-pillBtn {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.90);
+  cursor: pointer;
+}
+.neox-ai-pillBtn.is-on {
+  background: rgba(255,255,255,.08);
+}
+
+/* ===== Mobile full-screen + safe areas ===== */
+@media (max-width: 520px) {
+  .neox-ai-panel {
+    inset: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-radius: 16px;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .neox-ai-top {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    padding-top: 10px;
+  }
+
+  .neox-ai-x {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+  }
+
+  .neox-ai-list {
+    padding-bottom: 92px;
+  }
+}

@@ -1,4 +1,4 @@
-// src/components/NeoxAIWidget.tsx (FINAL PRO — OpenAI safe history + cleaner enter + stable polling)
+// src/components/NeoxAIWidget.tsx (FINAL PRO — i18n reactive welcome + better layout hooks + stable polling)
 // ✅ Works with current server.js response shape: { lead_id, text, handoff }
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +8,8 @@ import { useTranslation } from "react-i18next";
 type UiRole = "user" | "ai";
 type LlmRole = "user" | "assistant";
 type MsgSource = "ai" | "admin";
-type Msg = { id: string; role: UiRole; text: string; ts?: number; source?: MsgSource };
+type MsgKind = "welcome" | "system" | "normal";
+type Msg = { id: string; role: UiRole; text: string; ts?: number; source?: MsgSource; kind?: MsgKind };
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -20,8 +21,8 @@ function cx(...xs: Array<string | false | null | undefined>) {
 /**
  * ✅ API base resolution priority:
  *  1) window.__NEOX_API__ (runtime override, optional)
- *  2) VITE_API_BASE (Netlify/Vite env at build-time)
- *  3) Production fallback (Railway)  ✅ NO localhost in prod
+ *  2) VITE_API_BASE (build-time)
+ *  3) Production fallback (Railway)
  */
 const PROD_BACKEND_FALLBACK = "https://neox-backend-production.up.railway.app";
 const API_BASE_RAW =
@@ -190,7 +191,7 @@ export default function NeoxAIWidget() {
   // ✅ never mount on admin routes
   if (isAdminPath(location.pathname)) return null;
 
-  const apiOk = useMemo(() => isApiBaseValid(API_BASE), [/* stable constant */]);
+  const apiOk = useMemo(() => isApiBaseValid(API_BASE), []);
   if (!apiOk) return null;
 
   const [open, setOpen] = useState(false);
@@ -200,6 +201,8 @@ export default function NeoxAIWidget() {
 
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
+
+  const welcomeIdRef = useRef<string>(uid());
 
   const QUICK = useMemo(() => {
     const arr = t("neoxAi.quick.items", { returnObjects: true }) as unknown;
@@ -212,27 +215,26 @@ export default function NeoxAIWidget() {
       "Məhsul soruşan müştəriyə nümunə cavab yaz.",
       "Bir kampaniya üçün 3 hazır reply şablonu ver.",
     ];
-  }, [t]);
+  }, [t, i18n.language]);
 
-  const [msgs, setMsgs] = useState<Msg[]>(() => [{ id: uid(), role: "ai", text: "" }]);
+  const [msgs, setMsgs] = useState<Msg[]>(() => [
+    { id: welcomeIdRef.current, role: "ai", text: String(t("neoxAi.welcome")), ts: Date.now(), source: "ai", kind: "welcome" },
+  ]);
+
   const msgsRef = useRef<Msg[]>(msgs);
-
   useEffect(() => {
     msgsRef.current = msgs;
   }, [msgs]);
 
   const [leadIdLive, setLeadIdLive] = useState<string | null>(() => getStoredLeadId());
 
-  // welcome text
+  // ✅ update welcome message when language changes
   useEffect(() => {
-    setMsgs((p) => {
-      const first = p[0];
-      if (!first) return p;
-      if (first.text?.trim()) return p;
-      return [{ ...first, text: t("neoxAi.welcome") }, ...p.slice(1)];
-    });
+    setMsgs((p) =>
+      p.map((m) => (m.kind === "welcome" ? { ...m, text: String(t("neoxAi.welcome")) } : m))
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t]);
+  }, [i18n.language]);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const canSend = useMemo(() => input.trim().length > 0 && !typing, [input, typing]);
@@ -314,7 +316,6 @@ export default function NeoxAIWidget() {
 
       if (normalized.length === 0) return;
 
-      // update cursor
       let maxTs = lastSeenTsRef.current;
       for (const it of normalized) maxTs = Math.max(maxTs, it.ts || 0);
       if (maxTs > lastSeenTsRef.current) {
@@ -326,7 +327,6 @@ export default function NeoxAIWidget() {
       if (fresh.length === 0) return;
       for (const it of fresh) seenAdminIdsRef.current.add(it.id);
 
-      // admin reply => operator mode ON (local)
       if (fresh.some((x) => x.source === "admin")) {
         setHandoff(true);
         setStoredHandoff(sessionIdRef.current, true);
@@ -340,6 +340,7 @@ export default function NeoxAIWidget() {
           text: x.text,
           ts: x.ts,
           source: x.source,
+          kind: "normal" as const,
         })),
       ]);
     } catch {
@@ -349,7 +350,6 @@ export default function NeoxAIWidget() {
     }
   }
 
-  // ✅ only reset seen ids when lead changes (not on open/close)
   useEffect(() => {
     if (!leadIdLive) return;
     loadLastSeenTs(leadIdLive);
@@ -358,7 +358,6 @@ export default function NeoxAIWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadIdLive]);
 
-  // ✅ interval depends on open state (but doesn't reset cursor/seen)
   useEffect(() => {
     if (!leadIdLive) return;
 
@@ -411,7 +410,11 @@ export default function NeoxAIWidget() {
     setTyping(false);
     setInput("");
     setTab("chat");
-    setMsgs([{ id: uid(), role: "ai", text: t("neoxAi.welcome") }]);
+
+    welcomeIdRef.current = uid();
+    setMsgs([
+      { id: welcomeIdRef.current, role: "ai", text: String(t("neoxAi.welcome")), ts: Date.now(), source: "ai", kind: "welcome" },
+    ]);
   }
 
   async function send(text: string, opts?: { requestOperator?: boolean }) {
@@ -426,13 +429,13 @@ export default function NeoxAIWidget() {
     const page = window.location.pathname;
     const leadId = getStoredLeadId();
 
-    const userMsg: Msg = { id: uid(), role: "user", text: tt, ts: Date.now() };
+    const userMsg: Msg = { id: uid(), role: "user", text: tt, ts: Date.now(), kind: "normal" };
     setMsgs((p) => [...p, userMsg]);
     setInput("");
     setTyping(true);
 
     const aiId = uid();
-    setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai" }]);
+    setMsgs((p) => [...p, { id: aiId, role: "ai", text: "", ts: Date.now(), source: "ai", kind: "normal" }]);
 
     try {
       sendAbortRef.current?.abort();
@@ -441,7 +444,6 @@ export default function NeoxAIWidget() {
     sendAbortRef.current = ac;
 
     try {
-      // ✅ IMPORTANT: don't send admin replies as chat history to OpenAI
       const history = msgsRef.current
         .filter((m) => (m.text || "").trim().length > 0)
         .filter((m) => !(m.role === "ai" && m.source === "admin"))
@@ -450,7 +452,7 @@ export default function NeoxAIWidget() {
       const payload = {
         messages: [...history, { role: "user" as const, content: tt }],
         session_id: sessionId,
-        lead_id: leadId, // server ignore edə bilər, problem deyil
+        lead_id: leadId,
         lang,
         channel: "web",
         page,
@@ -458,7 +460,6 @@ export default function NeoxAIWidget() {
         request_operator: requestOperator ? true : false,
       };
 
-      // optimistic: operator requested => set local handoff
       if (requestOperator) {
         setHandoff(true);
         setStoredHandoff(sessionId, true);
@@ -496,7 +497,6 @@ export default function NeoxAIWidget() {
       const full = String((data as any)?.text ?? (data as any)?.reply ?? "").trim();
       if (!full) throw new Error("Empty response from backend");
 
-      // typing animation
       let i = 0;
       const step = () => {
         const inc = Math.max(1, Math.floor(full.length / 120));
@@ -550,19 +550,28 @@ export default function NeoxAIWidget() {
         {
           id: uid(),
           role: "ai",
-          text: "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
+          text:
+            (t("neoxAi.operator.alreadyOn") as string) &&
+            !String(t("neoxAi.operator.alreadyOn")).includes("neoxAi.operator.alreadyOn")
+              ? (t("neoxAi.operator.alreadyOn") as string)
+              : "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
           ts: Date.now(),
           source: "ai",
+          kind: "system",
         },
       ]);
       return;
     }
 
+    const l = getLangSafe(i18n.language);
+
     const azText = "Operator istəyirəm. Zəhmət olmasa canlı dəstəyə qoşun.";
     const enText = "I want a human operator. Please connect me to live support.";
-    const l = getLangSafe(i18n.language);
-    const txt = l === "en" ? enText : azText;
+    const ruText = "Хочу оператора. Пожалуйста, подключите меня к живой поддержке.";
+    const trText = "Canlı operatör istiyorum. Lütfen canlı desteğe bağlayın.";
+    const esText = "Quiero un operador humano. Por favor, conéctenme con soporte en vivo.";
 
+    const txt = l === "en" ? enText : l === "ru" ? ruText : l === "tr" ? trText : l === "es" ? esText : azText;
     send(txt, { requestOperator: true });
   }
 
@@ -576,7 +585,14 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.chat.ai") as string)
       : "NEOX AI";
 
-  const modeText = handoff ? "Operator ON • AI OFF" : "AI ON • Operator OFF";
+  const modeText =
+    handoff
+      ? ((t("neoxAi.mode.operatorOn") as string) && !String(t("neoxAi.mode.operatorOn")).includes("neoxAi.mode.operatorOn")
+          ? (t("neoxAi.mode.operatorOn") as string)
+          : "Operator ON • AI OFF")
+      : ((t("neoxAi.mode.aiOn") as string) && !String(t("neoxAi.mode.aiOn")).includes("neoxAi.mode.aiOn")
+          ? (t("neoxAi.mode.aiOn") as string)
+          : "AI ON • Operator OFF");
 
   return (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
@@ -621,54 +637,15 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      letterSpacing: ".08em",
-                      textTransform: "uppercase",
-                      opacity: 0.85,
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,.14)",
-                      background: "rgba(0,0,0,.22)",
-                    }}
-                  >
-                    {modeText}
-                  </span>
+                <div className="neox-ai-controls">
+                  <span className="neox-ai-modePill">{modeText}</span>
 
-                  <button
-                    type="button"
-                    onClick={requestOperator}
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,.16)",
-                      background: handoff ? "rgba(255,255,255,.08)" : "rgba(20,82,199,.20)",
-                      color: "rgba(255,255,255,.92)",
-                      cursor: "pointer",
-                    }}
-                    title="Canlı operatora keç"
-                  >
+                  <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")} title="Canlı operatora keç">
                     {OP_LABEL}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={hardResetChat}
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,.12)",
-                      background: "rgba(255,255,255,.06)",
-                      color: "rgba(255,255,255,.86)",
-                      cursor: "pointer",
-                    }}
-                    title="Söhbəti sıfırla"
-                  >
-                    Reset
+                  <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn" title="Söhbəti sıfırla">
+                    {(t("neoxAi.reset") as string) && !String(t("neoxAi.reset")).includes("neoxAi.reset") ? (t("neoxAi.reset") as string) : "Reset"}
                   </button>
                 </div>
               </div>
@@ -684,11 +661,7 @@ export default function NeoxAIWidget() {
               {t("neoxAi.tabs.chat")}
             </button>
 
-            <button
-              type="button"
-              className={cx("neox-ai-tab", tab === "suallar" && "is-active")}
-              onClick={() => setTab("suallar")}
-            >
+            <button type="button" className={cx("neox-ai-tab", tab === "suallar" && "is-active")} onClick={() => setTab("suallar")}>
               {t("neoxAi.tabs.quick")}
             </button>
 
