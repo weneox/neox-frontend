@@ -476,6 +476,25 @@ export default function About() {
           .ab-title{ font-size: 30px; line-height: 1.05; }
         }
 
+        .ab-titleLine{
+          display:block;
+          text-align:center;
+          text-wrap: balance;
+        }
+
+        .ab-quoteWrap{
+          display:inline-flex;
+          align-items: baseline;
+          gap: .06em;
+          white-space: nowrap;
+        }
+
+        .ab-quote{
+          display:inline-block;
+          opacity:.92;
+          transform: translateY(-.02em);
+        }
+
         .ab-sub{
           margin: 14px auto 0;
           max-width: 980px;
@@ -499,8 +518,8 @@ export default function About() {
           border: 1px solid rgba(255,255,255,.12);
           background: rgba(255,255,255,.03);
           box-shadow: 0 14px 52px rgba(0,0,0,.60);
-          max-width: 100%;
-          justify-content: center;
+          max-width: min(560px, 100%);
+          white-space: nowrap;
         }
         .ab-kdot{
           width: 8px;
@@ -1054,9 +1073,15 @@ export default function About() {
 
           {/* Title (✅ mobil üçün daha yığcam quruluş) */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            {t("about.hero.title.0")} “
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>”
-            {t("about.hero.title.1")}
+            <span className="ab-titleLine">
+              {t("about.hero.title.0")} “
+              <span className="ab-quoteWrap" aria-label="quote">
+                <span className="ab-quote" aria-hidden="true">“</span>
+                <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
+                <span className="ab-quote" aria-hidden="true">”</span>
+              </span>
+              {t("about.hero.title.1")}
+            </span>
             {/* ✅ mobil: əlavə forced <br/> yoxdur, özü balanslayır */}
             <span style={{ display: "block", marginTop: 10 }}>
               {t("about.hero.title.2")}{" "}
