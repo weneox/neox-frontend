@@ -3136,10 +3136,6 @@ body::before{
   will-change: transform;
 }
 
-@media (max-width: 1200px){
-  .neo-connectorOverlay{ display:none !important; }
-}
-
 .neo-hero-canvas{ contain: paint; }
 
 /* ========================= MOBILE = DESKTOP-LIKE (CONTROLLED) ========================= */
@@ -3159,12 +3155,6 @@ body::before{
     backdrop-filter: none !important;
     filter: none !important;
     box-shadow: 0 14px 40px rgba(0,0,0,.55) !important;
-  }
-
-  /* 3) Connector / xətlər mobil-də OFF (əsas fərq budur) */
-  .neo-connectorOverlay,
-  .neo-connectorSvg{
-    display: none !important;
   }
 
   /* 4) Particle / axan nöqtələr OFF */
@@ -3390,13 +3380,6 @@ body::before{
     filter: none !important;
   }
 
-  /* ---------- CONNECTOR / SVG OVERLAY OFF ---------- */
-  .neo-connectorOverlay,
-  .neo-connectorSvg{
-    display: none !important;
-  }
-}
-
 /* ========================= PHONE LOCK — NO OVERFLOW (<=560px) ========================= */
 @media (max-width: 560px){
 
@@ -3490,15 +3473,6 @@ body::before{
     font-size: 10px !important;
     padding: 6px 8px !important;
     letter-spacing: .10em !important;
-  }
-
-  /* 9) Connector overlay + ağır FX mobilə lazım deyil */
-  .neo-connectorOverlay,
-  .neo-connectorSvg,
-  .neo-flight-bridge,
-  .neo-drop-bridge,
-  .neo-pipefill{
-    display: none !important;
   }
 
   /* 10) Scroll “reveal-dən gələn” sağ/sol/yuxarı enmələri söndür */
