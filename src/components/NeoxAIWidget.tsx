@@ -1,5 +1,3 @@
-// src/components/NeoxAIWidget.tsx (FINAL — Portal render + Mobile tap fix + Futuristic status chips)
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -111,7 +109,6 @@ function detectOperatorIntent(text: string) {
     s.includes("поддерж") ||
     s.includes("zəng") ||
     s.includes("zeng") ||
-    s.includes("whatsappda danış") ||
     (s.includes("whatsapp") && s.includes("yaz"))
   );
 }
@@ -133,7 +130,7 @@ function RobotHeadIcon({ className }: { className?: string }) {
         opacity="0.08"
       />
       <path
-        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-5-2.239-5-5v-2Z"
+        d="M23 33c0-2.761 2.239-5 5-5h8c2.761 0 5 2.239 5 5v2c0 2.761-2.239 5-5 5h-8c-2.761 0-12-2.239-12-5v-2Z"
         stroke="currentColor"
         strokeWidth="2"
         opacity="0.9"
@@ -169,7 +166,6 @@ export default function NeoxAIWidget() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
-  // Portal mount (fixes mobile fixed/transform stacking bugs)
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -182,6 +178,8 @@ export default function NeoxAIWidget() {
   const [tab, setTab] = useState<"chat" | "suallar">("chat");
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+
+  const fabRef = useRef<HTMLButtonElement | null>(null);
 
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const [handoff, setHandoff] = useState<boolean>(() => getStoredHandoff(sessionIdRef.current));
@@ -218,6 +216,28 @@ export default function NeoxAIWidget() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const canSend = useMemo(() => input.trim().length > 0 && !typing, [input, typing]);
 
+  // ====== MOBILE OPEN HARD FIX ======
+  const toggleOpen = () => setOpen((s) => !s);
+
+  useEffect(() => {
+    const el = fabRef.current;
+    if (!el) return;
+
+    // Native touchend fallback (iOS click ölsə də işləyir)
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault(); // important: stop ghost click & ensure toggle
+      e.stopPropagation();
+      toggleOpen();
+    };
+
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+
+    return () => {
+      el.removeEventListener("touchend", onTouchEnd as any);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fabRef.current]);
+
   useEffect(() => {
     const onOpen = () => setOpen(true);
     window.addEventListener("neox-ai:open", onOpen as any);
@@ -240,7 +260,7 @@ export default function NeoxAIWidget() {
   const sendAbortRef = useRef<AbortController | null>(null);
 
   function loadLastSeenTs(leadId: string) {
-    const raw = safeLSGet(lastAdminTsKey(leadId));
+    const raw = safeLSGet(`neox_last_admin_ts:${leadId}`);
     lastSeenTsRef.current = Number(raw || "0") || 0;
   }
   function persistLastSeenTs(leadId: string, ts: number) {
@@ -521,11 +541,7 @@ export default function NeoxAIWidget() {
         {
           id: uid(),
           role: "ai",
-          text:
-            (t("neoxAi.operator.alreadyOn") as string) &&
-            !String(t("neoxAi.operator.alreadyOn")).includes("neoxAi.operator.alreadyOn")
-              ? (t("neoxAi.operator.alreadyOn") as string)
-              : "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
+          text: "✅ Operator rejimi aktivdir. Operatorumuz tezliklə sizə yazacaq.",
           ts: Date.now(),
           source: "ai",
           kind: "system",
@@ -560,22 +576,18 @@ export default function NeoxAIWidget() {
       ? (t("neoxAi.reset") as string)
       : "Reset";
 
-  // Mobile tap: do NOT preventDefault on pointer/touch; toggle on click.
-  const toggleOpen = (e: any) => {
-    e?.stopPropagation?.();
-    setOpen((s) => !s);
-  };
-
   const ui = (
     <div className={cx("neox-ai", open && "is-open")} data-open={open ? "1" : "0"}>
       <button
+        ref={fabRef}
         type="button"
         className={cx("neox-ai-fab", open && "is-open")}
         onPointerDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.preventDefault();
-          toggleOpen(e);
+          e.stopPropagation();
+          toggleOpen();
         }}
         aria-label={t("neoxAi.fabAria")}
       >
@@ -613,7 +625,7 @@ export default function NeoxAIWidget() {
               <div className="neox-ai-brandText">
                 <div className="neox-ai-titleRow">
                   <div className="neox-ai-title">{t("neoxAi.brand")}</div>
-                  <div className="neox-ai-status" title={handoff ? "Operator live" : "AI live"}>
+                  <div className="neox-ai-status">
                     <span className="neox-ai-statusDot" />
                     <span className="neox-ai-statusTxt">{t("neoxAi.status")}</span>
                   </div>
@@ -621,29 +633,27 @@ export default function NeoxAIWidget() {
 
                 <div className="neox-ai-sub">{t("neoxAi.subtitle")}</div>
 
-                {/* Futuristic status UI */}
+                {/* ✅ chips: robot AI ON yanında + operator/reset chip button */}
                 <div className="neox-ai-controls">
-                  <div className="neox-ai-statusChips">
-                    <span className={cx("neox-ai-chip", "ai", !handoff && "is-active")} title="AI mode">
-                      <span className="neox-ai-chipDot" />
+                  <div className="neox-ai-chipRow">
+                    <button type="button" className={cx("neox-ai-chipBtn", "ai", !handoff && "is-active")} onClick={() => setHandoff(false)}>
+                      <span className="neox-ai-chipIcon" aria-hidden="true">
+                        <RobotHeadIcon />
+                      </span>
+                      <span className="neox-ai-chipDot" aria-hidden="true" />
                       <span>AI</span>
                       <span style={{ opacity: 0.85 }}>{!handoff ? "ON" : "OFF"}</span>
-                    </span>
-
-                    <span className={cx("neox-ai-chip", "op", handoff && "is-active")} title="Operator mode">
-                      <span className="neox-ai-chipDot" />
-                      <span>Operator</span>
-                      <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
-                    </span>
-                  </div>
-
-                  <div className="neox-ai-actions">
-                    <button type="button" onClick={requestOperator} className={cx("neox-ai-pillBtn", handoff && "is-on")}>
-                      {OP_LABEL}
                     </button>
 
-                    <button type="button" onClick={hardResetChat} className="neox-ai-pillBtn">
-                      {resetLabel}
+                    <button type="button" className={cx("neox-ai-chipBtn", "op", handoff && "is-active")} onClick={requestOperator}>
+                      <span className="neox-ai-chipDot" aria-hidden="true" />
+                      <span>Operator</span>
+                      <span style={{ opacity: 0.85 }}>{handoff ? "ON" : "OFF"}</span>
+                    </button>
+
+                    <button type="button" className={cx("neox-ai-chipBtn", "reset")} onClick={hardResetChat}>
+                      <span className="neox-ai-chipDot" aria-hidden="true" />
+                      <span>{resetLabel}</span>
                     </button>
                   </div>
                 </div>
