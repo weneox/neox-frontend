@@ -1,11 +1,7 @@
 // src/pages/Admin/AdminMedia.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminSectionSkeleton from "./AdminSectionSkeleton";
-
-const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
-const API_BASE = String(API_BASE_RAW || "").replace(/\/+$/, "");
-
-const LS_TOKEN = "neox_admin_token";
+import { useAdmin } from "./adminContext";
 
 type MediaItem = {
   id: number;
@@ -51,33 +47,8 @@ function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-function getToken() {
-  return String(localStorage.getItem(LS_TOKEN) || "").trim();
-}
-
-async function apiFetch(path: string, opts: RequestInit = {}) {
-  const token = getToken();
-  const headers = new Headers(opts.headers || {});
-  if (!headers.has("Content-Type") && !(opts.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-    headers.set("x-admin-token", token);
-  }
-  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-  if (!res.ok) {
-    const msg = json?.error || json?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return json;
+function normalizeBase(v: any) {
+  return String(v || "").trim().replace(/\/+$/, "");
 }
 
 function bytesToMB(bytes?: number) {
@@ -100,6 +71,10 @@ function isVid(item: MediaItem) {
 }
 
 export default function AdminMedia() {
+  // ✅ use unified admin context (token + apiBase)
+  const { apiBase, token } = useAdmin();
+  const API_BASE = normalizeBase(apiBase); // "" allowed (same-origin)
+
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string>("");
@@ -130,15 +105,46 @@ export default function AdminMedia() {
     return s ? `?${s}` : "";
   }, [q, tag, type, includeDeleted]);
 
+  const apiFetch = useCallback(
+    async (path: string, opts: RequestInit = {}) => {
+      const headers = new Headers(opts.headers || {});
+      if (!headers.has("Content-Type") && !(opts.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+      }
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+        headers.set("x-admin-token", token);
+      }
+
+      const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+
+      if (!res.ok) {
+        const msg = json?.error || json?.message || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return json;
+    },
+    [API_BASE, token]
+  );
+
   const loadList = useCallback(async () => {
     setLoading(true);
     setErr("");
     try {
       const j = await apiFetch(`/api/admin/media${queryString}`);
       const arr = (j?.media || j?.items || []) as MediaItem[];
-      setItems(Array.isArray(arr) ? arr : []);
+      const safe = Array.isArray(arr) ? arr : [];
+      setItems(safe);
+
       if (selected) {
-        const found = (arr || []).find((x: any) => Number(x?.id) === Number(selected.id));
+        const found = safe.find((x: any) => Number(x?.id) === Number(selected.id));
         setSelected(found || null);
       }
     } catch (e: any) {
@@ -146,7 +152,7 @@ export default function AdminMedia() {
     } finally {
       setLoading(false);
     }
-  }, [queryString, selected]);
+  }, [apiFetch, queryString, selected]);
 
   useEffect(() => {
     loadList();
@@ -195,7 +201,6 @@ export default function AdminMedia() {
 
         // 2) upload directly to Cloudinary
         const fd = new FormData();
-        // Cloudinary expects "file" + signed params
         fd.append("file", file);
         Object.entries(sign.params || {}).forEach(([k, v]) => {
           if (v === undefined || v === null) return;
@@ -227,20 +232,17 @@ export default function AdminMedia() {
 
         // select newly added if possible
         const newItem = (saved?.media || null) as MediaItem | null;
-        if (newItem?.id) {
-          setSelected(newItem);
-        }
+        if (newItem?.id) setSelected(newItem);
 
         // clear small fields (keep folder/tags)
         setUploadTitle("");
         setUploadNote("");
       } finally {
         setUploading(false);
-        // reset input
         if (fileRef.current) fileRef.current.value = "";
       }
     },
-    [uploadTags, uploadFolder, uploadTitle, uploadNote, loadList]
+    [apiFetch, loadList, uploadTags, uploadFolder, uploadTitle, uploadNote]
   );
 
   const onFileChange = useCallback(
@@ -252,32 +254,37 @@ export default function AdminMedia() {
     [doUploadOne]
   );
 
-  const doDelete = useCallback(async (item: MediaItem) => {
-    setErr("");
-    try {
-      await apiFetch(`/api/admin/media/${item.id}`, { method: "DELETE" });
-      await loadList();
-      if (selected?.id === item.id) setSelected(null);
-    } catch (e: any) {
-      setErr(String(e?.message || e));
-    }
-  }, [loadList, selected]);
+  const doDelete = useCallback(
+    async (item: MediaItem) => {
+      setErr("");
+      try {
+        await apiFetch(`/api/admin/media/${item.id}`, { method: "DELETE" });
+        await loadList();
+        if (selected?.id === item.id) setSelected(null);
+      } catch (e: any) {
+        setErr(String(e?.message || e));
+      }
+    },
+    [apiFetch, loadList, selected]
+  );
 
-  const doRestore = useCallback(async (item: MediaItem) => {
-    setErr("");
-    try {
-      await apiFetch(`/api/admin/media/${item.id}/restore`, { method: "POST", body: JSON.stringify({}) });
-      await loadList();
-    } catch (e: any) {
-      setErr(String(e?.message || e));
-    }
-  }, [loadList]);
+  const doRestore = useCallback(
+    async (item: MediaItem) => {
+      setErr("");
+      try {
+        await apiFetch(`/api/admin/media/${item.id}/restore`, { method: "POST", body: JSON.stringify({}) });
+        await loadList();
+      } catch (e: any) {
+        setErr(String(e?.message || e));
+      }
+    },
+    [apiFetch, loadList]
+  );
 
   const doCopy = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // fallback
       const ta = document.createElement("textarea");
       ta.value = text;
       document.body.appendChild(ta);
@@ -402,7 +409,7 @@ export default function AdminMedia() {
             <div style={{ flex: 1 }} />
 
             <div style={{ opacity: 0.75, fontSize: 12 }}>
-              API: <span style={{ fontWeight: 800 }}>{API_BASE}</span>
+              API: <span style={{ fontWeight: 800 }}>{API_BASE || "(same-origin)"}</span>
             </div>
           </div>
 
@@ -483,7 +490,8 @@ export default function AdminMedia() {
             </div>
 
             <div style={{ marginTop: 10, opacity: 0.7, fontSize: 12, lineHeight: 1.4 }}>
-              Flow: <b>sign</b> → upload directly to Cloudinary → <b>store in DB</b>. <br />
+              Flow: <b>sign</b> → upload directly to Cloudinary → <b>store in DB</b>.
+              <br />
               If sign fails: check Railway env vars: <b>CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET</b>.
             </div>
           </div>
@@ -536,9 +544,17 @@ export default function AdminMedia() {
                     }}
                   >
                     {isImg(it) && url ? (
-                      <img src={url} alt={it.title || it.public_id} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img
+                        src={url}
+                        alt={it.title || it.public_id}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
                     ) : isVid(it) && url ? (
-                      <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
+                      <video
+                        src={url}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        muted
+                      />
                     ) : (
                       <div style={{ opacity: 0.7, fontWeight: 900, fontSize: 12 }}>
                         {String(it.type || "raw").toUpperCase()}
@@ -551,7 +567,8 @@ export default function AdminMedia() {
                   </div>
 
                   <div style={{ marginTop: 6, opacity: 0.72, fontSize: 12 }}>
-                    #{it.id} • {(it.type || it.resource_type || "raw")}{it.bytes ? ` • ${bytesToMB(it.bytes)} MB` : ""}
+                    #{it.id} • {(it.type || it.resource_type || "raw")}
+                    {it.bytes ? ` • ${bytesToMB(it.bytes)} MB` : ""}
                   </div>
 
                   {it.tags?.length ? (
@@ -571,7 +588,9 @@ export default function AdminMedia() {
                           {t}
                         </span>
                       ))}
-                      {it.tags.length > 3 ? <span style={{ fontSize: 11, opacity: 0.7 }}>+{it.tags.length - 3}</span> : null}
+                      {it.tags.length > 3 ? (
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>+{it.tags.length - 3}</span>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -652,9 +671,17 @@ export default function AdminMedia() {
                 }}
               >
                 {isImg(selected) && selected.secure_url ? (
-                  <img src={selected.secure_url} alt={selected.title || selected.public_id} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  <img
+                    src={selected.secure_url}
+                    alt={selected.title || selected.public_id}
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  />
                 ) : isVid(selected) && selected.secure_url ? (
-                  <video src={selected.secure_url} controls style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  <video
+                    src={selected.secure_url}
+                    controls
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  />
                 ) : (
                   <div style={{ opacity: 0.75, fontWeight: 900 }}>
                     {String(selected.type || "raw").toUpperCase()}
@@ -667,13 +694,35 @@ export default function AdminMedia() {
               </div>
 
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.78, lineHeight: 1.5 }}>
-                <div><b>ID:</b> #{selected.id}</div>
-                <div><b>public_id:</b> {selected.public_id}</div>
-                <div><b>type:</b> {selected.type || selected.resource_type || "raw"}</div>
-                {selected.format ? <div><b>format:</b> {selected.format}</div> : null}
-                {selected.width && selected.height ? <div><b>size:</b> {selected.width}×{selected.height}</div> : null}
-                {selected.bytes ? <div><b>bytes:</b> {selected.bytes} ({bytesToMB(selected.bytes)} MB)</div> : null}
-                {selected.deleted ? <div style={{ color: "#ffb3b3" }}><b>deleted:</b> {selected.deletedAt || "yes"}</div> : null}
+                <div>
+                  <b>ID:</b> #{selected.id}
+                </div>
+                <div>
+                  <b>public_id:</b> {selected.public_id}
+                </div>
+                <div>
+                  <b>type:</b> {selected.type || selected.resource_type || "raw"}
+                </div>
+                {selected.format ? (
+                  <div>
+                    <b>format:</b> {selected.format}
+                  </div>
+                ) : null}
+                {selected.width && selected.height ? (
+                  <div>
+                    <b>size:</b> {selected.width}×{selected.height}
+                  </div>
+                ) : null}
+                {selected.bytes ? (
+                  <div>
+                    <b>bytes:</b> {selected.bytes} ({bytesToMB(selected.bytes)} MB)
+                  </div>
+                ) : null}
+                {selected.deleted ? (
+                  <div style={{ color: "#ffb3b3" }}>
+                    <b>deleted:</b> {selected.deletedAt || "yes"}
+                  </div>
+                ) : null}
               </div>
 
               <div style={{ marginTop: 10 }}>

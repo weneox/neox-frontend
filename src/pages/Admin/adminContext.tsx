@@ -1,8 +1,8 @@
 // src/pages/Admin/adminContext.tsx
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-type Lang = "az" | "en" | "tr" | "ru" | "es";
-const LANGS: Lang[] = ["az", "en", "tr", "ru", "es"];
+export type Lang = "az" | "en" | "tr" | "ru" | "es";
+export const LANGS: Lang[] = ["az", "en", "tr", "ru", "es"];
 
 const LS_TOKEN = "neox_admin_token";
 const LS_LANG = "neox_admin_lang";
@@ -14,13 +14,11 @@ function safeGetLS(key: string) {
     return null;
   }
 }
-
 function safeSetLS(key: string, val: string) {
   try {
     localStorage.setItem(key, val);
   } catch {}
 }
-
 function safeRemoveLS(key: string) {
   try {
     localStorage.removeItem(key);
@@ -31,7 +29,7 @@ function normalizeBase(v: any) {
   return String(v || "").trim().replace(/\/+$/, "");
 }
 
-type AdminCtx = {
+export type AdminCtx = {
   apiBase: string; // "" => same-origin
   token: string;
   setToken: (t: string) => void;
@@ -50,6 +48,11 @@ export function useAdmin() {
   return v;
 }
 
+/**
+ * ✅ AdminProvider
+ * - apiBase: "" => same-origin, ya da full URL
+ * - token & adminLang localStorage-da qalır
+ */
 export function AdminProvider({
   apiBase,
   children,
@@ -71,14 +74,20 @@ export function AdminProvider({
     else safeRemoveLS(LS_TOKEN);
   }, []);
 
+  /**
+   * ✅ Logout:
+   * yalnız token-i silirik, adminLang saxlanır (user rahat işləsin)
+   */
   const logout = useCallback(() => {
     _setToken("");
     safeRemoveLS(LS_TOKEN);
+    // adminLang qalır (silmirik)
   }, []);
 
   const setAdminLang = useCallback((l: Lang) => {
-    _setAdminLang(l);
-    safeSetLS(LS_LANG, l);
+    const v = (String(l || "") as Lang) || "az";
+    _setAdminLang(v);
+    safeSetLS(LS_LANG, v);
   }, []);
 
   const value = useMemo<AdminCtx>(

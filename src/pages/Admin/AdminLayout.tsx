@@ -68,11 +68,6 @@ function useIsMobile(breakpoint = 900) {
   return isMobile;
 }
 
-/**
- * ✅ Lock body scroll when drawer/modal is open (mobile)
- * - Prevent background scrolling
- * - iOS: keep the page from “jumping”
- */
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -104,15 +99,13 @@ function useBodyScrollLock(locked: boolean) {
       body.style.width = prevWidth;
       (html.style as any).overscrollBehaviorY = prevOverscroll;
 
-      // restore scroll
       const y = Math.abs(parseInt(body.style.top || "0", 10)) || scrollY;
       window.scrollTo(0, y);
-      body.style.top = prevTop; // cleanup
+      body.style.top = prevTop;
     };
   }, [locked]);
 }
 
-/* ------------------ helpers ------------------ */
 async function fetchWithAuth(url: string, token: string) {
   return fetch(url, {
     headers: {
@@ -141,10 +134,7 @@ function AdminLoginCard() {
     setErr(null);
 
     try {
-      const base = normalizeBase(apiBase); // "" => same-origin
-
-      // ✅ Endpoint compatibility fallback:
-      // Some builds use /api/leads, others /api/admin/leads
+      const base = normalizeBase(apiBase);
       const tryUrls = [`${base}/api/leads`, `${base}/api/admin/leads`];
 
       let ok = false;
@@ -231,7 +221,6 @@ function AdminScaffold() {
   const loc = useLocation();
   const params = useParams<{ lang?: string }>();
 
-  // ✅ Site dil yolu (/{lang}/...) — bu i18n route üçündür
   const lang = useMemo<Lang>(
     () => (params.lang as Lang) || getLangFromPath(loc.pathname),
     [params.lang, loc.pathname]
@@ -239,17 +228,13 @@ function AdminScaffold() {
 
   const isMobile = useIsMobile(900);
 
-  // ✅ Admin context (token + adminLang)
   const { token, logout, adminLang, setAdminLang, langs, apiBase } = useAdmin();
-
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // ✅ Lock scroll while drawer is open (mobile)
   useBodyScrollLock(Boolean(isMobile && drawerOpen));
 
   useEffect(() => {
     setDrawerOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.pathname]);
 
   useEffect(() => {
@@ -283,19 +268,13 @@ function AdminScaffold() {
           <div style={{ minWidth: 0 }}>
             <div style={S.topTitleRow}>
               {isMobile && (
-                <button
-                  onClick={() => setDrawerOpen(true)}
-                  style={S.iconBtn}
-                  aria-label="Open menu"
-                  title="Menu"
-                >
+                <button onClick={() => setDrawerOpen(true)} style={S.iconBtn} aria-label="Open menu">
                   ☰
                 </button>
               )}
               <div style={S.topTitle}>NEOX Dashboard</div>
             </div>
 
-            {/* Mobile-də səliqə üçün wrap + 2 sətir limit */}
             <div style={S.topSubWrap}>
               <span>
                 Route: <code style={S.codeMini}>{loc.pathname}</code>
@@ -310,13 +289,11 @@ function AdminScaffold() {
           </div>
 
           <div style={S.topActions}>
-            {/* ✅ Admin panel language (translation/display language) */}
             <select
               value={adminLang}
               onChange={(e) => setAdminLang(e.target.value as any)}
               style={S.langSelect}
               aria-label="Admin panel dili"
-              title="Admin panel dili"
             >
               {langs.map((l) => (
                 <option key={l} value={l}>
@@ -333,7 +310,6 @@ function AdminScaffold() {
 
         {/* Layout */}
         <div style={isMobile ? S.mainStack : S.mainGrid}>
-          {/* Desktop sidebar */}
           {!isMobile && (
             <aside style={S.sidebarSticky}>
               <div style={S.sideHead}>ADMIN</div>
@@ -378,19 +354,13 @@ function AdminScaffold() {
                   ...S.drawer,
                   transform: drawerOpen ? "translateX(0)" : "translateX(-104%)",
                 }}
-                aria-hidden={!drawerOpen}
               >
                 <div style={S.drawerTop}>
                   <div style={S.drawerBrand}>
                     <div style={S.brandDotSmall} />
                     <div style={S.drawerTitle}>ADMIN</div>
                   </div>
-                  <button
-                    onClick={() => setDrawerOpen(false)}
-                    style={S.iconBtn}
-                    aria-label="Close menu"
-                    title="Close"
-                  >
+                  <button onClick={() => setDrawerOpen(false)} style={S.iconBtn}>
                     ✕
                   </button>
                 </div>
@@ -422,9 +392,8 @@ function AdminScaffold() {
             </>
           )}
 
-          {/* Content */}
           <section style={S.content}>
-            <Outlet context={{ adminLang }} />
+            <Outlet />
           </section>
         </div>
       </div>
