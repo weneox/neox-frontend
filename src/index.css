@@ -3101,13 +3101,6 @@ body::before{
 .neo-proof-card--final::after{ filter: blur(10px) !important; }
 .neo-diagramcard::before{ filter: blur(8px) !important; }
 
-/* 3) mix-blend-mode scroll-da çox ağırdır — söndür */
-.neo-connectorOverlay,
-.neo-crmfx{
-  mix-blend-mode: normal !important;
-  opacity: .85;
-}
-
 /* 4) Particle sayını/effektini yüngülləşdir */
 .neo-flow-particle,
 .neo-flight-p,
@@ -3835,72 +3828,6 @@ body::before{
   width: 86px;
   height: 22px;
   border-radius: 999px;
-}
-
-/* ✅ Connector OUT pin portun düz alt mərkəzində */
-.neo-connectorOut--port{
-  position: absolute;
-  left: 50%;
-  bottom: 8px; /* portun altından çıxış */
-  transform: translateX(-50%);
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.92);
-  box-shadow: 0 0 0 2px rgba(20,82,199,.35), 0 0 20px rgba(20,82,199,.55);
-  pointer-events: none;
-  z-index: 8;
-}
-
-/* Cable vizualı da portdan çıxsın (səninki varsa, bu override edir) */
-.neo-deviceMock__cable{
-  position: absolute;
-  left: 50%;
-  bottom: -96px;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 110px;
-  border-radius: 999px;
-  opacity: .9;
-}
-
-/* alt fade varsa, portu örtməsin */
-.neo-deviceMock__bottom{
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* SocialThread header align fix */
-.neo-threadAlignFix .neo-thread-top,
-.neo-threadAlignFix .neo-thread-header{
-  display:flex;
-  align-items:center;
-}
-.neo-threadAlignFix .neo-thread-logo,
-.neo-threadAlignFix .neo-thread-avatar{
-  display:grid;
-  place-items:center;
-}
-/* ===== FIX: SOCIAL-da yalnız 1 node qalsın (port node) ===== */
-
-/* Cable layer-in üzərində node/marker varsa söndür */
-.neo-deviceMock__cable::before,
-.neo-deviceMock__cable::after{
-  content:none !important;
-  display:none !important;
-}
-
-/* Port node qalacaq, amma portdan kənar "ikinci node" gizlənsin:
-   (çox vaxt bu, connector elementinin içindəki əlavə dot olur) */
-.neo-deviceWrap .neo-connectorOut:not(.neo-connectorOut--port){
-  display:none !important;
-}
-
-/* Əgər pipeline tərəfində connector "in node" SOCIAL bölməsinə daşırsa */
-.neo-social .neo-connectorIn,
-.neo-social .neo-connectorMid,
-.neo-social .neo-connectorPin{
-  display:none !important;
 }
 
 /* ===== FIX: SocialThread header logo alignment ===== */
@@ -7063,12 +6990,6 @@ html, body, #root{
   );
 }
 
-/* kill extra nodes */
-.neo-connectorOverlay,
-.neo-connectorSvg,
-[class*="connector"]:not(.neo-deviceMock__cable){
-  display:none !important;
-}
 
 /* =========================
    PIPELINE / DIAGRAM — CLEAN
