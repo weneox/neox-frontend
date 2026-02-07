@@ -9481,7 +9481,11 @@ html {
 }
 
 /* =========================================================
-   NEOX AI WIDGET — ELITE MODAL (overlay locks page)
+   NEOX AI WIDGET — ELITE MODAL (HARD LOCK + SOFT OPEN)
+   FIXES:
+   - overlay REALLY blocks clicks/scroll behind (navbar/X bug fixed)
+   - blur is instant on open (no transparent -> blur flash)
+   - soft opening animation for panel (smooth)
 ========================================================= */
 
 .neox-ai{
@@ -9507,11 +9511,18 @@ html {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
   -webkit-tap-highlight-color: transparent;
 
-  /* IMPORTANT: do not block the page when closed */
+  /* Closed: do not block page */
   pointer-events: none;
 }
 
-.neox-ai-fab,
+/* IMPORTANT FIX:
+   When OPEN -> allow overlay/panel to actually receive events. */
+.neox-ai.is-open{
+  pointer-events: auto;
+}
+
+/* FAB always clickable */
+.neox-ai-fab{ pointer-events: auto; }
 .neox-ai-panel{ pointer-events: auto; }
 
 /* ---------- animations ---------- */
@@ -9528,29 +9539,40 @@ html {
   .neox-ai *{ animation:none !important; transition:none !important; }
 }
 
-/* ---------- overlay (captures clicks + blocks background scroll) ---------- */
+/* =========================================================
+   OVERLAY — instant blur + blocks background clicks/scroll
+========================================================= */
 .neox-ai-overlay{
   position: fixed;
   inset: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 220ms ease;
+
+  /* Keep blur always defined to avoid "late blur" on iOS */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   background:
     radial-gradient(1200px 700px at 75% 70%, rgba(47,123,255,0.14), transparent 60%),
     radial-gradient(900px 520px at 30% 20%, rgba(255,178,74,0.10), transparent 55%),
-    rgba(0,0,0,0.34);
+    rgba(0,0,0,0.36);
 
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
+  opacity: 0;
+  pointer-events: none;
+
+  /* performance hints */
+  will-change: opacity, backdrop-filter;
+  transform: translateZ(0);
 }
-.neox-ai-overlay.is-open{
+
+/* OPEN: show immediately (no transparent->blur flash) */
+.neox-ai.is-open .neox-ai-overlay{
   opacity: 1;
-  pointer-events: auto; /* ✅ catches taps -> no header/nav click */
-  touch-action: none;   /* ✅ blocks background pan */
+  pointer-events: auto;
+  touch-action: none;
 }
 
-/* ---------- FAB (more elite) ---------- */
+/* =========================================================
+   FAB — ELITE
+========================================================= */
 .neox-ai-fab{
   position: relative;
   width: 148px;
@@ -9650,7 +9672,12 @@ html {
   pointer-events:none;
 }
 
-/* ---------- PANEL ---------- */
+/* =========================================================
+   PANEL — soft opening (smooth)
+   We use:
+   - .is-open for visible
+   - data-anim="0" for first frame (avoid sudden pop)
+========================================================= */
 .neox-ai-panel{
   position:absolute;
   right:0;
@@ -9660,21 +9687,48 @@ html {
   height: min(660px, calc(100dvh - 120px));
   max-height: calc(100dvh - 120px);
 
-  opacity:0;
-  transform: translateY(14px) scale(0.985);
-  transition: opacity 220ms ease, transform 260ms cubic-bezier(.16,1,.22,1);
-
   pointer-events:none;
   visibility:hidden;
-}
-.neox-ai-panel.is-open{
-  opacity:1;
-  transform: translateY(0) scale(1);
-  pointer-events:auto;
-  visibility:visible;
+
+  /* base hidden */
+  opacity:0;
+  transform: translateY(16px) scale(0.985);
+
+  will-change: opacity, transform;
+  transform-origin: bottom right;
 }
 
-/* shell layout prevents message under input */
+/* open: start state (first tick) */
+.neox-ai.is-open[data-anim="0"] .neox-ai-panel{
+  visibility: visible;
+  pointer-events: auto;
+
+  opacity: 0;
+  transform: translateY(16px) scale(0.985);
+}
+
+/* open: final smooth state */
+.neox-ai.is-open[data-anim="1"] .neox-ai-panel{
+  visibility: visible;
+  pointer-events: auto;
+
+  opacity: 1;
+  transform: translateY(0) scale(1);
+
+  transition:
+    opacity 220ms ease,
+    transform 380ms cubic-bezier(.16,1,.22,1);
+}
+
+/* (optional) keep compatibility with old class) */
+.neox-ai-panel.is-open{
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* =========================================================
+   SHELL
+========================================================= */
 .neox-ai-shell{
   position:relative;
   width:100%;
@@ -9697,6 +9751,7 @@ html {
 
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -9737,7 +9792,9 @@ html {
   filter: blur(0.2px);
 }
 
-/* TOP */
+/* =========================================================
+   TOP BAR
+========================================================= */
 .neox-ai-top{
   position:relative;
   z-index: 5;
@@ -9829,9 +9886,14 @@ html {
   color: rgba(255,255,255,0.86);
   cursor:pointer;
   touch-action: manipulation;
+
+  /* extra safety: never let it pass events behind */
+  pointer-events: auto;
 }
 
-/* controls */
+/* =========================================================
+   CONTROLS
+========================================================= */
 .neox-ai-controls{
   margin-top: 10px;
   display:flex;
@@ -9882,6 +9944,7 @@ html {
   align-items:center;
   gap: 8px;
 }
+
 .neox-ai-pillBtn.is-on{
   border-color: rgba(98,255,191,0.28);
   background: rgba(98,255,191,0.10);
@@ -9894,6 +9957,7 @@ html {
   box-shadow: 0 0 18px rgba(98,255,191,0.42);
   animation: neoxBreath 1.5s ease-in-out infinite;
 }
+
 .neox-ai-pillBtn.is-reset{
   border-color: rgba(255,178,74,0.24);
   background: rgba(255,178,74,0.08);
@@ -9907,7 +9971,9 @@ html {
   animation: neoxBreath 1.7s ease-in-out infinite;
 }
 
-/* tabs */
+/* =========================================================
+   TABS
+========================================================= */
 .neox-ai-tabs{
   position:relative;
   z-index: 5;
@@ -9956,17 +10022,23 @@ html {
   white-space: nowrap;
 }
 
-/* quick/list */
+/* =========================================================
+   QUICK / LIST (scroll only here, never page)
+========================================================= */
 .neox-ai-quick,
 .neox-ai-list{
   position:relative;
   z-index: 4;
   flex: 1 1 auto;
   min-height: 0;
+
   overflow:auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  /* allow only vertical panning inside */
   touch-action: pan-y;
+
   padding: 12px 14px 12px;
 }
 
@@ -10002,7 +10074,9 @@ html {
   color: rgba(255,255,255,0.90);
 }
 
-/* input row sticky */
+/* =========================================================
+   INPUT ROW (sticky)
+========================================================= */
 .neox-ai-inputRow{
   position: sticky;
   bottom: 0;
@@ -10041,16 +10115,10 @@ html {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap: 8px;
 
   white-space: nowrap;
   line-height: 1;
   overflow: hidden;
-}
-.neox-ai-sendIcon{
-  display:inline-block;
-  transform: translateY(-0.5px);
-  opacity: 0.95;
 }
 .neox-ai-send.is-disabled,
 .neox-ai-send:disabled{
@@ -10058,7 +10126,9 @@ html {
   cursor: not-allowed;
 }
 
-/* responsive */
+/* =========================================================
+   RESPONSIVE
+========================================================= */
 @media (max-width: 640px){
   .neox-ai{ right: 12px; bottom: 12px; }
   .neox-ai-fab{ width: 146px; }
