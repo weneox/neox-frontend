@@ -18,6 +18,7 @@ function getLangFromPath(pathname: string): Lang {
 }
 
 function withLang(path: string, lang: Lang) {
+  // path: "/contact" və ya "contact"
   const p = path.startsWith("/") ? path : `/${path}`;
   return `/${lang}${p}`;
 }
@@ -56,10 +57,12 @@ function useMedia(query: string, initial = false) {
 
 /* ---------------- Scroll restore (harada qalmısansa ora) ---------------- */
 function useScrollRestore(key: string) {
+  // mount: restore
   useEffect(() => {
     const raw = sessionStorage.getItem(key);
     const y = raw ? Number(raw) : 0;
 
+    // 1 frame gözlə: layout hazır olsun
     const raf = requestAnimationFrame(() => {
       if (Number.isFinite(y) && y > 0) window.scrollTo({ top: y, left: 0, behavior: "auto" });
     });
@@ -67,6 +70,7 @@ function useScrollRestore(key: string) {
     return () => cancelAnimationFrame(raf);
   }, [key]);
 
+  // unmount + scroll: save (throttle via rAF)
   useEffect(() => {
     let raf = 0;
 
@@ -83,6 +87,7 @@ function useScrollRestore(key: string) {
     return () => {
       window.removeEventListener("scroll", save);
       if (raf) cancelAnimationFrame(raf);
+      // son dəfə də save et
       sessionStorage.setItem(key, String(window.scrollY || 0));
     };
   }, [key]);
@@ -181,97 +186,6 @@ function useRevealIO(enabled: boolean) {
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, [enabled]);
-}
-
-/* ========================= Scroll Connector (bottom line + dots) ========================= */
-type TLItem = { id: string; el: HTMLElement | null; y: number };
-
-function useScrollTimeline(sectionIds: string[]) {
-  const [items, setItems] = useState<TLItem[]>(() => sectionIds.map((id) => ({ id, el: null, y: 0 })));
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const els = sectionIds.map((id) => document.getElementById(id));
-
-    const calc = () => {
-      const next = els.map((el, i) => {
-        const r = el?.getBoundingClientRect();
-        const pageY = el ? window.scrollY + (r?.top ?? 0) : 0;
-        return { id: sectionIds[i], el, y: pageY };
-      });
-
-      const first = next.find((x) => x.el)?.y ?? 0;
-      const last = [...next].reverse().find((x) => x.el)?.y ?? first + 1;
-
-      const centerY = window.scrollY + window.innerHeight * 0.55;
-      const p = (centerY - first) / Math.max(1, last - first);
-      setProgress(Math.max(0, Math.min(1, p)));
-
-      setItems(next);
-    };
-
-    let raf = 0;
-    const on = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        calc();
-      });
-    };
-
-    calc();
-    window.addEventListener("scroll", on, { passive: true });
-    window.addEventListener("resize", on);
-
-    return () => {
-      window.removeEventListener("scroll", on);
-      window.removeEventListener("resize", on);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [sectionIds.join("|")]);
-
-  return { items, progress };
-}
-
-function ScrollConnector({ ids, reduced }: { ids: string[]; reduced: boolean }) {
-  const { progress } = useScrollTimeline(ids);
-
-  const dots = useMemo(() => {
-    const count = ids.length;
-    return ids.map((id, i) => {
-      const x = count === 1 ? 50 : (i / (count - 1)) * 100;
-      return { id, x };
-    });
-  }, [ids]);
-
-  const linePts = useMemo(() => {
-    const y = 52;
-    return dots.map((d) => `${d.x},${y}`).join(" ");
-  }, [dots]);
-
-  const clipW = `${Math.round(progress * 100)}%`;
-
-  return (
-    <div className="neo-scrollConnector" aria-hidden="true">
-      <svg className="neo-sc-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline className="neo-sc-lineBase" points={linePts} fill="none" />
-
-        <g className="neo-sc-clip" style={{ width: clipW } as any}>
-          <polyline className="neo-sc-lineActive" points={linePts} fill="none" />
-        </g>
-
-        {dots.map((d, i) => {
-          const active = progress >= (dots.length === 1 ? 0 : i / (dots.length - 1)) - 0.0001;
-          return (
-            <g key={d.id} className={`neo-sc-dot ${active ? "is-active" : ""}`}>
-              <circle cx={d.x} cy={52} r={3.6} className="neo-sc-dotCore" />
-              {!reduced && <circle cx={d.x} cy={52} r={8.6} className="neo-sc-dotGlow" />}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
 }
 
 /* ========================= SOCIAL DEMO ========================= */
@@ -427,7 +341,11 @@ function SocialThread({
         : "/image/photo.3.png";
 
     const alt =
-      platform === "WHATSAPP" ? "WhatsApp Business" : platform === "FACEBOOK" ? "Facebook Messenger" : "Instagram DM";
+      platform === "WHATSAPP"
+        ? "WhatsApp Business"
+        : platform === "FACEBOOK"
+        ? "Facebook Messenger"
+        : "Instagram DM";
 
     return (
       <div className={`neo-pill neo-pill--logo neo-pill-${platformLower}`} aria-label={alt} title={alt}>
@@ -785,7 +703,7 @@ function SocialAutomationSection({
   return (
     <>
       {/* SOCIAL */}
-      <section id="social" className="neo-social neo-social--premium" aria-label={t("home.social.aria")}>
+      <section className="neo-social neo-social--premium" aria-label={t("home.social.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-social-grid" style={socialGridStyle}>
             <header className="neo-sectionHead" style={{ textAlign: "left", minWidth: 0 }}>
@@ -807,10 +725,7 @@ function SocialAutomationSection({
                 {t("home.social.lead")}
               </p>
 
-              <div
-                className="neo-actions reveal reveal-top"
-                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}
-              >
+              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}>
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.cta.demo")}
                 </Link>
@@ -830,10 +745,7 @@ function SocialAutomationSection({
               }}
             >
               <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 0 }}>
-                <div
-                  className="neo-tabletCard neo-tabletCard--premium"
-                  style={{ width: "100%", height: "100%" } as React.CSSProperties}
-                >
+                <div className="neo-tabletCard neo-tabletCard--premium" style={{ width: "100%", height: "100%" } as React.CSSProperties}>
                   <div className="neo-tabletTop" aria-hidden="true">
                     <span className="neo-tabletCamPill">
                       <i className="neo-tabletCamDot" />
@@ -907,7 +819,7 @@ function SocialAutomationSection({
       </section>
 
       {/* SMM */}
-      <section id="smm" className="neo-splitsec neo-splitsec--premium" aria-label={t("home.smm.aria")}>
+      <section className="neo-splitsec neo-splitsec--premium" aria-label={t("home.smm.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-splitsec-grid">
             <div className="neo-splitsec-copy" style={{ minWidth: 0 }}>
@@ -922,10 +834,7 @@ function SocialAutomationSection({
 
               <p className="neo-p reveal reveal-top">{t("home.smm.copy")}</p>
 
-              <div
-                className="neo-actions reveal reveal-top"
-                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}
-              >
+              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.smm.cta.primary")}
                 </Link>
@@ -947,7 +856,7 @@ function SocialAutomationSection({
       </section>
 
       {/* OPS */}
-      <section id="ops" className="neo-splitsec neo-splitsec--alt neo-splitsec--premium" aria-label={t("home.ops.aria")}>
+      <section className="neo-splitsec neo-splitsec--alt neo-splitsec--premium" aria-label={t("home.ops.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-splitsec-grid neo-splitsec-grid--flip">
             <div className="neo-splitsec-copy" style={{ minWidth: 0 }}>
@@ -980,7 +889,7 @@ function SocialAutomationSection({
       </section>
 
       {/* FINAL */}
-      <section id="final" className="neo-finalSystem" aria-label={t("home.final.aria")}>
+      <section className="neo-finalSystem" aria-label={t("home.final.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-finalSystem-head reveal reveal-top">
             <div className="neo-kickerPill">
@@ -1266,8 +1175,10 @@ export default function Home() {
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
 
+  // ✅ scroll restore key (route + lang)
   useScrollRestore(`neox_scroll:${pathname}`);
 
+  // səndə false idi -> saxladım
   usePremiumWheelScroll(false);
   useRevealIO(!reduced);
 
@@ -1282,8 +1193,10 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
+  // ✅ HERO: only desktop (mobil/reduced => 0)
   const heroIntensity = reduced || isMobile ? 0 : 1.05;
 
+  // ✅ HERO: pause when not visible
   const heroRef = useRef<HTMLElement | null>(null);
   const [heroInView, setHeroInView] = useState(true);
 
@@ -1373,7 +1286,7 @@ export default function Home() {
 
       <div style={{ height: "clamp(22px, 3.5vh, 46px)", background: "#000" }} />
 
-      {/* flow */}
+      {/* flow (connectors removed) */}
       <div
         className="neo-flowWrap"
         style={{
@@ -1390,9 +1303,7 @@ export default function Home() {
           <SocialAutomationSectionMemo reducedMotion={reduced} isMobile={isMobile} t={t} lang={lang} />
         </div>
       </div>
-
-      {/* ===== bottom connector line + dots ===== */}
-      <ScrollConnector ids={["social", "pipeline", "smm", "ops", "final"]} reduced={reduced} />
     </main>
   );
 }
+ 
