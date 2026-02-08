@@ -534,7 +534,7 @@ export default function UseCases() {
 
   // ✅ HERO background video (Cloudinary optimized)
   const HERO_VIDEO_URL =
-    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770591274/neox/media/asset_1770591259682_8e004cfe7c5e8.mp4";
+    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770593337/neox/media/asset_1770593331791_6f5389053f2f9.mp4";
 
   return (
     <main ref={rootRef as any} className="uc-page">
