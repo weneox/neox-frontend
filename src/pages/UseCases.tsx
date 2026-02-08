@@ -31,6 +31,16 @@ function withLang(path: string, lang: Lang) {
   return `/${lang}${p}`;
 }
 
+function optimizeCloudinaryVideo(url: string) {
+  // already optimized?
+  if (!url) return url;
+  if (url.includes("/video/upload/q_auto") || url.includes("/video/upload/f_auto") || url.includes("/video/upload/q_")) {
+    return url;
+  }
+  // inject q_auto,f_auto right after /video/upload/
+  return url.replace("/video/upload/", "/video/upload/q_auto,f_auto/");
+}
+
 /* ---------------- Motion pref ---------------- */
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -239,7 +249,11 @@ const BreadcrumbPill = memo(function BreadcrumbPill({
   delayMs: number;
 }) {
   return (
-    <div className={cx("uc-crumb uc-enter", enter && "uc-in")} style={{ ["--d" as any]: `${delayMs}ms` }} aria-label="Breadcrumb">
+    <div
+      className={cx("uc-crumb uc-enter", enter && "uc-in")}
+      style={{ ["--d" as any]: `${delayMs}ms` }}
+      aria-label="Breadcrumb"
+    >
       <span className="uc-crumbDot" aria-hidden="true" />
       <span className="uc-crumbText">{text}</span>
     </div>
@@ -253,7 +267,11 @@ const TintChip = memo(function TintChip({ t, label }: { t: Tint; label: string }
     pink: "border-[rgba(170,225,255,.22)] bg-[rgba(170,225,255,.06)] text-[rgba(236,252,255,.92)]",
     amber: "border-[rgba(80,170,255,.22)] bg-[rgba(80,170,255,.06)] text-[rgba(230,248,255,.92)]",
   };
-  return <span className={cx("text-[11px] px-3 py-1 rounded-full border tracking-[.08em] uppercase", map[t])}>{label}</span>;
+  return (
+    <span className={cx("text-[11px] px-3 py-1 rounded-full border tracking-[.08em] uppercase", map[t])}>
+      {label}
+    </span>
+  );
 });
 
 const Bullet = memo(function Bullet({ text }: { text: string }) {
@@ -283,6 +301,7 @@ const CreativeHUD = memo(function CreativeHUD({
   metricLabel,
   statusLabel,
   statusValue,
+  videoUrl,
 }: {
   tint: Tint;
   icon: LucideIcon;
@@ -291,6 +310,7 @@ const CreativeHUD = memo(function CreativeHUD({
   metricLabel: string;
   statusLabel: string;
   statusValue: string;
+  videoUrl?: string;
 }) {
   const tintMap: Record<Tint, { a: string; b: string; c: string }> = {
     cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.14)", c: "rgba(170,225,255,.12)" },
@@ -302,7 +322,7 @@ const CreativeHUD = memo(function CreativeHUD({
 
   return (
     <div
-      className="uc-hud uc-pop uc-contain"
+      className="uc-hud uc-pop uc-contain uc-monitor"
       data-tint={tint}
       style={{
         background: `
@@ -315,6 +335,24 @@ const CreativeHUD = memo(function CreativeHUD({
       }}
       aria-label="Visual panel"
     >
+      {/* Video Screen */}
+      <div className="uc-screen" aria-hidden="true">
+        {videoUrl ? (
+          <video
+            className="uc-screenVideo"
+            src={videoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+        ) : null}
+        <div className="uc-screenTint" />
+        <div className="uc-screenGlass" />
+        <div className="uc-screenVignette" />
+      </div>
+
       <div className="uc-hudGrid" aria-hidden="true" />
       <div className="uc-hudScan" aria-hidden="true" />
 
@@ -322,6 +360,7 @@ const CreativeHUD = memo(function CreativeHUD({
         <div className="uc-hudOrbit" aria-hidden="true" />
         <div className="uc-hudRing" aria-hidden="true" />
         <Icon className="uc-hudIcon" aria-hidden="true" />
+
         <div className="uc-hudChips" aria-hidden="true">
           <span className="uc-hudChip">{chips.a}</span>
           <span className="uc-hudChip">{chips.b}</span>
@@ -355,6 +394,7 @@ const CaseRow = memo(function CaseRow({
   hudMetricLabel,
   hudStatusLabel,
   hudStatusValue,
+  videoUrl,
 }: {
   c: CaseItem;
   flip: boolean;
@@ -368,6 +408,7 @@ const CaseRow = memo(function CaseRow({
   hudMetricLabel: string;
   hudStatusLabel: string;
   hudStatusValue: string;
+  videoUrl?: string;
 }) {
   const Icon = c.icon;
 
@@ -427,6 +468,7 @@ const CaseRow = memo(function CaseRow({
           metricLabel={hudMetricLabel}
           statusLabel={hudStatusLabel}
           statusValue={hudStatusValue}
+          videoUrl={videoUrl}
         />
       </div>
     </div>
@@ -469,9 +511,18 @@ export default function UseCases() {
   const hudStatusLabel = t("useCases.hud.statusLabel");
   const hudStatusValue = t("useCases.hud.statusValue");
 
+  // ✅ Your video (optimized)
+  const RETAIL_VIDEO = useMemo(
+    () =>
+      optimizeCloudinaryVideo(
+        "https://res.cloudinary.com/dppoomunj/video/upload/v1770594527/neox/media/asset_1770594489151_13bb67859a0f3.mp4"
+      ),
+    []
+  );
+
   const CASE_META: Array<{ icon: LucideIcon; tint: Tint }> = useMemo(
     () => [
-      { icon: ShoppingBag, tint: "cyan" },
+      { icon: ShoppingBag, tint: "cyan" }, // Retail/E-commerce (video here)
       { icon: Landmark, tint: "violet" },
       { icon: Stethoscope, tint: "pink" },
       { icon: Truck, tint: "amber" },
@@ -769,12 +820,97 @@ export default function UseCases() {
         }
         .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
-        .uc-hud{
-          position: relative;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.10);
+        /* ===== MONITOR / TV FRAME (premium) ===== */
+        .uc-monitor{
+          border-radius: 28px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: linear-gradient(180deg, rgba(255,255,255,.020), rgba(255,255,255,.010));
           overflow: hidden;
           transform: translate3d(0,0,0);
+        }
+        .uc-monitor::after{
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          border-radius: 28px;
+          box-shadow:
+            0 0 0 1px rgba(0,0,0,.55) inset,
+            0 0 0 1px rgba(255,255,255,.07);
+          opacity:.95;
+        }
+        .uc-monitor::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          border-radius: 30px;
+          pointer-events:none;
+          background:
+            radial-gradient(420px 220px at 20% 0%, rgba(255,255,255,.10), transparent 60%),
+            radial-gradient(520px 260px at 80% 10%, rgba(47,184,255,.10), transparent 62%),
+            linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+          opacity:.7;
+          mix-blend-mode: screen;
+        }
+
+        .uc-screen{
+          position:absolute;
+          inset: 12px;
+          border-radius: 22px;
+          overflow: hidden;
+          background: rgba(0,0,0,.55);
+          box-shadow:
+            0 18px 60px rgba(0,0,0,.55) inset,
+            0 0 0 1px rgba(255,255,255,.06) inset;
+          pointer-events:none;
+        }
+        .uc-screenVideo{
+          position:absolute;
+          inset:0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transform: scale(1.03);
+          filter: contrast(1.06) saturate(1.08);
+        }
+        .uc-screenTint{
+          position:absolute;
+          inset:0;
+          background:
+            radial-gradient(900px 420px at 30% 20%, rgba(47,184,255,.18), transparent 60%),
+            radial-gradient(900px 420px at 80% 10%, rgba(42,125,255,.14), transparent 62%);
+          opacity: .75;
+          mix-blend-mode: screen;
+        }
+        .uc-screenGlass{
+          position:absolute;
+          inset:0;
+          background:
+            linear-gradient(115deg,
+              rgba(255,255,255,.10) 0%,
+              rgba(255,255,255,.03) 18%,
+              rgba(255,255,255,.00) 36%,
+              rgba(255,255,255,.06) 52%,
+              rgba(255,255,255,.00) 70%);
+          opacity: .55;
+          mix-blend-mode: screen;
+        }
+        .uc-screenVignette{
+          position:absolute;
+          inset:-2px;
+          background: radial-gradient(120% 90% at 50% 20%, rgba(0,0,0,.18), rgba(0,0,0,.72));
+          opacity: .75;
+          pointer-events:none;
+        }
+
+        @media (max-width: 560px){
+          .uc-screen{ inset: 10px; border-radius: 20px; }
+          .uc-monitor{ border-radius: 26px; }
+        }
+
+        .uc-hud{
+          position: relative;
+          overflow: hidden;
         }
         .uc-hudInner{
           position: relative;
@@ -837,6 +973,8 @@ export default function UseCases() {
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.03);
           color: rgba(255,255,255,.76);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
         .uc-hudBadge{
           position:absolute;
@@ -847,6 +985,8 @@ export default function UseCases() {
           padding: 12px 14px;
           box-shadow: 0 14px 44px rgba(0,0,0,.35);
           min-width: 120px;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
         .uc-hudBadge2{ top:auto; bottom: 18px; right: 18px; min-width: 110px; }
         .uc-hudBadgeTop{
@@ -996,7 +1136,8 @@ export default function UseCases() {
 
               <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
                 <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
-                  {t("useCases.hero.title.before")} <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
+                  {t("useCases.hero.title.before")}{" "}
+                  <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
                   {t("useCases.hero.title.after")}
                 </span>
               </h1>
@@ -1011,7 +1152,10 @@ export default function UseCases() {
                 {t("useCases.hero.subtitle")}
               </p>
 
-              <div className={cx("mt-8 flex flex-wrap items-center justify-center gap-3 uc-enter", enter && "uc-in")} style={d(270)}>
+              <div
+                className={cx("mt-8 flex flex-wrap items-center justify-center gap-3 uc-enter", enter && "uc-in")}
+                style={d(270)}
+              >
                 <Link to={toContact} className="uc-btn" aria-label={t("useCases.aria.contact")}>
                   {ctaOwnCase} <span aria-hidden="true">→</span>
                 </Link>
@@ -1047,6 +1191,8 @@ export default function UseCases() {
                 hudMetricLabel={hudMetricLabel}
                 hudStatusLabel={hudStatusLabel}
                 hudStatusValue={hudStatusValue}
+                // ✅ Only Retail/E-commerce panel gets the video
+                videoUrl={idx === 0 ? RETAIL_VIDEO : undefined}
               />
             ))}
           </div>
@@ -1058,9 +1204,16 @@ export default function UseCases() {
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex justify-center">
-              <div className={cx("uc-reveal reveal-top", "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2")}>
+              <div
+                className={cx(
+                  "uc-reveal reveal-top",
+                  "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2"
+                )}
+              >
                 <span className="uc-crumbDot" aria-hidden="true" style={{ width: 7, height: 7 }} />
-                <span className="text-[12px] tracking-[0.14em] uppercase text-white/70">{t("useCases.moreSection.pill")}</span>
+                <span className="text-[12px] tracking-[0.14em] uppercase text-white/70">
+                  {t("useCases.moreSection.pill")}
+                </span>
               </div>
             </div>
 
@@ -1068,17 +1221,23 @@ export default function UseCases() {
               {t("useCases.moreSection.title")}
             </h2>
             <p className={cx("uc-reveal reveal-bottom", "mt-3 text-white/65 max-w-[820px] mx-auto leading-[1.7]")}>
-              {t("useCases.moreSection.subtitle.before")} <span className="uc-grad">{t("useCases.moreSection.subtitle.highlight")}</span>
+              {t("useCases.moreSection.subtitle.before")}{" "}
+              <span className="uc-grad">{t("useCases.moreSection.subtitle.highlight")}</span>
               {t("useCases.moreSection.subtitle.after")}
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-4 uc-stack">
             {MORE.map((m, i) => {
-              const dir = i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
+              const dir =
+                i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
               const Icon = MORE_META[i]?.icon || Building2;
               return (
-                <div key={m.title || String(i)} className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain")} data-tint={i % 2 === 0 ? "cyan" : "violet"}>
+                <div
+                  key={m.title || String(i)}
+                  className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain")}
+                  data-tint={i % 2 === 0 ? "cyan" : "violet"}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="uc-ic flex-shrink-0" aria-hidden="true">
                       <Icon className="h-5 w-5" />
@@ -1125,4 +1284,3 @@ export default function UseCases() {
     </main>
   );
 }
- 
