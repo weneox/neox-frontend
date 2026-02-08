@@ -63,7 +63,7 @@ function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Reveal: strict per-scroll (NO early reveal) ---------------- */
+/* ---------------- Reveal: strict per-scroll ---------------- */
 function useRevealScopedBatched(
   rootRef: React.RefObject<HTMLElement>,
   opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
@@ -121,7 +121,7 @@ function useRevealScopedBatched(
 
     els.forEach((el) => io.observe(el));
 
-    // ✅ fallback: yalnız viewport-da olanları aç (hamısını yox!)
+    // fallback: yalnız viewport-da olanları aç, hamısını yox
     const fallback = window.setTimeout(() => {
       const vh = window.innerHeight || 800;
       for (const el of els) {
@@ -138,6 +138,44 @@ function useRevealScopedBatched(
       io.disconnect();
     };
   }, [rootRef, rootMargin, batchSize, batchDelayMs]);
+}
+
+/* ---------------- Sticky “sürüşmə” hissi üçün stuck state ---------------- */
+function useStickyStuckState(rootRef: React.RefObject<HTMLElement>, stickyTopPx: number) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const items = Array.from(root.querySelectorAll<HTMLElement>(".uc-sticky"));
+    if (!items.length) return;
+
+    let raf = 0;
+    const tick = () => {
+      raf = 0;
+      for (const el of items) {
+        const r = el.getBoundingClientRect();
+        // sticky aktiv olanda el-in üstü top-a yaxınlaşır
+        const stuck = r.top <= stickyTopPx + 2;
+        if (stuck) el.setAttribute("data-stuck", "1");
+        else el.removeAttribute("data-stuck");
+      }
+    };
+
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    tick();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll as any);
+      window.removeEventListener("resize", onScroll as any);
+    };
+  }, [rootRef, stickyTopPx]);
 }
 
 /* ---------------- SEO (native head inject) ---------------- */
@@ -269,17 +307,18 @@ const Bullet = memo(function Bullet({ text }: { text: string }) {
     <div className="uc-bullet flex items-start gap-3">
       <span className="uc-check" aria-hidden="true">
         <span className="uc-checkHalo" />
+        <span className="uc-checkShimmer" />
         <span className="uc-checkCore" />
         <CheckCircle className="uc-checkIcon" />
       </span>
-      <span className="text-white/78 leading-[1.65] break-words">{text}</span>
+      <span className="text-white/80 leading-[1.65] break-words">{text}</span>
     </div>
   );
 });
 
 const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
   return (
-    <div className="uc-tile uc-pop uc-contain">
+    <div className="uc-tile uc-pop">
       <div className="uc-tileK">{k}</div>
       <div className="uc-tileV mt-1">{v}</div>
       <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
@@ -304,34 +343,10 @@ const CreativeHUD = memo(function CreativeHUD({
   statusLabel: string;
   statusValue: string;
 }) {
-  const tintMap: Record<Tint, { a: string; b: string; c: string }> = {
-    cyan: { a: "rgba(47,184,255,.16)", b: "rgba(42,125,255,.12)", c: "rgba(170,225,255,.10)" },
-    violet: { a: "rgba(42,125,255,.16)", b: "rgba(47,184,255,.10)", c: "rgba(170,225,255,.08)" },
-    pink: { a: "rgba(170,225,255,.14)", b: "rgba(47,184,255,.10)", c: "rgba(42,125,255,.08)" },
-    amber: { a: "rgba(80,170,255,.14)", b: "rgba(47,184,255,.10)", c: "rgba(42,125,255,.08)" },
-    emerald: { a: "rgba(80,255,180,.12)", b: "rgba(47,184,255,.08)", c: "rgba(170,225,255,.08)" },
-    indigo: { a: "rgba(140,120,255,.12)", b: "rgba(47,184,255,.08)", c: "rgba(170,225,255,.08)" },
-  };
-  const tt = tintMap[tint] || tintMap.cyan;
-
   return (
-    <div
-      className="uc-hud uc-pop uc-contain"
-      data-tint={tint}
-      style={{
-        background: `
-          radial-gradient(700px 360px at 35% 10%, ${tt.a}, transparent 62%),
-          radial-gradient(700px 360px at 80% 20%, ${tt.b}, transparent 62%),
-          radial-gradient(900px 460px at 50% 120%, rgba(255,255,255,.04), transparent 64%),
-          rgba(255,255,255,.010)
-        `,
-        boxShadow: "0 14px 46px rgba(0,0,0,.55)",
-      }}
-      aria-label="Visual panel"
-    >
+    <div className="uc-hud uc-pop" data-tint={tint} aria-label="Visual panel">
       <div className="uc-hudGrid" aria-hidden="true" />
       <div className="uc-hudScan" aria-hidden="true" />
-
       <div className="uc-hudInner">
         <div className="uc-hudOrbit" aria-hidden="true" />
         <div className="uc-hudRing" aria-hidden="true" />
@@ -386,12 +401,12 @@ const CaseRow = memo(function CaseRow({
   const Icon = c.icon;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-start uc-stack" data-tint={c.tint}>
-      {/* TEXT (sticky scroll altında header-ə yapışır) */}
+    <div className="uc-row grid gap-10 lg:grid-cols-2 lg:items-start" data-tint={c.tint}>
+      {/* TEXT */}
       <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
         <div className="uc-sticky">
-          <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-            <header className={cx("flex items-center justify-between gap-3 uc-reveal reveal-top")} style={{ ["--sd" as any]: "40ms" }}>
+          <article className="uc-card uc-pop" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
+            <header className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="uc-ic" aria-hidden="true">
                   <Icon className="h-5 w-5" />
@@ -404,28 +419,24 @@ const CaseRow = memo(function CaseRow({
               <TintChip t={c.tint} label={tCaseLabel} />
             </header>
 
-            <div className={cx("mt-4 uc-line uc-reveal reveal-top")} style={{ ["--sd" as any]: "90ms" }} />
+            <div className="mt-4 uc-line" />
 
-            <h3 className={cx("mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "140ms" }}>
-              {c.basliq}
-            </h3>
-            <p className={cx("mt-3 text-white/70 leading-[1.75] break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "190ms" }}>
-              {c.hekayə}
-            </p>
+            <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
+            <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
 
-            <div className={cx("mt-5 space-y-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "240ms" }}>
+            <div className="mt-5 space-y-3">
               {c.maddeler.map((b) => (
                 <Bullet key={b} text={b} />
               ))}
             </div>
 
-            <div className={cx("mt-6 grid grid-cols-2 gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "290ms" }}>
+            <div className="mt-6 grid grid-cols-2 gap-3">
               {c.neticeler.map((r) => (
                 <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
               ))}
             </div>
 
-            <div className={cx("mt-7 flex flex-wrap gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "340ms" }}>
+            <div className="mt-7 flex flex-wrap gap-3">
               <Link to={toContact} className="uc-btn">
                 {ctaPrimary} <span aria-hidden="true">→</span>
               </Link>
@@ -437,7 +448,7 @@ const CaseRow = memo(function CaseRow({
         </div>
       </div>
 
-      {/* VISUAL (sticky scroll altında header-ə yapışır) */}
+      {/* VISUAL */}
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
         <div className="uc-sticky">
           <CreativeHUD
@@ -470,7 +481,6 @@ export default function UseCases() {
     const tt = window.setTimeout(() => setEnter(true), 220);
     return () => window.clearTimeout(tt);
   }, []);
-  const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.7) : ms}ms` });
 
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
@@ -527,10 +537,10 @@ export default function UseCases() {
 
   const MORE_META: Array<{ icon: LucideIcon; tint: Tint }> = useMemo(
     () => [
-      { icon: Building2, tint: "emerald" },
-      { icon: GraduationCap, tint: "indigo" },
-      { icon: TrendingUp, tint: "cyan" },
-      { icon: Building2, tint: "amber" },
+      { icon: Building2, tint: "emerald" },      // 1
+      { icon: GraduationCap, tint: "indigo" },   // 2
+      { icon: TrendingUp, tint: "cyan" },        // 3
+      { icon: Building2, tint: "amber" },        // 4
     ],
     []
   );
@@ -559,6 +569,10 @@ export default function UseCases() {
 
   useRevealScopedBatched(rootRef, { batchSize: 4, batchDelayMs: 80, rootMargin: "0px 0px -18% 0px" });
 
+  // ✅ sticky "sürüşmə" hissi üçün
+  const STICKY_TOP = 88;
+  useStickyStuckState(rootRef, STICKY_TOP);
+
   return (
     <main ref={rootRef as any} className="uc-page">
       <script
@@ -584,17 +598,18 @@ export default function UseCases() {
           margin:0;
           padding:0;
           width:100%;
-          overflow-x: clip;
+          /* ✅ ONLY here lock X (sticky ölmesin deyə row-larda yox!) */
+          overflow-x: hidden;
           overscroll-behavior-x: none;
         }
-        #root{ width:100%; overflow-x: clip; }
+        #root{ width:100%; overflow-x: hidden; }
 
         .uc-page{
           background:#000 !important;
           color: rgba(255,255,255,.92);
           min-height: 100vh;
           width: 100%;
-          overflow-x: clip;
+          overflow-x: hidden; /* ✅ sticky üçün təhlükəsiz */
           overscroll-behavior-x: none;
           word-break: break-word;
           overflow-wrap: anywhere;
@@ -602,54 +617,26 @@ export default function UseCases() {
           text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
-          padding-bottom: 24px;
-          --ucStickyTop: 88px; /* ✅ header altı */
+          --ucStickyTop: 88px;
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ kəsilmə YOX: X clip, Y visible */
-        .uc-stack{
+        /* ✅ Row overflow MUST be visible (yoxsa sticky + hover cut olur) */
+        .uc-row{
           position: relative;
+          overflow: visible !important;
           isolation: isolate;
-          overflow-x: clip;
-          overflow-y: visible;
         }
 
-        .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
-
-        /* ✅ sticky scroll (hover yox): row içində header altına yapışır, row bitəndə dayanır */
-        @media (min-width: 1024px){
-          .uc-sticky{
-            position: sticky;
-            top: var(--ucStickyTop);
-            align-self: start;
-            z-index: 2;
-          }
-        }
-
+        /* palette */
         .uc-page .uc-grad{
-          background: linear-gradient(
-            90deg,
-            #ffffff 0%,
-            rgba(170,225,255,.96) 34%,
-            rgba(47,184,255,.95) 68%,
-            rgba(42,125,255,.95) 100%
-          );
+          background: linear-gradient(90deg,#ffffff 0%,rgba(170,225,255,.96) 34%,rgba(47,184,255,.95) 68%,rgba(42,125,255,.95) 100%);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
         }
 
-        .uc-enter{
-          opacity: 0;
-          transform: translate3d(0, 16px, 0);
-          filter: blur(6px);
-          transition: opacity .62s ease, transform .62s ease, filter .62s ease;
-          transition-delay: var(--d, 0ms);
-          will-change: opacity, transform, filter;
-        }
-        .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
-
+        /* ✅ hover pop (kəsilməsin deyə parent visible) */
         .uc-pop{
           position: relative;
           z-index: 1;
@@ -662,6 +649,7 @@ export default function UseCases() {
           transform: translate3d(0,-12px,0) scale(1.04);
         }
 
+        /* HERO */
         .uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
         .uc-heroInner{
           min-height: clamp(520px, 78vh, 860px);
@@ -701,6 +689,7 @@ export default function UseCases() {
         }
         .uc-spacer{ height: 34px; }
 
+        /* breadcrumb */
         .uc-crumb{
           display:inline-flex;
           align-items:center;
@@ -711,9 +700,7 @@ export default function UseCases() {
           border-radius: 999px;
         }
         .uc-crumbDot{
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
+          width: 8px;height: 8px;border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
           flex: 0 0 auto;
@@ -726,13 +713,11 @@ export default function UseCases() {
           white-space: nowrap;
         }
 
+        /* buttons */
         .uc-btn{
           display:inline-flex; align-items:center; justify-content:center; gap:10px;
-          padding:12px 18px;
-          border-radius:999px;
-          font-weight:700;
-          font-size:14px;
-          letter-spacing:-.01em;
+          padding:12px 18px;border-radius:999px;
+          font-weight:700;font-size:14px;letter-spacing:-.01em;
           border:1px solid rgba(47,184,255,.28);
           color:rgba(255,255,255,.92);
           background:
@@ -747,17 +732,13 @@ export default function UseCases() {
           border-color: rgba(47,184,255,.52);
           box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 18px rgba(47,184,255,.10);
         }
-        .uc-btn:active{ transform: translate3d(0,-1px,0); }
         .uc-btnGhost{
           border-color: rgba(255,255,255,.14);
           background: rgba(255,255,255,.03);
           box-shadow: 0 10px 26px rgba(0,0,0,.55);
         }
-        .uc-btnGhost:hover{
-          border-color: rgba(47,184,255,.26);
-          box-shadow: 0 14px 34px rgba(0,0,0,.62);
-        }
 
+        /* cards */
         .uc-card{
           position: relative;
           border: 1px solid rgba(255,255,255,.10);
@@ -782,10 +763,11 @@ export default function UseCases() {
         }
         .uc-pop:hover .uc-ic{
           transform: translate3d(0,-2px,0);
-          border-color: rgba(47,184,255,.22);
+          border-color: rgba(255,255,255,.14);
           box-shadow: 0 16px 44px rgba(0,0,0,.60);
         }
 
+        /* tiles */
         .uc-tile{
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,.10);
@@ -804,13 +786,60 @@ export default function UseCases() {
         }
         .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
-        /* ✅ Reveal: hamısı scroll-la gələcək */
+        /* ✅ Tints = bütün bloklarda fərqli hover işıq */
+        [data-tint="cyan"]{ --tA: rgba(47,184,255,.78); --tB: rgba(170,225,255,.34); --tC: rgba(42,125,255,.22); }
+        [data-tint="violet"]{ --tA: rgba(120,140,255,.72); --tB: rgba(42,125,255,.34); --tC: rgba(47,184,255,.22); }
+        [data-tint="pink"]{ --tA: rgba(255,120,200,.55); --tB: rgba(170,225,255,.28); --tC: rgba(47,184,255,.18); }
+        [data-tint="amber"]{ --tA: rgba(255,170,80,.48); --tB: rgba(80,170,255,.26); --tC: rgba(47,184,255,.16); }
+        [data-tint="emerald"]{ --tA: rgba(80,255,180,.62); --tB: rgba(80,255,180,.20); --tC: rgba(47,184,255,.14); }
+        [data-tint="indigo"]{ --tA: rgba(140,120,255,.62); --tB: rgba(140,120,255,.20); --tC: rgba(47,184,255,.14); }
+
+        /* ✅ hover glow bütün bloklar üçün tint-ə görə */
+        .uc-card::before,
+        .uc-hud::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          border-radius: 24px;
+          pointer-events:none;
+          opacity: 0;
+          transition: opacity .20s ease, transform .20s ease;
+          transform: translate3d(-12px,0,0);
+          background:
+            radial-gradient(640px 260px at 14% 10%, rgba(255,255,255,.08), transparent 60%),
+            radial-gradient(620px 260px at 86% 18%, var(--tB), transparent 62%),
+            radial-gradient(520px 240px at 30% 100%, var(--tC), transparent 60%),
+            linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+          mix-blend-mode: screen;
+        }
+        .uc-pop:hover.uc-card::before,
+        .uc-pop:hover.uc-hud::before{
+          opacity: 1;
+          transform: translate3d(0,0,0);
+        }
+
+        /* ✅ Sticky fix: ancestor overflow yoxdur + position sticky */
+        @media (min-width: 1024px){
+          .uc-sticky{
+            position: sticky;
+            top: var(--ucStickyTop);
+            align-self: start;
+            z-index: 2;
+            will-change: transform;
+          }
+          /* “sürüşərək” hiss: stuck olanda yumşaq micro transform */
+          .uc-sticky[data-stuck="1"] .uc-card,
+          .uc-sticky[data-stuck="1"] .uc-hud{
+            transform: translate3d(0,0,0);
+          }
+        }
+
+        /* ✅ Reveal only on scroll */
         .uc-reveal{ opacity: 1; transform: none; }
         .uc-page.uc-io .uc-reveal{
           opacity: 0;
           transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
           transition: opacity .44s ease, transform .44s ease;
-          transition-delay: var(--sd, 0ms);
           will-change: transform, opacity;
         }
         .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
@@ -819,37 +848,7 @@ export default function UseCases() {
         .reveal-top{ --rx: 0px; --ry: 14px; }
         .reveal-bottom{ --rx: 0px; --ry: -14px; }
 
-        /* Tint vars */
-        [data-tint="cyan"]{ --tA: rgba(47,184,255,.74); --tB: rgba(170,225,255,.28); --tC: rgba(42,125,255,.18); }
-        [data-tint="violet"]{ --tA: rgba(42,125,255,.82); --tB: rgba(47,184,255,.24); --tC: rgba(170,225,255,.14); }
-        [data-tint="pink"]{ --tA: rgba(170,225,255,.64); --tB: rgba(47,184,255,.22); --tC: rgba(42,125,255,.14); }
-        [data-tint="amber"]{ --tA: rgba(80,170,255,.68); --tB: rgba(47,184,255,.22); --tC: rgba(170,225,255,.14); }
-        [data-tint="emerald"]{ --tA: rgba(80,255,180,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
-        [data-tint="indigo"]{ --tA: rgba(140,120,255,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
-
-        .uc-card::before{
-          content:"";
-          position:absolute;
-          inset:-2px;
-          border-radius: 24px;
-          pointer-events:none;
-          opacity: 0;
-          transform: translate3d(-14px, 0, 0);
-          transition: opacity .20s ease, transform .20s ease;
-          background:
-            radial-gradient(640px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
-            radial-gradient(560px 260px at 82% 12%, var(--tB), transparent 62%),
-            radial-gradient(520px 260px at 30% 100%, var(--tC), transparent 60%),
-            linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
-          mix-blend-mode: screen;
-        }
-        .uc-pop:hover.uc-card::before,
-        .uc-pop:focus-within.uc-card::before{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-        }
-
-        /* ✅ Premium check (qus) */
+        /* ✅ Premium check (qus) daha güclü */
         .uc-check{
           position: relative;
           width: 22px;
@@ -858,63 +857,71 @@ export default function UseCases() {
           display: inline-grid;
           place-items: center;
           margin-top: 2px;
+          filter: drop-shadow(0 10px 18px rgba(0,0,0,.55));
+        }
+        .uc-checkHalo{
+          position:absolute;
+          inset: -4px;
+          border-radius: 999px;
+          background: conic-gradient(from 180deg,
+            rgba(255,255,255,0),
+            var(--tA),
+            var(--tB),
+            var(--tC),
+            rgba(255,255,255,0)
+          );
+          opacity: .34;
+          animation: uc-haloSpin 1.9s linear infinite;
+          will-change: transform, opacity;
+        }
+        .uc-checkShimmer{
+          position:absolute;
+          inset: -6px;
+          border-radius: 999px;
+          background: radial-gradient(closest-side, rgba(255,255,255,.18), rgba(255,255,255,0) 68%);
+          opacity: .16;
+          animation: uc-shimmer 1.05s ease-in-out infinite;
+          will-change: transform, opacity;
         }
         .uc-checkCore{
           position:absolute;
           inset: 4px;
           border-radius: 999px;
-          background: radial-gradient(circle at 45% 35%, rgba(255,255,255,.20), rgba(255,255,255,0) 60%),
-                      radial-gradient(circle at 50% 50%, rgba(47,184,255,.28), rgba(47,184,255,0) 72%);
-          opacity: .9;
-          animation: uc-corePulse 1.35s ease-in-out infinite;
-          will-change: transform, opacity;
-        }
-        .uc-checkHalo{
-          position:absolute;
-          inset: -3px;
-          border-radius: 999px;
-          background: conic-gradient(from 180deg,
-            rgba(47,184,255,.0),
-            rgba(47,184,255,.55),
-            rgba(170,225,255,.40),
-            rgba(42,125,255,.45),
-            rgba(47,184,255,.0)
-          );
-          opacity: .28;
-          animation: uc-haloSpin 2.2s linear infinite;
+          background:
+            radial-gradient(circle at 45% 35%, rgba(255,255,255,.26), rgba(255,255,255,0) 62%),
+            radial-gradient(circle at 50% 50%, var(--tB), rgba(255,255,255,0) 74%);
+          opacity: .95;
+          animation: uc-corePulse 1.05s ease-in-out infinite;
           will-change: transform, opacity;
         }
         .uc-checkIcon{
           width: 20px;
           height: 20px;
-          color: rgba(220,250,255,.92);
-          opacity: .98;
-          transform: translate3d(0,0,0);
-          animation: uc-iconBreath 1.35s ease-in-out infinite;
+          color: rgba(240,255,255,.96);
+          opacity: 1;
+          animation: uc-iconBreath 1.05s ease-in-out infinite;
           will-change: transform, opacity;
         }
-        .uc-pop:hover .uc-checkHalo{ opacity: .44; }
-        .uc-pop:hover .uc-checkIcon{ color: rgba(240,255,255,.98); }
+        .uc-pop:hover .uc-checkHalo{ opacity: .52; }
+        .uc-pop:hover .uc-checkShimmer{ opacity: .26; }
+        .uc-pop:hover .uc-checkIcon{ transform: translate3d(0,-1px,0) scale(1.06); }
 
-        @keyframes uc-haloSpin{
-          from{ transform: translate3d(0,0,0) rotate(0deg); }
-          to{ transform: translate3d(0,0,0) rotate(360deg); }
-        }
-        @keyframes uc-corePulse{
-          0%,100%{ transform: translate3d(0,0,0) scale(.92); opacity: .76; }
-          50%{ transform: translate3d(0,0,0) scale(1.18); opacity: .95; }
-        }
-        @keyframes uc-iconBreath{
-          0%,100%{ transform: translate3d(0,0,0) scale(1); opacity: .92; }
-          50%{ transform: translate3d(0,0,0) scale(1.08); opacity: 1; }
-        }
+        @keyframes uc-haloSpin{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+        @keyframes uc-corePulse{ 0%,100%{ transform: scale(.92); opacity: .78; } 50%{ transform: scale(1.22); opacity: 1; } }
+        @keyframes uc-iconBreath{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.10); } }
+        @keyframes uc-shimmer{ 0%,100%{ transform: scale(.92); opacity: .14; } 50%{ transform: scale(1.10); opacity: .26; } }
 
+        /* HUD */
         .uc-hud{
           position: relative;
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.10);
           overflow: hidden;
-          transform: translate3d(0,0,0);
+          background:
+            radial-gradient(720px 380px at 35% 10%, rgba(255,255,255,.04), transparent 62%),
+            radial-gradient(720px 380px at 80% 20%, var(--tC), transparent 62%),
+            rgba(255,255,255,.010);
+          box-shadow: 0 14px 46px rgba(0,0,0,.55);
         }
         .uc-hudInner{
           position: relative;
@@ -945,7 +952,7 @@ export default function UseCases() {
           width: 260px; height: 260px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-          box-shadow: 0 0 0 8px rgba(47,184,255,.05), 0 0 0 1px rgba(0,0,0,.4) inset;
+          box-shadow: 0 0 0 8px rgba(255,255,255,.04), 0 0 0 1px rgba(0,0,0,.4) inset;
           opacity: .55;
           pointer-events:none;
         }
@@ -956,86 +963,45 @@ export default function UseCases() {
           border: 1px dashed rgba(255,255,255,.12);
           opacity: .22;
           pointer-events:none;
+          animation: uc-orbit 10.5s linear infinite;
         }
-        .uc-hudIcon{
-          width: 168px; height: 168px;
-          opacity: .12;
-          color: rgba(255,255,255,.92);
-        }
-        .uc-hudChips{
-          position:absolute;
-          bottom: 18px; left: 18px;
-          display:flex; gap: 8px; flex-wrap: wrap;
-          max-width: 70%;
-        }
-        .uc-hudChip{
-          font-size: 11px;
-          letter-spacing: .10em;
-          text-transform: uppercase;
-          padding: 7px 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.03);
-          color: rgba(255,255,255,.76);
-        }
-        .uc-hudBadge{
-          position:absolute;
-          top: 18px; right: 18px;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
-          padding: 12px 14px;
-          box-shadow: 0 14px 44px rgba(0,0,0,.35);
-          min-width: 120px;
-        }
+        @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+        .uc-hudIcon{ width: 168px; height: 168px; opacity: .12; color: rgba(255,255,255,.92); }
+        .uc-hudChips{ position:absolute; bottom: 18px; left: 18px; display:flex; gap: 8px; flex-wrap: wrap; max-width: 70%; }
+        .uc-hudChip{ font-size: 11px; letter-spacing: .10em; text-transform: uppercase; padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); color: rgba(255,255,255,.76); }
+        .uc-hudBadge{ position:absolute; top: 18px; right: 18px; border-radius: 16px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); padding: 12px 14px; box-shadow: 0 14px 44px rgba(0,0,0,.35); min-width: 120px; }
         .uc-hudBadge2{ top:auto; bottom: 18px; right: 18px; min-width: 110px; }
-        .uc-hudBadgeTop{
-          color: rgba(255,255,255,.66);
-          font-size: 11px;
-          letter-spacing: .12em;
-          text-transform: uppercase;
-        }
-        .uc-hudBadgeVal{
-          color: rgba(255,255,255,.92);
-          font-weight: 700;
-          margin-top: 6px;
-          font-size: 16px;
-        }
+        .uc-hudBadgeTop{ color: rgba(255,255,255,.66); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+        .uc-hudBadgeVal{ color: rgba(255,255,255,.92); font-weight: 700; margin-top: 6px; font-size: 16px; }
         @media (max-width: 560px){
           .uc-hudInner{ min-height: 320px; }
           .uc-hudIcon{ width: 150px; height: 150px; }
         }
 
-        @media (prefers-reduced-motion: no-preference){
-          .uc-hudOrbit{ animation: uc-orbit 10.5s linear infinite; transform-origin: 50% 50%; }
-        }
-        @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
-
-        /* ✅ MORE 4 blocks: daha çox pop + rəng kombinasiyası */
+        /* ✅ Aşağıdakı 4 blok: ÇOX daha çox qabaga gəlsin + fərqli rəng glow */
         .uc-moreCard{
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
         }
         .uc-moreCard:hover{
-          transform: translate3d(0,-18px,0) scale(1.06);
-          border-color: rgba(255,255,255,.14);
-          box-shadow: 0 22px 72px rgba(0,0,0,.72), 0 0 42px rgba(47,184,255,.12);
+          transform: translate3d(0,-26px,0) scale(1.10);
+          border-color: rgba(255,255,255,.16);
+          box-shadow:
+            0 26px 92px rgba(0,0,0,.78),
+            0 0 46px var(--tA),
+            0 0 26px rgba(255,255,255,.06) inset;
           background:
             radial-gradient(520px 220px at 18% 10%, var(--tB), transparent 60%),
             radial-gradient(620px 260px at 86% 18%, var(--tC), transparent 62%),
-            linear-gradient(180deg, rgba(255,255,255,.042), rgba(255,255,255,.018));
+            radial-gradient(520px 260px at 40% 120%, rgba(255,255,255,.06), transparent 64%),
+            linear-gradient(180deg, rgba(255,255,255,.050), rgba(255,255,255,.018));
         }
 
         @media (prefers-reduced-motion: reduce){
-          .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
+          .uc-hudOrbit, .uc-checkHalo, .uc-checkCore, .uc-checkShimmer, .uc-checkIcon{ animation:none !important; }
           .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
-          .uc-pop{ transition:none !important; transform:none !important; }
-          .uc-btn{ transition:none !important; }
-          .uc-hudOrbit{ animation: none !important; }
-          .uc-checkHalo, .uc-checkCore, .uc-checkIcon{ animation:none !important; }
         }
         @media (hover: none){
           .uc-pop:hover{ transform:none !important; }
-          .uc-btn:hover{ transform:none !important; }
           .uc-moreCard:hover{ transform:none !important; }
         }
       `}</style>
@@ -1043,7 +1009,6 @@ export default function UseCases() {
       {/* HERO */}
       <section className="uc-hero" aria-label={t("useCases.aria.hero")}>
         <div className="uc-heroBG" aria-hidden="true" />
-
         <div className="uc-heroInner">
           <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
             <div className="mx-auto max-w-[980px] text-center">
@@ -1051,18 +1016,18 @@ export default function UseCases() {
                 <BreadcrumbPill text={t("useCases.hero.crumb")} enter={enter} delayMs={0} />
               </div>
 
-              <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
+              <h1 className={cx("mt-6 text-white break-words")}>
                 <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
                   {t("useCases.hero.title.before")} <span className="uc-grad">{t("useCases.hero.title.highlight")}</span>
                   {t("useCases.hero.title.after")}
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
+              <p className="mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words">
                 {t("useCases.hero.subtitle")}
               </p>
 
-              <div className={cx("mt-8 flex flex-wrap items-center justify-center gap-3 uc-enter", enter && "uc-in")} style={d(270)}>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link to={toContact} className="uc-btn" aria-label={t("useCases.aria.contact")}>
                   {ctaOwnCase} <span aria-hidden="true">→</span>
                 </Link>
@@ -1075,7 +1040,6 @@ export default function UseCases() {
             </div>
           </div>
         </div>
-
         <div className="uc-spacer" />
       </section>
 
@@ -1124,13 +1088,17 @@ export default function UseCases() {
             </p>
           </div>
 
-          <div className="mt-10 grid gap-4 md:grid-cols-4 uc-stack">
+          <div className="mt-10 grid gap-4 md:grid-cols-4">
             {MORE.map((m, i) => {
               const dir =
                 i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
               const Icon = m.icon || Building2;
               return (
-                <div key={m.title || String(i)} className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain uc-moreCard")} data-tint={m.tint}>
+                <div
+                  key={m.title || String(i)}
+                  className={cx("uc-reveal", dir, "uc-card uc-pop uc-moreCard")}
+                  data-tint={m.tint}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="uc-ic flex-shrink-0" aria-hidden="true">
                       <Icon className="h-5 w-5" />
@@ -1149,7 +1117,7 @@ export default function UseCases() {
       {/* FINAL CTA */}
       <section className="py-16 sm:py-20" aria-label={t("useCases.aria.finalCta")}>
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-          <div className={cx("uc-reveal reveal-bottom", "uc-card uc-pop uc-contain")} style={{ padding: 22 }} data-tint="cyan">
+          <div className={cx("uc-reveal reveal-bottom", "uc-card uc-pop")} style={{ padding: 22 }} data-tint="cyan">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="max-w-[740px] min-w-0">
                 <div className="text-white/70 text-[12px] tracking-[0.14em] uppercase">{t("useCases.final.pill")}</div>
