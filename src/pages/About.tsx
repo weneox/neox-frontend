@@ -52,7 +52,7 @@ function useMedia(query: string, initial = false) {
 }
 
 /**
- * Reveal (BATCH) — MAX FPS friendly
+ * Reveal (BATCH) — FPS friendly + ONLY reveal when scrolled into view
  */
 function useRevealWithinBatched(
   containerRef: React.RefObject<HTMLElement>,
@@ -112,10 +112,11 @@ function useRevealWithinBatched(
 
     els.forEach((el) => io.observe(el));
 
+    // If something gets "stuck" (rare), reveal after a long time
     const fallback = window.setTimeout(() => {
       els.forEach(show);
       io.disconnect();
-    }, 1800);
+    }, 3200);
 
     return () => {
       window.clearTimeout(fallback);
@@ -147,21 +148,13 @@ export default function About() {
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
 
-  // enter
-  const [enter, setEnter] = useState(false);
-  useEffect(() => {
-    if (reduced) return;
-    const tt = window.setTimeout(() => setEnter(true), 220);
-    return () => window.clearTimeout(tt);
-  }, [reduced]);
-
   useRevealWithinBatched(pageRef as any, [], {
     batchSize: 3,
-    batchDelayMs: 85,
-    rootMargin: "0px 0px -18% 0px",
+    batchDelayMs: 95,
+    rootMargin: "0px 0px -16% 0px",
   });
 
-  const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.7) : ms}ms` });
+  const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.72) : ms}ms` });
 
   // Strip words (i18n)
   const stripWords = useMemo(() => STRIP_WORDS_KEYS.map((k) => t(`about.strip.${k}`)), [t]);
@@ -285,7 +278,6 @@ export default function About() {
           overflow-x: clip;
         }
 
-        /* ✅ overlay heç vaxt kontenti örtməsin */
         .ab-page{
           position: relative;
           isolation: isolate;
@@ -296,10 +288,11 @@ export default function About() {
           text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+          z-index: 0;
         }
         .ab-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ background layer-ları iOS Safari üçün 100vw/100vh (sağdakı qara band gedir) */
+        /* ✅ background layers always BEHIND everything (footer included) */
         .ab-layer{
           position: fixed;
           top: 0; left: 50%;
@@ -307,10 +300,10 @@ export default function About() {
           height: 100vh;
           transform: translateX(-50%);
           pointer-events: none;
+          z-index: -9999;
         }
 
         .ab-bgGlow{
-          z-index: -3;
           background:
             radial-gradient(900px 520px at 18% 12%, rgba(47,184,255,.14), transparent 60%),
             radial-gradient(900px 520px at 82% 18%, rgba(42,125,255,.12), transparent 62%),
@@ -321,7 +314,6 @@ export default function About() {
         }
 
         .ab-drift{
-          z-index: -3;
           opacity: .22;
           background:
             radial-gradient(420px 260px at 20% 30%, rgba(47,184,255,.18), transparent 70%),
@@ -336,21 +328,19 @@ export default function About() {
         }
 
         .ab-noise{
-          z-index: -2;
           opacity: .06;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
           mix-blend-mode: soft-light;
         }
 
         .ab-vignette{
-          z-index: -1;
           background:
             radial-gradient(1200px 720px at 50% -10%, rgba(0,0,0,0), rgba(0,0,0,.55) 70%, rgba(0,0,0,.92) 100%),
             radial-gradient(800px 520px at 50% 120%, rgba(0,0,0,0), rgba(0,0,0,.78) 70%, rgba(0,0,0,.96) 100%);
           opacity: .82;
         }
 
-        /* ✅ kontent üst qatda */
+        /* ✅ container */
         .ab-container{
           width: min(1180px, calc(100% - 40px));
           margin: 0 auto;
@@ -396,45 +386,32 @@ export default function About() {
           z-index: -1;
         }
 
-        /* perf */
-        .ab-section, .ab-arch, .ab-process, .ab-final, .ab-hero{
+        /* perf: nothing heavy renders until near viewport */
+        .ab-section, .ab-arch, .ab-process, .ab-final, .ab-hero, .ab-strip{
           content-visibility: auto;
-          contain-intrinsic-size: 920px;
+          contain-intrinsic-size: 1px 980px;
         }
 
-        /* enter */
-        .ab-enter{
-          opacity: 0;
-          transform: translate3d(0, 14px, 0);
-          filter: blur(6px);
-          transition: opacity .62s ease, transform .62s ease, filter .62s ease;
-          transition-delay: var(--d, 0ms);
-          will-change: opacity, transform, filter;
-        }
-        .ab-enter.ab-in{ opacity: 1; transform: translate3d(0,0,0); filter: blur(0px); }
-
-        @media (prefers-reduced-motion: reduce){
-          .ab-drift{ animation:none !important; }
-          .ab-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
-          .ab-glowWord::before{ filter:none; opacity:.55; }
-        }
-
-        /* reveal */
+        /* ✅ REVEAL: default hidden until scrolled into view */
         .ab-reveal{ opacity: 1; transform: none; }
         .ab-page.ab-io .ab-reveal{
           opacity: 0;
-          transform: translate3d(var(--rx, 0px), var(--ry, 16px), 0);
-          transition: opacity .52s ease, transform .52s ease;
+          transform: translate3d(var(--rx, 0px), var(--ry, 18px), 0);
+          filter: blur(0px);
+          transition: opacity .62s ease, transform .62s cubic-bezier(.2,.9,.2,1);
+          transition-delay: var(--d, 0ms);
           will-change: transform, opacity;
         }
         .ab-page.ab-io .ab-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
         .ab-reveal-left{ --rx: -18px; --ry: 0px; }
         .ab-reveal-right{ --rx: 18px; --ry: 0px; }
         .ab-reveal-top{ --rx: 0px; --ry: -12px; }
-        .ab-reveal-bottom{ --rx: 0px; --ry: 16px; }
+        .ab-reveal-bottom{ --rx: 0px; --ry: 18px; }
 
         @media (prefers-reduced-motion: reduce){
+          .ab-drift{ animation:none !important; }
           .ab-page.ab-io .ab-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
+          .ab-glowWord::before{ filter:none; opacity:.55; }
         }
 
         /* HERO */
@@ -463,7 +440,6 @@ export default function About() {
           opacity: .9;
           mix-blend-mode: screen;
         }
-
         .ab-heroFade{
           position:absolute; left:0; right:0; bottom:-1px; height:120px;
           background: linear-gradient(180deg, transparent, rgba(0,0,0,.74), rgba(0,0,0,1));
@@ -471,7 +447,7 @@ export default function About() {
           z-index: 2;
         }
 
-        /* ✅ title — NO forced line breaks, wraps naturally */
+        /* ✅ title: prevent comma falling alone / ugly breaks */
         .ab-title{
           margin-top: 12px;
           font-size: clamp(30px, 7.2vw, 72px);
@@ -483,6 +459,7 @@ export default function About() {
           max-width: 980px;
           margin-left: auto;
           margin-right: auto;
+          white-space: normal;
         }
         @media (max-width: 560px){
           .ab-title{
@@ -495,7 +472,7 @@ export default function About() {
           .ab-title{ font-size: 30px; line-height: 1.06; }
         }
 
-        /* “gözəl görünsün” parçalanmasın */
+        /* quoted piece stays together */
         .ab-quoteWrap{
           display:inline-flex;
           align-items: baseline;
@@ -534,6 +511,23 @@ export default function About() {
           max-width: min(560px, 100%);
           white-space: nowrap;
         }
+
+        /* ✅ SUPER breathing dots (strong) */
+        @keyframes abBreathDot{
+          0%,100%{
+            transform: translate3d(0,0,0) scale(.92);
+            opacity: .62;
+            filter: saturate(1.0);
+            box-shadow: 0 0 0 3px rgba(47,184,255,.10), 0 0 14px rgba(47,184,255,.20);
+          }
+          50%{
+            transform: translate3d(0,-1px,0) scale(1.24);
+            opacity: 1;
+            filter: saturate(1.25);
+            box-shadow: 0 0 0 6px rgba(47,184,255,.20), 0 0 26px rgba(47,184,255,.55), 0 0 44px rgba(170,225,255,.22);
+          }
+        }
+
         .ab-kdot{
           width: 8px;
           height: 8px;
@@ -541,6 +535,7 @@ export default function About() {
           background: linear-gradient(180deg, var(--ab-blue1), var(--ab-blue2));
           box-shadow: 0 0 0 3px rgba(47,184,255,.10);
           flex: 0 0 auto;
+          animation: abBreathDot 1.25s ease-in-out infinite;
         }
         .ab-kickerText{
           font-weight: 650;
@@ -551,7 +546,7 @@ export default function About() {
           white-space: nowrap;
         }
 
-        /* buttons */
+        /* buttons — tactile / alive */
         .ab-actions{
           margin-top: 22px;
           display:flex;
@@ -570,11 +565,18 @@ export default function About() {
           color: rgba(255,255,255,.92);
           text-decoration:none;
           font-weight: 650;
-          transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+          transition:
+            transform .14s ease,
+            border-color .16s ease,
+            background .16s ease,
+            box-shadow .16s ease,
+            filter .16s ease;
           will-change: transform;
           transform: translate3d(0,0,0);
           position: relative;
           overflow: hidden;
+          touch-action: manipulation;
+          user-select: none;
         }
         .ab-btn::before{
           content:"";
@@ -584,21 +586,28 @@ export default function About() {
           transition: opacity .22s ease, transform .22s ease;
           background:
             radial-gradient(420px 180px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
-            radial-gradient(420px 180px at 80% 0%, rgba(47,184,255,.10), transparent 70%);
+            radial-gradient(420px 180px at 80% 0%, rgba(47,184,255,.12), transparent 70%);
           pointer-events:none;
         }
         .ab-btn:hover::before{ opacity:1; transform: translate3d(0,0,0); }
         .ab-btn:hover{
           transform: translate3d(0,-2px,0);
-          border-color: rgba(47,184,255,.22);
-          background: rgba(255,255,255,.045);
-          box-shadow: 0 16px 56px rgba(0,0,0,.55);
+          border-color: rgba(47,184,255,.26);
+          background: rgba(255,255,255,.05);
+          box-shadow: 0 18px 62px rgba(0,0,0,.56);
+          filter: saturate(1.06);
+        }
+        .ab-btn:active{
+          transform: translate3d(0,0px,0) scale(.985);
+          box-shadow: 0 12px 44px rgba(0,0,0,.52);
+          border-color: rgba(170,225,255,.30);
+          background: rgba(255,255,255,.06);
         }
         .ab-btn--primary{
-          border-color: rgba(47,184,255,.26);
+          border-color: rgba(47,184,255,.28);
           background: linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
         }
-        .ab-btn--primary:hover{ border-color: rgba(47,184,255,.42); }
+        .ab-btn--primary:hover{ border-color: rgba(47,184,255,.48); }
 
         .ab-chips{
           margin-top: 14px;
@@ -621,6 +630,13 @@ export default function About() {
           font-weight: 650;
           white-space: nowrap;
           box-shadow: 0 10px 28px rgba(0,0,0,.48);
+          transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, filter .16s ease;
+        }
+        .ab-chip:hover{
+          transform: translate3d(0,-2px,0);
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 18px 50px rgba(0,0,0,.58);
+          filter: saturate(1.08);
         }
         .ab-chip--soft{
           border-color: rgba(47,184,255,.22);
@@ -701,18 +717,19 @@ export default function About() {
           font-weight: 450;
         }
 
+        /* hover => pop FRONT + glow */
         .ab-stack{ position: relative; isolation: isolate; }
         .ab-pop{
           position: relative;
           z-index: 1;
           transform: translate3d(0,0,0) scale(1);
-          transition: transform .20s ease, filter .20s ease, border-color .20s ease;
+          transition: transform .18s ease, filter .18s ease, border-color .18s ease, box-shadow .18s ease;
           will-change: transform;
         }
         .ab-pop:hover, .ab-pop:focus-within{
-          z-index: 60;
-          transform: translate3d(0,-10px,0) scale(1.03);
-          filter: saturate(1.06);
+          z-index: 80;
+          transform: translate3d(0,-12px,0) scale(1.035);
+          filter: saturate(1.10) contrast(1.02);
         }
 
         .ab-card{
@@ -729,14 +746,19 @@ export default function About() {
         .ab-card::before{
           content:"";
           position:absolute; inset:-40% -30%;
-          opacity:.0;
-          transition: opacity .22s ease;
+          opacity:0;
+          transition: opacity .18s ease, transform .18s ease;
+          transform: translate3d(-10px,0,0);
           background:
             radial-gradient(520px 220px at 18% 0%, rgba(255,255,255,.10), transparent 70%),
-            radial-gradient(560px 240px at 85% 0%, rgba(47,184,255,.12), transparent 72%);
+            radial-gradient(560px 240px at 85% 0%, rgba(47,184,255,.14), transparent 72%);
           pointer-events:none;
         }
-        .ab-pop:hover.ab-card::before{ opacity: .9; }
+        .ab-pop:hover.ab-card::before{ opacity: .95; transform: translate3d(0,0,0); }
+        .ab-pop:hover.ab-card{
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 22px 78px rgba(0,0,0,.74);
+        }
 
         .ab-cardHead{ position:relative; display:flex; align-items:center; gap: 10px; }
         .ab-dot{
@@ -744,6 +766,7 @@ export default function About() {
           background: linear-gradient(180deg, var(--ab-blue1), var(--ab-blue2));
           box-shadow: 0 0 0 3px rgba(47,184,255,.10);
           flex: 0 0 auto;
+          animation: abBreathDot 1.05s ease-in-out infinite;
         }
         .ab-ic{
           width: 34px; height:34px;
@@ -753,7 +776,14 @@ export default function About() {
           background: rgba(0,0,0,.28);
           color: rgba(255,255,255,.92);
           flex: 0 0 auto;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
         }
+        .ab-pop:hover .ab-ic{
+          transform: translate3d(0,-1px,0) scale(1.04);
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.10), 0 0 22px rgba(47,184,255,.18);
+        }
+
         .ab-cardTitle{ font-weight: 750; letter-spacing: -.01em; font-size: 16px; }
         .ab-cardDesc{
           margin-top: 10px;
@@ -778,6 +808,7 @@ export default function About() {
           background: linear-gradient(180deg, var(--ab-blue1), var(--ab-blue2));
           box-shadow: 0 0 0 3px rgba(47,184,255,.10);
           flex: 0 0 auto;
+          animation: abBreathDot 1.12s ease-in-out infinite;
         }
 
         .ab-grid{
@@ -788,25 +819,44 @@ export default function About() {
         }
         @media (max-width: 920px){ .ab-grid{ grid-template-columns: 1fr; } }
 
+        /* ✅ check bubble — stronger breathing */
+        @keyframes abBreathCheck{
+          0%,100%{
+            transform: translate3d(0,0,0) scale(.94);
+            opacity: .75;
+            box-shadow:
+              0 10px 22px rgba(0,0,0,.55),
+              0 0 0 3px rgba(47,184,255,.10),
+              0 0 14px rgba(47,184,255,.16);
+          }
+          50%{
+            transform: translate3d(0,-1px,0) scale(1.10);
+            opacity: 1;
+            box-shadow:
+              0 16px 42px rgba(0,0,0,.62),
+              0 0 0 6px rgba(47,184,255,.18),
+              0 0 26px rgba(47,184,255,.42),
+              0 0 54px rgba(170,225,255,.18);
+          }
+        }
+
         .ab-check{
           width: 18px;
           height: 18px;
           border-radius: 999px;
-          border: 1px solid rgba(47,184,255,.30);
+          border: 1px solid rgba(47,184,255,.32);
           background: linear-gradient(180deg, rgba(47,184,255,.18), rgba(42,125,255,.10));
           display: grid;
           place-items: center;
-          box-shadow:
-            0 10px 22px rgba(0,0,0,.55),
-            0 0 0 3px rgba(47,184,255,.10);
           flex: 0 0 auto;
           margin-top: 1px;
+          animation: abBreathCheck 1.05s ease-in-out infinite;
         }
         .ab-check svg{
           width: 12px;
           height: 12px;
           color: rgba(255,255,255,.92);
-          filter: drop-shadow(0 6px 10px rgba(0,0,0,.6));
+          filter: drop-shadow(0 10px 16px rgba(0,0,0,.75));
         }
 
         /* arch */
@@ -828,16 +878,23 @@ export default function About() {
           overflow:hidden;
           isolation:isolate;
           contain: layout paint style;
+          transition: border-color .18s ease, box-shadow .18s ease;
         }
         .ab-diagram::after{
           content:"";
           position:absolute; inset:0;
           pointer-events:none;
           background:
-            radial-gradient(640px 220px at 20% 0%, rgba(255,255,255,.08), transparent 72%),
-            radial-gradient(760px 260px at 85% 10%, rgba(47,184,255,.10), transparent 72%);
+            radial-gradient(640px 220px at 20% 0%, rgba(255,255,255,.10), transparent 72%),
+            radial-gradient(760px 260px at 85% 10%, rgba(47,184,255,.12), transparent 72%);
           opacity:.75;
+          transition: opacity .18s ease;
         }
+        .ab-pop:hover .ab-diagram{
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 26px 86px rgba(0,0,0,.78);
+        }
+        .ab-pop:hover .ab-diagram::after{ opacity: 1; }
 
         .ab-diagTop{ position:relative; display:flex; gap: 8px; flex-wrap:wrap; z-index:1; }
         .ab-diagGrid{
@@ -856,6 +913,13 @@ export default function About() {
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(0,0,0,.26);
           padding: 12px;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+        }
+        .ab-pop:hover .ab-node{
+          transform: translate3d(0,-2px,0);
+          border-color: rgba(47,184,255,.18);
+          box-shadow: 0 16px 42px rgba(0,0,0,.62);
+          filter: saturate(1.06);
         }
         .ab-nodeName{ font-weight: 750; }
         .ab-nodeSub{
@@ -874,6 +938,13 @@ export default function About() {
           position: relative;
           overflow:hidden;
           contain: paint;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+        }
+        .ab-pop:hover .ab-core{
+          transform: translate3d(0,-3px,0) scale(1.01);
+          border-color: rgba(47,184,255,.38);
+          box-shadow: 0 18px 66px rgba(0,0,0,.70), 0 0 0 6px rgba(47,184,255,.10);
+          filter: saturate(1.10);
         }
         .ab-coreTop{
           font-weight: 750;
@@ -891,16 +962,28 @@ export default function About() {
           background: rgba(47,184,255,.92);
           box-shadow: 0 0 0 5px rgba(47,184,255,.10);
           opacity:.9;
-          animation: ab-pulse 1.9s ease-in-out infinite;
+          animation: abPulseStrong 1.05s ease-in-out infinite;
         }
         .ab-pulse.p1{ left: 12px; top: 44px; }
         .ab-pulse.p2{ right: 18px; top: 66px; background: rgba(170,225,255,.90); box-shadow: 0 0 0 5px rgba(170,225,255,.08); }
         .ab-pulse.p3{ left: 44%; bottom: 18px; }
-        @keyframes ab-pulse{
-          0%,100%{ transform: translate3d(0,0,0) scale(1); opacity:.82; }
-          50%{ transform: translate3d(0,-5px,0) scale(1.06); opacity:1; }
+
+        @keyframes abPulseStrong{
+          0%,100%{
+            transform: translate3d(0,0,0) scale(.92);
+            opacity:.62;
+            box-shadow: 0 0 0 5px rgba(47,184,255,.10), 0 0 14px rgba(47,184,255,.20);
+          }
+          50%{
+            transform: translate3d(0,-2px,0) scale(1.38);
+            opacity:1;
+            box-shadow: 0 0 0 9px rgba(47,184,255,.20), 0 0 28px rgba(47,184,255,.60), 0 0 52px rgba(170,225,255,.16);
+          }
         }
-        @media (prefers-reduced-motion: reduce){ .ab-pulse{ animation: none !important; } }
+        @media (prefers-reduced-motion: reduce){
+          .ab-pulse{ animation: none !important; }
+          .ab-dot, .ab-miniDot, .ab-kdot, .ab-dot2, .ab-check{ animation: none !important; }
+        }
 
         .ab-diagFoot{
           position:relative;
@@ -922,6 +1005,7 @@ export default function About() {
           margin-bottom: 12px;
         }
         .ab-termKicker{ letter-spacing:.16em; font-size:12px; font-weight: 750; color: rgba(255,255,255,.82); text-transform: uppercase; }
+
         .ab-termStatus{
           margin-top: 8px;
           display:inline-flex;
@@ -941,6 +1025,7 @@ export default function About() {
           width: 7px; height:7px; border-radius:999px;
           background: linear-gradient(180deg, var(--ab-blue1), var(--ab-blue2));
           box-shadow: 0 0 0 3px rgba(47,184,255,.12);
+          animation: abBreathDot 1.02s ease-in-out infinite;
         }
 
         .ab-termPanel{
@@ -952,6 +1037,7 @@ export default function About() {
           position: relative;
           isolation:isolate;
           contain: layout paint style;
+          transition: border-color .18s ease, box-shadow .18s ease;
         }
         .ab-termPanel::before{
           content:"";
@@ -961,7 +1047,13 @@ export default function About() {
             radial-gradient(900px 520px at 20% 10%, rgba(47,184,255,.12), transparent 60%),
             radial-gradient(900px 520px at 82% 30%, rgba(42,125,255,.10), transparent 62%);
           opacity:.65;
+          transition: opacity .18s ease;
         }
+        .ab-termPanel:hover{
+          border-color: rgba(47,184,255,.20);
+          box-shadow: 0 26px 92px rgba(0,0,0,.78);
+        }
+        .ab-termPanel:hover::before{ opacity: .92; }
 
         .ab-termGrid{
           position: relative;
@@ -981,7 +1073,15 @@ export default function About() {
           display:flex;
           justify-content:space-between;
           gap: 12px;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
         }
+        .ab-termLine:hover{
+          transform: translate3d(0,-8px,0) scale(1.015);
+          border-color: rgba(47,184,255,.20);
+          box-shadow: 0 22px 68px rgba(0,0,0,.74);
+          filter: saturate(1.08);
+        }
+
         .ab-k{ font-size: 12px; letter-spacing:.10em; font-weight: 750; color: rgba(255,255,255,.74); text-transform: uppercase; }
         .ab-v{ margin-top: 6px; color: rgba(255,255,255,.90); font-weight: 650; font-size: 14px; line-height: 1.5; }
         .ab-termMini{ margin-top: 10px; display:grid; gap: 8px; }
@@ -996,12 +1096,40 @@ export default function About() {
         }
         .ab-termColR{ display:grid; gap: 12px; }
 
+        /* ✅ KPI / SLA / LEAD blocks (different glow colors on hover) */
         .ab-metric{
           border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(0,0,0,.26);
           padding: 14px;
+          position: relative;
+          overflow: hidden;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+          will-change: transform;
         }
+        .ab-metric::before{
+          content:"";
+          position:absolute;
+          inset:-40% -40%;
+          opacity: 0;
+          transform: translate3d(-10px,0,0);
+          transition: opacity .18s ease, transform .18s ease;
+          background:
+            radial-gradient(520px 240px at 22% 0%, rgba(255,255,255,.10), transparent 70%),
+            radial-gradient(560px 240px at 82% 10%, var(--accent, rgba(47,184,255,.18)), transparent 72%);
+          pointer-events:none;
+        }
+        .ab-metric:hover{
+          z-index: 90;
+          transform: translate3d(0,-10px,0) scale(1.02);
+          border-color: color-mix(in srgb, var(--accent, rgba(47,184,255,.35)) 60%, rgba(255,255,255,.08));
+          box-shadow:
+            0 26px 86px rgba(0,0,0,.78),
+            0 0 0 6px color-mix(in srgb, var(--accent, rgba(47,184,255,.24)) 45%, transparent);
+          filter: saturate(1.16);
+        }
+        .ab-metric:hover::before{ opacity: 1; transform: translate3d(0,0,0); }
+
         .ab-mLabel{ font-size: 12px; font-weight: 750; letter-spacing:.10em; color: rgba(255,255,255,.76); text-transform: uppercase; }
         .ab-mValue{ margin-top: 8px; font-size: 22px; font-weight: 750; letter-spacing: -.02em; }
         .ab-mChips{ margin-top: 10px; display:flex; flex-wrap:wrap; gap: 8px; }
@@ -1017,6 +1145,13 @@ export default function About() {
           font-size: 12px;
           font-weight: 650;
           white-space: nowrap;
+          transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, filter .16s ease;
+        }
+        .ab-mChip:hover{
+          transform: translate3d(0,-2px,0);
+          border-color: rgba(255,255,255,.16);
+          box-shadow: 0 16px 44px rgba(0,0,0,.64);
+          filter: saturate(1.10);
         }
 
         /* final */
@@ -1037,31 +1172,41 @@ export default function About() {
           position:relative;
           overflow:hidden;
           contain: layout paint style;
+          transition: border-color .18s ease, box-shadow .18s ease;
         }
         .ab-proof::before{
           content:"";
           position:absolute; inset:-40% -30%;
           opacity:0;
           transform: translate3d(-10px,0,0);
-          transition: opacity .22s ease, transform .22s ease;
+          transition: opacity .18s ease, transform .18s ease;
           background:
             radial-gradient(520px 220px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
-            radial-gradient(560px 240px at 85% 0%, rgba(47,184,255,.12), transparent 72%);
+            radial-gradient(560px 240px at 85% 0%, rgba(47,184,255,.14), transparent 72%);
           pointer-events:none;
         }
         .ab-pop:hover.ab-proof::before{ opacity:1; transform: translate3d(0,0,0); }
+        .ab-pop:hover.ab-proof{
+          border-color: rgba(47,184,255,.22);
+          box-shadow: 0 26px 86px rgba(0,0,0,.78);
+        }
 
         .ab-proofTop{ color: rgba(255,255,255,.72); font-weight: 750; letter-spacing:.14em; font-size:12px; text-transform: uppercase; }
         .ab-proofMid{ margin-top: 10px; font-weight: 750; font-size: 28px; letter-spacing: -.02em; }
         .ab-proofBot{ margin-top: 8px; color: rgba(255,255,255,.70); line-height: 1.6; font-size: 13.5px; font-weight: 450; }
 
+        /* mobile */
         @media (hover: none){
           .ab-pop:hover{ transform:none; filter:none; }
           .ab-btn:hover{ transform:none; box-shadow:none; }
+          .ab-chip:hover{ transform:none; }
+          .ab-mChip:hover{ transform:none; }
+          .ab-termLine:hover{ transform:none; box-shadow:none; }
+          .ab-metric:hover{ transform:none; box-shadow:none; }
         }
       `}</style>
 
-      {/* ✅ premium background layers (tam ekran, sağdakı qara band yoxdur) */}
+      {/* ✅ premium background layers (always behind footer too) */}
       <div className="ab-layer ab-bgGlow" aria-hidden="true" />
       {!reduced && <div className="ab-layer ab-drift" aria-hidden="true" />}
       <div className="ab-layer ab-noise" aria-hidden="true" />
@@ -1073,7 +1218,7 @@ export default function About() {
         <div className="ab-heroFade" aria-hidden="true" />
 
         <div className="ab-container">
-          {/* Kicker pill (✅ bir az aşağı, daha balanslı) */}
+          {/* Kicker pill */}
           <div
             style={{
               display: "flex",
@@ -1081,7 +1226,7 @@ export default function About() {
               marginTop: isMobile ? 18 : 10,
               ...d(0),
             }}
-            className={cx("ab-enter", enter && "ab-in")}
+            className={cx("ab-reveal", "ab-reveal-top")}
           >
             <div className="ab-kickerPill">
               <span className="ab-kdot" aria-hidden="true" />
@@ -1089,9 +1234,10 @@ export default function About() {
             </div>
           </div>
 
-          {/* Title (✅ forced break yoxdur, normal axır) */}
-          <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            {t("about.hero.title.0")}{" "}
+          {/* Title — fix weird comma line breaks by keeping punctuation attached */}
+          <h1 style={d(90)} className={cx("ab-title", "ab-reveal", "ab-reveal-top")}>
+            {t("about.hero.title.0")}
+            {" "}
             <span className="ab-quoteWrap" aria-label="gözəl görünsün">
               <span className="ab-quote" aria-hidden="true">
                 “
@@ -1100,21 +1246,25 @@ export default function About() {
               <span className="ab-quote" aria-hidden="true">
                 ”
               </span>
-            </span>{" "}
-            {t("about.hero.title.1")} {t("about.hero.title.2")}{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
+            </span>
+            {" "}
+            {t("about.hero.title.1")}{" "}{t("about.hero.title.2")}{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>
+            {", "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>
+            {", "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>
+            {" "}
             {t("about.hero.title.3")}
           </h1>
 
           {/* Sub */}
-          <p style={d(180)} className={cx("ab-sub", "ab-enter", enter && "ab-in")}>
+          <p style={d(180)} className={cx("ab-sub", "ab-reveal", "ab-reveal-bottom")}>
             {t("about.hero.sub")}
           </p>
 
           {/* Buttons */}
-          <div style={d(270)} className={cx("ab-actions", "ab-enter", enter && "ab-in")}>
+          <div style={d(270)} className={cx("ab-actions", "ab-reveal", "ab-reveal-bottom")}>
             <Link to="/contact" className="ab-btn ab-btn--primary">
               {t("about.hero.ctaPrimary")} <ArrowRight size={18} />
             </Link>
@@ -1124,7 +1274,7 @@ export default function About() {
           </div>
 
           {/* Chips */}
-          <div style={d(350)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
+          <div style={d(350)} className={cx("ab-chips", "ab-reveal", "ab-reveal-bottom")} aria-hidden="true">
             <span className="ab-chip ab-chip--soft">
               <Cpu size={14} /> {t("about.hero.chips.0")}
             </span>
@@ -1157,10 +1307,14 @@ export default function About() {
           <header className="ab-head">
             <div className={cx("ab-kicker", "ab-reveal", "ab-reveal-top")}>{t("about.foundation.kicker")}</div>
             <h2 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")}>
-              {t("about.foundation.title.0")}{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowSystem")}</span>,{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowControl")}</span>{" "}
-              {t("about.foundation.title.1")}{" "}
+              {t("about.foundation.title.0")}
+              {" "}
+              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowSystem")}</span>
+              {", "}
+              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowControl")}</span>
+              {" "}
+              {t("about.foundation.title.1")}
+              {" "}
               <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowResult")}</span>
             </h2>
             <p className={cx("ab-p", "ab-reveal", "ab-reveal-top")} style={{ maxWidth: 920 }}>
@@ -1285,7 +1439,8 @@ export default function About() {
                 {t("about.arch.kicker")}
               </div>
               <h3 className="ab-h2" style={{ textAlign: "left" }}>
-                {t("about.arch.title.0")} <span className="ab-glowWord ab-gradient">{t("about.arch.title.glow")}</span>
+                {t("about.arch.title.0")}{" "}
+                <span className="ab-glowWord ab-gradient">{t("about.arch.title.glow")}</span>
               </h3>
               <p className="ab-p" style={{ textAlign: "left", maxWidth: 820, marginInline: 0 }}>
                 {t("about.arch.sub")}
@@ -1371,7 +1526,7 @@ export default function About() {
               </div>
 
               <div className={cx("ab-termColR", "ab-reveal", "ab-reveal-right")}>
-                <div className="ab-metric">
+                <div className="ab-metric" style={{ ["--accent" as any]: "rgba(47,184,255,.55)" }}>
                   <div className="ab-mLabel">{t("about.process.metrics.timeToValue.label")}</div>
                   <div className="ab-mValue">
                     <span className="ab-glowWord ab-gradient">{t("about.process.metrics.timeToValue.valueStrong")}</span>{" "}
@@ -1390,7 +1545,7 @@ export default function About() {
                   </div>
                 </div>
 
-                <div className="ab-metric">
+                <div className="ab-metric" style={{ ["--accent" as any]: "rgba(122,245,185,.52)" }}>
                   <div className="ab-mLabel">{t("about.process.metrics.supportModel.label")}</div>
                   <div className="ab-mValue">
                     {t("about.process.metrics.supportModel.value.0")}{" "}
@@ -1409,7 +1564,7 @@ export default function About() {
                   </div>
                 </div>
 
-                <div className="ab-metric">
+                <div className="ab-metric" style={{ ["--accent" as any]: "rgba(255,178,72,.50)" }}>
                   <div className="ab-mLabel">{t("about.process.metrics.fit.label")}</div>
                   <div className="ab-mValue">{t("about.process.metrics.fit.value")}</div>
                   <div className="ab-mChips">
