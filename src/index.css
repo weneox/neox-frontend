@@ -8754,21 +8754,23 @@ html {
 .neox-ai-overlay{
   position: fixed;
   inset: 0;
-
-  /* visually do NOTHING */
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
-}
 
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+
+  background:
+    radial-gradient(1200px 760px at 78% 70%, rgba(47,123,255,0.16), transparent 62%),
+    radial-gradient(900px 600px at 18% 18%, rgba(255,178,74,0.10), transparent 60%),
+    rgba(0,0,0,0.44);
+
+  transition: opacity 200ms ease;
+}
 .neox-ai-overlay.is-open{
   opacity: 1;
-  pointer-events: auto;   /* blocks clicks behind */
-  touch-action: none;     /* blocks touch behind */
+  pointer-events: auto;
+  touch-action: none;
 }
 
 /* =========================================================
@@ -9454,3 +9456,23 @@ html {
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
 
+/* =========================================================
+   NEOX AI — HARD OVERRIDE (NO DIM, NO BLUR, NO PAGE CHANGE)
+   Put this at VERY END of index.css
+========================================================= */
+
+.neox-ai .neox-ai-overlay,
+.neox-ai-overlay{
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.neox-ai.is-open .neox-ai-overlay,
+.neox-ai-overlay.is-open{
+  opacity: 1 !important;
+  pointer-events: auto !important; /* blocks clicks behind */
+  touch-action: none !important;
+}
