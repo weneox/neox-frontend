@@ -63,12 +63,12 @@ function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Reveal: scoped + batched (FPS safe) ---------------- */
+/* ---------------- Reveal: strict per-scroll (NO early reveal) ---------------- */
 function useRevealScopedBatched(
   rootRef: React.RefObject<HTMLElement>,
   opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
 ) {
-  const { rootMargin = "0px 0px -16% 0px", batchSize = 4, batchDelayMs = 80 } = opts || {};
+  const { rootMargin = "0px 0px -18% 0px", batchSize = 4, batchDelayMs = 80 } = opts || {};
 
   useEffect(() => {
     const root = rootRef.current;
@@ -121,10 +121,16 @@ function useRevealScopedBatched(
 
     els.forEach((el) => io.observe(el));
 
+    // ✅ fallback: yalnız viewport-da olanları aç (hamısını yox!)
     const fallback = window.setTimeout(() => {
-      els.forEach(revealNow);
-      io.disconnect();
-    }, 2400);
+      const vh = window.innerHeight || 800;
+      for (const el of els) {
+        if (el.classList.contains("is-in")) continue;
+        const r = el.getBoundingClientRect();
+        const visible = r.top < vh * 0.92 && r.bottom > vh * 0.08;
+        if (visible) revealNow(el);
+      }
+    }, 1200);
 
     return () => {
       window.clearTimeout(fallback);
@@ -260,12 +266,13 @@ const TintChip = memo(function TintChip({ t, label }: { t: Tint; label: string }
 
 const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
-    <div className="uc-bullet flex items-start gap-2">
-      <span className="uc-bulletIconWrap" aria-hidden="true">
-        <span className="uc-bulletPing" />
-        <CheckCircle className="uc-bulletIcon w-5 h-5 flex-shrink-0 mt-0.5" />
+    <div className="uc-bullet flex items-start gap-3">
+      <span className="uc-check" aria-hidden="true">
+        <span className="uc-checkHalo" />
+        <span className="uc-checkCore" />
+        <CheckCircle className="uc-checkIcon" />
       </span>
-      <span className="text-white/75 leading-[1.65] break-words">{text}</span>
+      <span className="text-white/78 leading-[1.65] break-words">{text}</span>
     </div>
   );
 });
@@ -380,57 +387,59 @@ const CaseRow = memo(function CaseRow({
 
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:items-start uc-stack" data-tint={c.tint}>
-      {/* TEXT */}
+      {/* TEXT (sticky scroll altında header-ə yapışır) */}
       <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <article className="uc-card uc-pop uc-contain uc-stickyOnHover" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-          <header className={cx("flex items-center justify-between gap-3 uc-reveal reveal-top")} style={{ ["--sd" as any]: "40ms" }}>
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="uc-ic" aria-hidden="true">
-                <Icon className="h-5 w-5" />
+        <div className="uc-sticky">
+          <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
+            <header className={cx("flex items-center justify-between gap-3 uc-reveal reveal-top")} style={{ ["--sd" as any]: "40ms" }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="uc-ic" aria-hidden="true">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
+                  <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
-                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
-              </div>
+              <TintChip t={c.tint} label={tCaseLabel} />
+            </header>
+
+            <div className={cx("mt-4 uc-line uc-reveal reveal-top")} style={{ ["--sd" as any]: "90ms" }} />
+
+            <h3 className={cx("mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "140ms" }}>
+              {c.basliq}
+            </h3>
+            <p className={cx("mt-3 text-white/70 leading-[1.75] break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "190ms" }}>
+              {c.hekayə}
+            </p>
+
+            <div className={cx("mt-5 space-y-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "240ms" }}>
+              {c.maddeler.map((b) => (
+                <Bullet key={b} text={b} />
+              ))}
             </div>
-            <TintChip t={c.tint} label={tCaseLabel} />
-          </header>
 
-          <div className={cx("mt-4 uc-line uc-reveal reveal-top")} style={{ ["--sd" as any]: "90ms" }} />
+            <div className={cx("mt-6 grid grid-cols-2 gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "290ms" }}>
+              {c.neticeler.map((r) => (
+                <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
+              ))}
+            </div>
 
-          <h3 className={cx("mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "140ms" }}>
-            {c.basliq}
-          </h3>
-          <p className={cx("mt-3 text-white/70 leading-[1.75] break-words uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "190ms" }}>
-            {c.hekayə}
-          </p>
-
-          <div className={cx("mt-5 space-y-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "240ms" }}>
-            {c.maddeler.map((b) => (
-              <Bullet key={b} text={b} />
-            ))}
-          </div>
-
-          <div className={cx("mt-6 grid grid-cols-2 gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "290ms" }}>
-            {c.neticeler.map((r) => (
-              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
-            ))}
-          </div>
-
-          <div className={cx("mt-7 flex flex-wrap gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "340ms" }}>
-            <Link to={toContact} className="uc-btn">
-              {ctaPrimary} <span aria-hidden="true">→</span>
-            </Link>
-            <Link to={toServices} className="uc-btn uc-btnGhost">
-              {ctaSecondary}
-            </Link>
-          </div>
-        </article>
+            <div className={cx("mt-7 flex flex-wrap gap-3 uc-reveal reveal-bottom")} style={{ ["--sd" as any]: "340ms" }}>
+              <Link to={toContact} className="uc-btn">
+                {ctaPrimary} <span aria-hidden="true">→</span>
+              </Link>
+              <Link to={toServices} className="uc-btn uc-btnGhost">
+                {ctaSecondary}
+              </Link>
+            </div>
+          </article>
+        </div>
       </div>
 
-      {/* VISUAL */}
+      {/* VISUAL (sticky scroll altında header-ə yapışır) */}
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        <div className="uc-stickyOnHover">
+        <div className="uc-sticky">
           <CreativeHUD
             tint={c.tint}
             icon={Icon}
@@ -570,7 +579,6 @@ export default function UseCases() {
       />
 
       <style>{`
-        /* ✅ ROOT-LEVEL FIX */
         html, body{
           background:#000 !important;
           margin:0;
@@ -579,10 +587,7 @@ export default function UseCases() {
           overflow-x: clip;
           overscroll-behavior-x: none;
         }
-        #root{
-          width:100%;
-          overflow-x: clip;
-        }
+        #root{ width:100%; overflow-x: clip; }
 
         .uc-page{
           background:#000 !important;
@@ -598,13 +603,11 @@ export default function UseCases() {
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
           padding-bottom: 24px;
+          --ucStickyTop: 88px; /* ✅ header altı */
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ KƏSİLMƏ FIX:
-           əvvəl overflow: clip idi, hover scale kəsirdi
-           indi X-də clip, Y-də visible — yuxarı/aşağı kəsilmir
-        */
+        /* ✅ kəsilmə YOX: X clip, Y visible */
         .uc-stack{
           position: relative;
           isolation: isolate;
@@ -612,7 +615,18 @@ export default function UseCases() {
           overflow-y: visible;
         }
 
-        /* palette */
+        .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
+
+        /* ✅ sticky scroll (hover yox): row içində header altına yapışır, row bitəndə dayanır */
+        @media (min-width: 1024px){
+          .uc-sticky{
+            position: sticky;
+            top: var(--ucStickyTop);
+            align-self: start;
+            z-index: 2;
+          }
+        }
+
         .uc-page .uc-grad{
           background: linear-gradient(
             90deg,
@@ -626,8 +640,6 @@ export default function UseCases() {
           color: transparent;
         }
 
-        .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
-
         .uc-enter{
           opacity: 0;
           transform: translate3d(0, 16px, 0);
@@ -638,29 +650,16 @@ export default function UseCases() {
         }
         .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-        /* hover pop — daha premium, amma FPS-safe */
         .uc-pop{
           position: relative;
           z-index: 1;
           transform: translate3d(0,0,0) scale(1);
-          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
           will-change: transform;
         }
         .uc-pop:hover, .uc-pop:focus-within{
-          z-index: 90; /* ✅ yanındakı blokların üstündə olsun */
+          z-index: 60;
           transform: translate3d(0,-12px,0) scale(1.04);
-        }
-
-        /* ✅ sticky on hover (desktop)
-           scroll edəndə header altına "düşür" və parent-in sonunda dayanır
-        */
-        @media (min-width: 1024px){
-          .uc-stickyOnHover:hover,
-          .uc-stickyOnHover:focus-within{
-            position: sticky;
-            top: 88px; /* header altı */
-            z-index: 95;
-          }
         }
 
         .uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
@@ -805,6 +804,111 @@ export default function UseCases() {
         }
         .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
+        /* ✅ Reveal: hamısı scroll-la gələcək */
+        .uc-reveal{ opacity: 1; transform: none; }
+        .uc-page.uc-io .uc-reveal{
+          opacity: 0;
+          transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
+          transition: opacity .44s ease, transform .44s ease;
+          transition-delay: var(--sd, 0ms);
+          will-change: transform, opacity;
+        }
+        .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
+        .reveal-left{ --rx: -18px; --ry: 0px; }
+        .reveal-right{ --rx: 18px; --ry: 0px; }
+        .reveal-top{ --rx: 0px; --ry: 14px; }
+        .reveal-bottom{ --rx: 0px; --ry: -14px; }
+
+        /* Tint vars */
+        [data-tint="cyan"]{ --tA: rgba(47,184,255,.74); --tB: rgba(170,225,255,.28); --tC: rgba(42,125,255,.18); }
+        [data-tint="violet"]{ --tA: rgba(42,125,255,.82); --tB: rgba(47,184,255,.24); --tC: rgba(170,225,255,.14); }
+        [data-tint="pink"]{ --tA: rgba(170,225,255,.64); --tB: rgba(47,184,255,.22); --tC: rgba(42,125,255,.14); }
+        [data-tint="amber"]{ --tA: rgba(80,170,255,.68); --tB: rgba(47,184,255,.22); --tC: rgba(170,225,255,.14); }
+        [data-tint="emerald"]{ --tA: rgba(80,255,180,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
+        [data-tint="indigo"]{ --tA: rgba(140,120,255,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
+
+        .uc-card::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          border-radius: 24px;
+          pointer-events:none;
+          opacity: 0;
+          transform: translate3d(-14px, 0, 0);
+          transition: opacity .20s ease, transform .20s ease;
+          background:
+            radial-gradient(640px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
+            radial-gradient(560px 260px at 82% 12%, var(--tB), transparent 62%),
+            radial-gradient(520px 260px at 30% 100%, var(--tC), transparent 60%),
+            linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+          mix-blend-mode: screen;
+        }
+        .uc-pop:hover.uc-card::before,
+        .uc-pop:focus-within.uc-card::before{
+          opacity: 1;
+          transform: translate3d(0,0,0);
+        }
+
+        /* ✅ Premium check (qus) */
+        .uc-check{
+          position: relative;
+          width: 22px;
+          height: 22px;
+          flex: 0 0 auto;
+          display: inline-grid;
+          place-items: center;
+          margin-top: 2px;
+        }
+        .uc-checkCore{
+          position:absolute;
+          inset: 4px;
+          border-radius: 999px;
+          background: radial-gradient(circle at 45% 35%, rgba(255,255,255,.20), rgba(255,255,255,0) 60%),
+                      radial-gradient(circle at 50% 50%, rgba(47,184,255,.28), rgba(47,184,255,0) 72%);
+          opacity: .9;
+          animation: uc-corePulse 1.35s ease-in-out infinite;
+          will-change: transform, opacity;
+        }
+        .uc-checkHalo{
+          position:absolute;
+          inset: -3px;
+          border-radius: 999px;
+          background: conic-gradient(from 180deg,
+            rgba(47,184,255,.0),
+            rgba(47,184,255,.55),
+            rgba(170,225,255,.40),
+            rgba(42,125,255,.45),
+            rgba(47,184,255,.0)
+          );
+          opacity: .28;
+          animation: uc-haloSpin 2.2s linear infinite;
+          will-change: transform, opacity;
+        }
+        .uc-checkIcon{
+          width: 20px;
+          height: 20px;
+          color: rgba(220,250,255,.92);
+          opacity: .98;
+          transform: translate3d(0,0,0);
+          animation: uc-iconBreath 1.35s ease-in-out infinite;
+          will-change: transform, opacity;
+        }
+        .uc-pop:hover .uc-checkHalo{ opacity: .44; }
+        .uc-pop:hover .uc-checkIcon{ color: rgba(240,255,255,.98); }
+
+        @keyframes uc-haloSpin{
+          from{ transform: translate3d(0,0,0) rotate(0deg); }
+          to{ transform: translate3d(0,0,0) rotate(360deg); }
+        }
+        @keyframes uc-corePulse{
+          0%,100%{ transform: translate3d(0,0,0) scale(.92); opacity: .76; }
+          50%{ transform: translate3d(0,0,0) scale(1.18); opacity: .95; }
+        }
+        @keyframes uc-iconBreath{
+          0%,100%{ transform: translate3d(0,0,0) scale(1); opacity: .92; }
+          50%{ transform: translate3d(0,0,0) scale(1.08); opacity: 1; }
+        }
+
         .uc-hud{
           position: relative;
           border-radius: 22px;
@@ -902,22 +1006,24 @@ export default function UseCases() {
           .uc-hudIcon{ width: 150px; height: 150px; }
         }
 
-        .uc-section{ background: transparent !important; }
-
-        /* ✅ Reveal everywhere (including nested with --sd delay) */
-        .uc-reveal{ opacity: 1; transform: none; }
-        .uc-page.uc-io .uc-reveal{
-          opacity: 0;
-          transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-          transition: opacity .42s ease, transform .42s ease;
-          transition-delay: var(--sd, 0ms);
-          will-change: transform, opacity;
+        @media (prefers-reduced-motion: no-preference){
+          .uc-hudOrbit{ animation: uc-orbit 10.5s linear infinite; transform-origin: 50% 50%; }
         }
-        .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
-        .reveal-left{ --rx: -18px; --ry: 0px; }
-        .reveal-right{ --rx: 18px; --ry: 0px; }
-        .reveal-top{ --rx: 0px; --ry: 14px; }
-        .reveal-bottom{ --rx: 0px; --ry: -14px; }
+        @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+
+        /* ✅ MORE 4 blocks: daha çox pop + rəng kombinasiyası */
+        .uc-moreCard{
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+        }
+        .uc-moreCard:hover{
+          transform: translate3d(0,-18px,0) scale(1.06);
+          border-color: rgba(255,255,255,.14);
+          box-shadow: 0 22px 72px rgba(0,0,0,.72), 0 0 42px rgba(47,184,255,.12);
+          background:
+            radial-gradient(520px 220px at 18% 10%, var(--tB), transparent 60%),
+            radial-gradient(620px 260px at 86% 18%, var(--tC), transparent 62%),
+            linear-gradient(180deg, rgba(255,255,255,.042), rgba(255,255,255,.018));
+        }
 
         @media (prefers-reduced-motion: reduce){
           .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
@@ -925,158 +1031,17 @@ export default function UseCases() {
           .uc-pop{ transition:none !important; transform:none !important; }
           .uc-btn{ transition:none !important; }
           .uc-hudOrbit{ animation: none !important; }
-          .uc-bulletPing{ animation:none !important; }
-          .uc-bulletIcon{ animation:none !important; }
+          .uc-checkHalo, .uc-checkCore, .uc-checkIcon{ animation:none !important; }
         }
         @media (hover: none){
           .uc-pop:hover{ transform:none !important; }
           .uc-btn:hover{ transform:none !important; }
-        }
-
-        /* Tint vars */
-        [data-tint="cyan"]{ --tA: rgba(47,184,255,.70); --tB: rgba(170,225,255,.28); --tC: rgba(42,125,255,.18); }
-        [data-tint="violet"]{ --tA: rgba(42,125,255,.78); --tB: rgba(47,184,255,.24); --tC: rgba(170,225,255,.14); }
-        [data-tint="pink"]{ --tA: rgba(170,225,255,.62); --tB: rgba(47,184,255,.22); --tC: rgba(42,125,255,.14); }
-        [data-tint="amber"]{ --tA: rgba(80,170,255,.66); --tB: rgba(47,184,255,.22); --tC: rgba(170,225,255,.14); }
-        [data-tint="emerald"]{ --tA: rgba(80,255,180,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
-        [data-tint="indigo"]{ --tA: rgba(140,120,255,.62); --tB: rgba(47,184,255,.18); --tC: rgba(170,225,255,.12); }
-
-        .uc-card::before{
-          content:"";
-          position:absolute;
-          inset:-2px;
-          border-radius: 24px;
-          pointer-events:none;
-          opacity: 0;
-          transform: translate3d(-14px, 0, 0);
-          transition: opacity .20s ease, transform .20s ease;
-          background:
-            radial-gradient(640px 220px at 14% 0%, rgba(255,255,255,.10), transparent 62%),
-            radial-gradient(560px 260px at 82% 12%, var(--tB), transparent 62%),
-            radial-gradient(520px 260px at 30% 100%, var(--tC), transparent 60%),
-            linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
-          mix-blend-mode: screen;
-        }
-        .uc-pop:hover.uc-card::before,
-        .uc-pop:focus-within.uc-card::before{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-        }
-
-        .uc-card::after{
-          content:"";
-          position:absolute;
-          inset:0;
-          border-radius: 22px;
-          pointer-events:none;
-          opacity: 0;
-          transition: opacity .20s ease;
-          box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 0 0 1px rgba(0,0,0,.35);
-        }
-        .uc-pop:hover.uc-card::after,
-        .uc-pop:focus-within.uc-card::after{ opacity: 1; }
-
-        .uc-bullet{ position: relative; padding-left: 2px; }
-        .uc-bullet::before{
-          content:"";
-          position:absolute;
-          left: 9px;
-          top: 14px;
-          width: 28px;
-          height: 1px;
-          background: linear-gradient(90deg, var(--tA), transparent);
-          opacity: .65;
-        }
-
-        /* ✅ bullet live glow/pulse (GPU-safe) */
-        .uc-bulletIconWrap{
-          position: relative;
-          width: 22px;
-          height: 22px;
-          display: inline-grid;
-          place-items: center;
-          flex: 0 0 auto;
-          margin-top: 2px;
-        }
-        .uc-bulletIcon{
-          color: rgba(170,225,255,.95);
-          filter: drop-shadow(0 0 10px rgba(47,184,255,.22));
-          animation: uc-iconPulse 1.65s ease-in-out infinite;
-          will-change: transform, opacity;
-        }
-        .uc-bulletPing{
-          position:absolute;
-          inset: 4px;
-          border-radius: 999px;
-          background: radial-gradient(circle at 50% 50%, rgba(47,184,255,.26), transparent 70%);
-          opacity: .55;
-          animation: uc-ping 1.65s ease-in-out infinite;
-          will-change: transform, opacity;
-        }
-        @keyframes uc-iconPulse{
-          0%, 100%{ transform: translate3d(0,0,0) scale(1); opacity: .92; }
-          50%{ transform: translate3d(0,0,0) scale(1.07); opacity: 1; }
-        }
-        @keyframes uc-ping{
-          0%{ transform: translate3d(0,0,0) scale(.9); opacity: .42; }
-          50%{ transform: translate3d(0,0,0) scale(1.25); opacity: .70; }
-          100%{ transform: translate3d(0,0,0) scale(.9); opacity: .42; }
-        }
-
-        .uc-hud::before{
-          content:"";
-          position:absolute;
-          inset:0;
-          pointer-events:none;
-          opacity:.62;
-          background:
-            radial-gradient(820px 260px at 20% 0%, var(--tB), transparent 60%),
-            radial-gradient(700px 240px at 80% 10%, rgba(255,255,255,.06), transparent 62%);
-          mix-blend-mode: screen;
-        }
-
-        @media (prefers-reduced-motion: no-preference){
-          .uc-hudOrbit{ animation: uc-orbit 10.5s linear infinite; transform-origin: 50% 50%; }
-        }
-        @keyframes uc-orbit{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
-
-        /* ✅ MORE 4 cards: hover-da daha çox pop + rəng kombinasiyası */
-        .uc-moreCard{
-          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
-        }
-        .uc-moreCard:hover{
-          transform: translate3d(0,-16px,0) scale(1.055);
-          border-color: rgba(255,255,255,.14);
-          box-shadow: 0 22px 72px rgba(0,0,0,.72), 0 0 38px rgba(47,184,255,.10);
-          background:
-            radial-gradient(520px 220px at 18% 10%, var(--tB), transparent 60%),
-            radial-gradient(620px 260px at 86% 18%, var(--tC), transparent 62%),
-            linear-gradient(180deg, rgba(255,255,255,.040), rgba(255,255,255,.018));
-        }
-
-        @media (min-width: 1024px){
-          .uc-stack::after{
-            content:"";
-            position:absolute;
-            left: 50%;
-            top: 50%;
-            width: min(220px, 18vw);
-            height: 1px;
-            transform: translate3d(-50%, -50%, 0);
-            background: linear-gradient(90deg, transparent, rgba(47,184,255,.18), transparent);
-            opacity: .55;
-            pointer-events:none;
-            transition: opacity .18s ease;
-          }
-          .uc-stack:hover::after{
-            opacity: .85;
-            background: linear-gradient(90deg, transparent, var(--tA), transparent);
-          }
+          .uc-moreCard:hover{ transform:none !important; }
         }
       `}</style>
 
       {/* HERO */}
-      <section className="uc-hero uc-section" aria-label={t("useCases.aria.hero")}>
+      <section className="uc-hero" aria-label={t("useCases.aria.hero")}>
         <div className="uc-heroBG" aria-hidden="true" />
 
         <div className="uc-heroInner">
@@ -1093,13 +1058,7 @@ export default function UseCases() {
                 </span>
               </h1>
 
-              <p
-                className={cx(
-                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter",
-                  enter && "uc-in"
-                )}
-                style={d(180)}
-              >
+              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
                 {t("useCases.hero.subtitle")}
               </p>
 
@@ -1121,7 +1080,7 @@ export default function UseCases() {
       </section>
 
       {/* CASES */}
-      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.caseStudies")}>
+      <section className="py-16 sm:py-20" aria-label={t("useCases.aria.caseStudies")}>
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="space-y-12">
             {CASES.map((c, idx) => (
@@ -1146,7 +1105,7 @@ export default function UseCases() {
       </section>
 
       {/* MORE */}
-      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.more")}>
+      <section className="py-16 sm:py-20" aria-label={t("useCases.aria.more")}>
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex justify-center">
@@ -1167,14 +1126,11 @@ export default function UseCases() {
 
           <div className="mt-10 grid gap-4 md:grid-cols-4 uc-stack">
             {MORE.map((m, i) => {
-              const dir = i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
+              const dir =
+                i % 4 === 0 ? "reveal-left" : i % 4 === 1 ? "reveal-top" : i % 4 === 2 ? "reveal-bottom" : "reveal-right";
               const Icon = m.icon || Building2;
               return (
-                <div
-                  key={m.title || String(i)}
-                  className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain uc-moreCard")}
-                  data-tint={m.tint}
-                >
+                <div key={m.title || String(i)} className={cx("uc-reveal", dir, "uc-card uc-pop uc-contain uc-moreCard")} data-tint={m.tint}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="uc-ic flex-shrink-0" aria-hidden="true">
                       <Icon className="h-5 w-5" />
@@ -1191,7 +1147,7 @@ export default function UseCases() {
       </section>
 
       {/* FINAL CTA */}
-      <section className="uc-section py-16 sm:py-20" aria-label={t("useCases.aria.finalCta")}>
+      <section className="py-16 sm:py-20" aria-label={t("useCases.aria.finalCta")}>
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className={cx("uc-reveal reveal-bottom", "uc-card uc-pop uc-contain")} style={{ padding: 22 }} data-tint="cyan">
             <div className="flex flex-wrap items-center justify-between gap-4">
