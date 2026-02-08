@@ -18,7 +18,6 @@ function getLangFromPath(pathname: string): Lang {
 }
 
 function withLang(path: string, lang: Lang) {
-  // path: "/contact" və ya "contact"
   const p = path.startsWith("/") ? path : `/${path}`;
   return `/${lang}${p}`;
 }
@@ -57,23 +56,17 @@ function useMedia(query: string, initial = false) {
 
 /* ---------------- Scroll restore (harada qalmısansa ora) ---------------- */
 function useScrollRestore(key: string) {
-  // mount: restore
   useEffect(() => {
     const raw = sessionStorage.getItem(key);
     const y = raw ? Number(raw) : 0;
-
-    // 1 frame gözlə: layout hazır olsun
     const raf = requestAnimationFrame(() => {
       if (Number.isFinite(y) && y > 0) window.scrollTo({ top: y, left: 0, behavior: "auto" });
     });
-
     return () => cancelAnimationFrame(raf);
   }, [key]);
 
-  // unmount + scroll: save (throttle via rAF)
   useEffect(() => {
     let raf = 0;
-
     const save = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -87,7 +80,6 @@ function useScrollRestore(key: string) {
     return () => {
       window.removeEventListener("scroll", save);
       if (raf) cancelAnimationFrame(raf);
-      // son dəfə də save et
       sessionStorage.setItem(key, String(window.scrollY || 0));
     };
   }, [key]);
@@ -186,6 +178,232 @@ function useRevealIO(enabled: boolean) {
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, [enabled]);
+}
+
+/* ========================= SCROLL ZIGZAG (sticky) ========================= */
+type FlowStep = {
+  id: string; // section id in DOM
+  n: string; // "01"
+  title: string;
+  desc: string;
+};
+
+function useScrollSpy(ids: string[], enabled: boolean) {
+  const [activeId, setActiveId] = useState(ids[0] || "");
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!ids.length) return;
+
+    const els = ids
+      .map((id) => document.getElementById(id))
+      .filter(Boolean) as HTMLElement[];
+
+    if (!els.length) return;
+
+    // Keep last strong intersection
+    const scores = new Map<string, number>();
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const id = (e.target as HTMLElement).id;
+          const ratio = e.intersectionRatio || 0;
+          // favor "in view"
+          const score = (e.isIntersecting ? 1 : 0) * 10 + ratio;
+          scores.set(id, score);
+        }
+        let best = activeId;
+        let bestScore = -1;
+        for (const id of ids) {
+          const s = scores.get(id) ?? -1;
+          if (s > bestScore) {
+            bestScore = s;
+            best = id;
+          }
+        }
+        if (best && best !== activeId) setActiveId(best);
+      },
+      {
+        threshold: [0.18, 0.28, 0.38, 0.5, 0.62],
+        rootMargin: "-18% 0px -42% 0px",
+      }
+    );
+
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, ids.join("|")]);
+
+  return activeId;
+}
+
+function ScrollZigzag({
+  steps,
+  reduced,
+}: {
+  steps: FlowStep[];
+  reduced: boolean;
+}) {
+  const isMobile = useMedia("(max-width: 860px)", false);
+  const enabled = !reduced;
+
+  const ids = useMemo(() => steps.map((s) => s.id), [steps]);
+  const activeId = useScrollSpy(ids, true);
+
+  const activeIndex = useMemo(() => {
+    const i = steps.findIndex((s) => s.id === activeId);
+    return i >= 0 ? i : 0;
+  }, [steps, activeId]);
+
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [w, setW] = useState(1200);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth || 1200));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const H = isMobile ? 72 : 78;
+  const pad = isMobile ? 16 : 26;
+  const mid = Math.round(H * 0.58);
+  const amp = isMobile ? 10 : 12;
+
+  const gap = useMemo(() => {
+    const n = Math.max(2, steps.length);
+    const usable = Math.max(320, w - pad * 2);
+    return usable / (n - 1);
+  }, [w, pad, steps.length]);
+
+  const pts = useMemo(() => {
+    const arr: { x: number; y: number }[] = [];
+    for (let i = 0; i < steps.length; i++) {
+      const x = pad + i * gap;
+      const y = mid + (i % 2 === 0 ? -amp : amp);
+      arr.push({ x, y });
+    }
+    return arr;
+  }, [steps.length, pad, gap, mid, amp]);
+
+  const polyAll = useMemo(() => pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "), [pts]);
+  const polyActive = useMemo(() => {
+    const cut = Math.max(1, activeIndex + 1);
+    return pts.slice(0, cut).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  }, [pts, activeIndex]);
+
+  const activeStep = steps[activeIndex] || steps[0];
+
+  const labelX = pts[activeIndex]?.x ?? pad;
+  const labelSideRight = labelX < w * 0.58;
+
+  return (
+    <div
+      ref={wrapRef}
+      className={cx("neo-zigWrap", isMobile ? "is-mobile" : "")}
+      aria-hidden="true"
+    >
+      <div className="neo-zigGlass" />
+      <svg className="neo-zigSvg" width={w} height={H} viewBox={`0 0 ${w} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <filter id="neoGlow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="3.2" result="blur" />
+            <feColorMatrix
+              in="blur"
+              type="matrix"
+              values="
+                1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 0.9 0"
+              result="glow"
+            />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <linearGradient id="neoLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="rgba(170,225,255,0.95)" />
+            <stop offset="0.55" stopColor="rgba(47,184,255,0.95)" />
+            <stop offset="1" stopColor="rgba(42,125,255,0.95)" />
+          </linearGradient>
+        </defs>
+
+        {/* base line */}
+        <polyline
+          points={polyAll}
+          fill="none"
+          stroke="rgba(255,255,255,0.22)"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* active line */}
+        <polyline
+          points={polyActive}
+          fill="none"
+          stroke="url(#neoLine)"
+          strokeWidth={3.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={
+            enabled
+              ? { filter: "drop-shadow(0 0 10px rgba(47,184,255,.18))" }
+              : undefined
+          }
+        />
+
+        {/* dots */}
+        {pts.map((p, i) => {
+          const on = i <= activeIndex;
+          const isActive = i === activeIndex;
+          const r = isActive ? 10 : 8;
+          const rr = isActive ? 5 : 4;
+
+          return (
+            <g key={`dot-${i}`}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={r}
+                fill={on ? "rgba(47,184,255,0.24)" : "rgba(255,255,255,0.10)"}
+                stroke={on ? "rgba(47,184,255,0.55)" : "rgba(255,255,255,0.22)"}
+                strokeWidth={1}
+                filter={isActive ? "url(#neoGlow)" : undefined}
+              />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={rr}
+                fill={on ? "rgba(47,184,255,0.95)" : "rgba(255,255,255,0.28)"}
+                filter={isActive ? "url(#neoGlow)" : undefined}
+              />
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* label */}
+      <div
+        className={cx("neo-zigLabel", labelSideRight ? "is-right" : "is-left", reduced ? "is-still" : "")}
+        style={{
+          left: Math.max(12, Math.min(w - 12, labelX)),
+          transform: `translateX(${labelSideRight ? 12 : -12}px) translateY(-100%)`,
+        }}
+      >
+        <div className="neo-zigNum">{activeStep?.n}</div>
+        <div className="neo-zigText">
+          <div className="neo-zigTitle">{activeStep?.title}</div>
+          <div className="neo-zigDesc">{activeStep?.desc}</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ========================= SOCIAL DEMO ========================= */
@@ -703,7 +921,7 @@ function SocialAutomationSection({
   return (
     <>
       {/* SOCIAL */}
-      <section className="neo-social neo-social--premium" aria-label={t("home.social.aria")}>
+      <section id="social" className="neo-social neo-social--premium" aria-label={t("home.social.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-social-grid" style={socialGridStyle}>
             <header className="neo-sectionHead" style={{ textAlign: "left", minWidth: 0 }}>
@@ -819,7 +1037,7 @@ function SocialAutomationSection({
       </section>
 
       {/* SMM */}
-      <section className="neo-splitsec neo-splitsec--premium" aria-label={t("home.smm.aria")}>
+      <section id="smm" className="neo-splitsec neo-splitsec--premium" aria-label={t("home.smm.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-splitsec-grid">
             <div className="neo-splitsec-copy" style={{ minWidth: 0 }}>
@@ -856,7 +1074,7 @@ function SocialAutomationSection({
       </section>
 
       {/* OPS */}
-      <section className="neo-splitsec neo-splitsec--alt neo-splitsec--premium" aria-label={t("home.ops.aria")}>
+      <section id="ops" className="neo-splitsec neo-splitsec--alt neo-splitsec--premium" aria-label={t("home.ops.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-splitsec-grid neo-splitsec-grid--flip">
             <div className="neo-splitsec-copy" style={{ minWidth: 0 }}>
@@ -889,7 +1107,7 @@ function SocialAutomationSection({
       </section>
 
       {/* FINAL */}
-      <section className="neo-finalSystem" aria-label={t("home.final.aria")}>
+      <section id="final" className="neo-finalSystem" aria-label={t("home.final.aria")}>
         <div className="container" style={{ overflowX: "visible" }}>
           <div className="neo-finalSystem-head reveal reveal-top">
             <div className="neo-kickerPill">
@@ -1163,7 +1381,98 @@ const HOME_CSS = `
     to{ transform: translate3d(-50%,0,0); }
   }
 
-  @keyframes neoFlowDash{ to{ stroke-dashoffset:-140; } }
+  /* =========================
+     STICKY ZIGZAG FLOW
+  ========================= */
+  .neo-zigWrap{
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 14px;
+    z-index: 40;
+    pointer-events: none;
+    width: 100%;
+  }
+  .neo-zigWrap.is-mobile{ bottom: 10px; }
+
+  .neo-zigGlass{
+    position:absolute;
+    left: 12px; right: 12px;
+    height: 78px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 26px 90px rgba(0,0,0,.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .neo-zigWrap.is-mobile .neo-zigGlass{
+    height: 72px;
+    border-radius: 20px;
+    left: 10px; right: 10px;
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+  }
+
+  .neo-zigSvg{
+    position: relative;
+    display:block;
+    width: calc(100% - 24px);
+    margin: 0 auto;
+    height: 78px;
+  }
+  .neo-zigWrap.is-mobile .neo-zigSvg{ height: 72px; width: calc(100% - 20px); }
+
+  .neo-zigLabel{
+    position:absolute;
+    bottom: 78px;
+    display:flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: rgba(0,0,0,.62);
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 22px 70px rgba(0,0,0,.65);
+    max-width: min(560px, calc(100vw - 40px));
+    pointer-events: none;
+    opacity: 1;
+    transform-origin: bottom left;
+  }
+  .neo-zigWrap.is-mobile .neo-zigLabel{
+    bottom: 72px;
+    border-radius: 16px;
+    padding: 10px 12px;
+  }
+
+  .neo-zigLabel.is-left{ transform-origin: bottom right; }
+  .neo-zigNum{
+    font-size: 48px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    color: rgba(47,184,255,.92);
+    text-shadow: 0 14px 40px rgba(47,184,255,.18);
+    flex: 0 0 auto;
+  }
+  .neo-zigWrap.is-mobile .neo-zigNum{ font-size: 40px; }
+
+  .neo-zigTitle{
+    color: rgba(255,255,255,.96);
+    font-weight: 760;
+    font-size: 18px;
+    letter-spacing: -.01em;
+  }
+  .neo-zigDesc{
+    margin-top: 4px;
+    color: rgba(255,255,255,.72);
+    font-size: 13.5px;
+    line-height: 1.55;
+    max-width: 520px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .neo-zigLabel{ transition:none !important; }
+  }
 `;
 
 /* ========================= HOME ========================= */
@@ -1175,10 +1484,8 @@ export default function Home() {
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
 
-  // ✅ scroll restore key (route + lang)
   useScrollRestore(`neox_scroll:${pathname}`);
 
-  // səndə false idi -> saxladım
   usePremiumWheelScroll(false);
   useRevealIO(!reduced);
 
@@ -1193,10 +1500,8 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
-  // ✅ HERO: only desktop (mobil/reduced => 0)
   const heroIntensity = reduced || isMobile ? 0 : 1.05;
 
-  // ✅ HERO: pause when not visible
   const heroRef = useRef<HTMLElement | null>(null);
   const [heroInView, setHeroInView] = useState(true);
 
@@ -1212,6 +1517,42 @@ export default function Home() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  // ✅ Zigzag steps (labels)
+  const flowSteps = useMemo<FlowStep[]>(() => {
+    return [
+      {
+        id: "social",
+        n: "01",
+        title: String(t("home.social.kicker")),
+        desc: String(t("home.social.lead")),
+      },
+      {
+        id: "pipeline",
+        n: "02",
+        title: String(t("home.pipeline.kicker")),
+        desc: String(t("home.pipeline.copy")),
+      },
+      {
+        id: "smm",
+        n: "03",
+        title: String(t("home.smm.kicker")),
+        desc: String(t("home.smm.copy")),
+      },
+      {
+        id: "ops",
+        n: "04",
+        title: String(t("home.ops.kicker")),
+        desc: String(t("home.ops.copy")),
+      },
+      {
+        id: "final",
+        n: "05",
+        title: String(t("home.final.kicker")),
+        desc: String(t("home.final.copy")),
+      },
+    ];
+  }, [t]);
 
   return (
     <main
@@ -1286,7 +1627,7 @@ export default function Home() {
 
       <div style={{ height: "clamp(22px, 3.5vh, 46px)", background: "#000" }} />
 
-      {/* flow (connectors removed) */}
+      {/* flow */}
       <div
         className="neo-flowWrap"
         style={{
@@ -1303,7 +1644,9 @@ export default function Home() {
           <SocialAutomationSectionMemo reducedMotion={reduced} isMobile={isMobile} t={t} lang={lang} />
         </div>
       </div>
+
+      {/* ✅ Sticky ZigZag Flow */}
+      <ScrollZigzag steps={flowSteps} reduced={reduced} />
     </main>
   );
 }
- 
