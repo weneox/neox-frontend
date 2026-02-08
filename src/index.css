@@ -9456,23 +9456,3 @@ html {
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
 
-/* =========================================================
-   NEOX AI — HARD OVERRIDE (NO DIM, NO BLUR, NO PAGE CHANGE)
-   Put this at VERY END of index.css
-========================================================= */
-
-.neox-ai .neox-ai-overlay,
-.neox-ai-overlay{
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
-.neox-ai.is-open .neox-ai-overlay,
-.neox-ai-overlay.is-open{
-  opacity: 1 !important;
-  pointer-events: auto !important; /* blocks clicks behind */
-  touch-action: none !important;
-}
