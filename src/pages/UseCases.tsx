@@ -532,10 +532,6 @@ export default function UseCases() {
 
   useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
 
-  // ✅ HERO background video (Cloudinary optimized)
-  const HERO_VIDEO_URL =
-    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770593337/neox/media/asset_1770593331791_6f5389053f2f9.mp4";
-
   return (
     <main ref={rootRef as any} className="uc-page">
       <script
@@ -642,26 +638,7 @@ export default function UseCases() {
           .uc-heroInner{ min-height:auto; padding-top: 84px; padding-bottom: 18px; }
         }
 
-        /* ✅ HERO background (video + gradients) */
-        .uc-heroBG{
-          pointer-events:none;
-          position:absolute;
-          inset:0;
-          opacity: 1;
-          overflow:hidden;
-          z-index: 0;
-        }
-        .uc-heroVideo{
-          position:absolute;
-          inset:0;
-          width:100%;
-          height:100%;
-          object-fit: cover;
-          transform: translateZ(0);
-          filter: saturate(1.05) contrast(1.05);
-          opacity: .92;
-          z-index: 1;
-        }
+        .uc-heroBG{ pointer-events:none; position:absolute; inset:0; opacity: 1; }
         .uc-heroBG::before{
           content:"";
           position:absolute;
@@ -671,15 +648,12 @@ export default function UseCases() {
             radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
             radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
           opacity: .92;
-          z-index: 2;
         }
         .uc-heroBG::after{
           content:"";
           position:absolute;
           inset:0;
-          background:
-            radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
-          z-index: 3;
+          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
         }
 
         .uc-divider{
@@ -913,7 +887,6 @@ export default function UseCases() {
           .uc-pop{ transition:none !important; transform:none !important; }
           .uc-btn{ transition:none !important; }
           .uc-hudOrbit{ animation: none !important; }
-          .uc-heroVideo{ display:none !important; }
         }
         @media (hover: none){
           .uc-pop:hover{ transform:none !important; }
@@ -1012,13 +985,7 @@ export default function UseCases() {
 
       {/* HERO */}
       <section className="uc-hero uc-section" aria-label={t("useCases.aria.hero")}>
-        <div className="uc-heroBG" aria-hidden="true">
-          {reduced ? null : (
-            <video className="uc-heroVideo" autoPlay muted loop playsInline preload="metadata">
-              <source src={HERO_VIDEO_URL} type="video/mp4" />
-            </video>
-          )}
-        </div>
+        <div className="uc-heroBG" aria-hidden="true" />
 
         <div className="uc-heroInner">
           <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
@@ -1158,3 +1125,4 @@ export default function UseCases() {
     </main>
   );
 }
+ 
