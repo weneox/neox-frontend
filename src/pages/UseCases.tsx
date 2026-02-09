@@ -1,4 +1,5 @@
-// src/pages/UseCases.tsx
+// src/pages/UseCases.tsx  (MAX FPS — single-active-video + content-visibility + mobile-light)
+
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -287,49 +288,131 @@ const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: strin
   );
 });
 
-/* ---------------- Lazy video (load only when in view; deactivate when out) ---------------- */
-function useLazyVideoActive(rootRef: React.RefObject<HTMLElement>, enabled: boolean) {
-  const [active, setActive] = useState(false);
+/* ------------------------------------------------------------------
+   ✅ MAX FPS VIDEO STRATEGY
+   - Each HUD registers itself with global "video manager"
+   - Only ONE video can be active at a time (closest visible panel)
+------------------------------------------------------------------ */
+
+type VideoReg = {
+  id: string;
+  el: HTMLElement;
+  setActive: (v: boolean) => void;
+};
+
+function useSingleActiveVideo(elRef: React.RefObject<HTMLElement>, enabled: boolean) {
+  const [active, _setActive] = useState(false);
+  const idRef = useRef<string>(() => Math.random().toString(16).slice(2) + Date.now().toString(16)) as any;
+  if (typeof idRef.current === "function") idRef.current = idRef.current();
+
+  // global registry
+  const regKey = "__neox_uc_videoRegs__";
+  const pickKey = "__neox_uc_videoPick__";
+
+  const setActive = (v: boolean) => _setActive((p) => (p === v ? p : v));
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root || !enabled) return;
+    const el = elRef.current;
+    if (!el || !enabled) return;
 
-    if (typeof IntersectionObserver === "undefined") {
-      setActive(true);
-      return;
+    const w = window as any;
+    if (!w[regKey]) w[regKey] = new Map<string, VideoReg>();
+    const regs: Map<string, VideoReg> = w[regKey];
+
+    const reg: VideoReg = { id: idRef.current, el, setActive };
+    regs.set(reg.id, reg);
+
+    // single shared observer per page
+    if (!w[pickKey]) {
+      w[pickKey] = {
+        io: null as IntersectionObserver | null,
+        vis: new Map<string, number>(), // id -> ratio
+      };
+
+      w[pickKey].io = new IntersectionObserver(
+        (entries: IntersectionObserverEntry[]) => {
+          for (const e of entries) {
+            const target = e.target as HTMLElement;
+            const vid = target.getAttribute("data-ucid") || "";
+            if (!vid) continue;
+
+            if (!e.isIntersecting) {
+              w[pickKey].vis.set(vid, 0);
+            } else {
+              w[pickKey].vis.set(vid, e.intersectionRatio || 0);
+            }
+          }
+
+          // choose best visible (highest ratio). If tie -> closest to center.
+          let bestId = "";
+          let bestScore = 0;
+
+          const centerY = window.innerHeight * 0.52;
+
+          regs.forEach((r) => {
+            const ratio = w[pickKey].vis.get(r.id) || 0;
+            if (ratio <= 0) return;
+
+            const rect = r.el.getBoundingClientRect();
+            const mid = rect.top + rect.height / 2;
+            const dist = Math.abs(mid - centerY);
+
+            // score: visibility first, then distance
+            const score = ratio * 1000 - dist;
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestId = r.id;
+            }
+          });
+
+          // apply: only bestId active
+          regs.forEach((r) => {
+            r.setActive(r.id === bestId && (w[pickKey].vis.get(r.id) || 0) >= 0.45);
+          });
+        },
+        {
+          threshold: [0, 0.25, 0.45, 0.65, 0.85],
+          rootMargin: "80px 0px 80px 0px",
+        }
+      );
     }
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        const e = entries[0];
-        if (!e) return;
-        setActive(!!e.isIntersecting);
-      },
-      {
-        threshold: 0.18,
-        // əvvəlcədən yükləsin (smooth), amma yuxarıda hero olanda işə düşməsin deyə çox da geniş etmədim
-        rootMargin: "200px 0px 200px 0px",
+    // attach observer to this element
+    el.setAttribute("data-ucid", idRef.current);
+    (w[pickKey].io as IntersectionObserver).observe(el);
+
+    return () => {
+      const w2 = window as any;
+      regs.delete(idRef.current);
+      try {
+        (w2[pickKey]?.io as IntersectionObserver | undefined)?.unobserve?.(el);
+      } catch {}
+
+      // if last removed => disconnect
+      if (regs.size === 0) {
+        try {
+          (w2[pickKey]?.io as IntersectionObserver | undefined)?.disconnect?.();
+        } catch {}
+        delete w2[pickKey];
+        delete w2[regKey];
       }
-    );
-
-    io.observe(root);
-
-    return () => io.disconnect();
-  }, [rootRef, enabled]);
+    };
+  }, [elRef, enabled]);
 
   return active;
 }
 
 const CreativeHUD = memo(function CreativeHUD({
   tint,
-  icon: _Icon, // video olan panellərdə ortadakı ikon çıxır (sənin istədiyin kimi)
+  icon: _Icon,
   metric,
   chips,
   metricLabel,
   statusLabel,
   statusValue,
   videoUrl,
+  perfMode, // ✅ true => disable heavy overlays on mobile
 }: {
   tint: Tint;
   icon: LucideIcon;
@@ -339,6 +422,7 @@ const CreativeHUD = memo(function CreativeHUD({
   statusLabel: string;
   statusValue: string;
   videoUrl?: string;
+  perfMode: boolean;
 }) {
   const tintMap: Record<Tint, { a: string; b: string; c: string }> = {
     cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.14)", c: "rgba(170,225,255,.12)" },
@@ -352,9 +436,11 @@ const CreativeHUD = memo(function CreativeHUD({
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const hasVideo = !!videoUrl;
-  const active = useLazyVideoActive(hudRef as any, hasVideo);
 
-  // ✅ load/unload src (real deactivate)
+  // ✅ Only ONE video active on the entire page (max FPS)
+  const active = useSingleActiveVideo(hudRef as any, hasVideo);
+
+  // ✅ load/unload src (true deactivate)
   useEffect(() => {
     if (!hasVideo) return;
     const v = videoRef.current;
@@ -363,23 +449,21 @@ const CreativeHUD = memo(function CreativeHUD({
     const desired = videoUrl || "";
 
     if (active) {
-      // attach src only when active
-      if (v.getAttribute("src") !== desired) {
-        v.setAttribute("src", desired);
+      if (v.src !== desired) {
+        v.preload = "metadata";
+        v.src = desired;
         try {
           v.load();
         } catch {}
       }
-      // try play
       const p = v.play?.();
       if (p && typeof (p as any).catch === "function") (p as any).catch(() => {});
     } else {
-      // full deactivate
       try {
         v.pause?.();
       } catch {}
       v.removeAttribute("src");
-      // some browsers keep buffer unless load() called after removing src
+      v.preload = "none";
       try {
         v.load();
       } catch {}
@@ -389,7 +473,7 @@ const CreativeHUD = memo(function CreativeHUD({
   return (
     <div
       ref={hudRef}
-      className="uc-hud uc-pop uc-contain uc-monitor"
+      className={cx("uc-hud uc-pop uc-contain uc-monitor", perfMode && "uc-perf")}
       data-tint={tint}
       style={{
         background: `
@@ -402,13 +486,11 @@ const CreativeHUD = memo(function CreativeHUD({
       }}
       aria-label="Visual panel"
     >
-      {/* Video Screen (src yalnız active olanda qoşulur) */}
       <div className="uc-screen" aria-hidden="true">
         {hasVideo ? (
           <video
             ref={videoRef}
             className="uc-screenVideo"
-            // src intentionally NOT set here (lazy attach in effect)
             autoPlay
             muted
             loop
@@ -425,7 +507,7 @@ const CreativeHUD = memo(function CreativeHUD({
       <div className="uc-hudScan" aria-hidden="true" />
 
       <div className="uc-hudInner">
-        {/* ✅ Ortadakı “yumru/ring/icon” video görüntüsünə mane olmasın deyə çıxarırıq */}
+        {/* video varsa icon/ring göstərmirik */}
         {hasVideo ? null : (
           <>
             <div className="uc-hudOrbit" aria-hidden="true" />
@@ -468,6 +550,7 @@ const CaseRow = memo(function CaseRow({
   hudStatusLabel,
   hudStatusValue,
   videoUrl,
+  perfMode,
 }: {
   c: CaseItem;
   flip: boolean;
@@ -482,6 +565,7 @@ const CaseRow = memo(function CaseRow({
   hudStatusLabel: string;
   hudStatusValue: string;
   videoUrl?: string;
+  perfMode: boolean;
 }) {
   const Icon = c.icon;
 
@@ -542,6 +626,7 @@ const CaseRow = memo(function CaseRow({
           statusLabel={hudStatusLabel}
           statusValue={hudStatusValue}
           videoUrl={videoUrl}
+          perfMode={perfMode}
         />
       </div>
     </div>
@@ -584,7 +669,12 @@ export default function UseCases() {
   const hudStatusLabel = t("useCases.hud.statusLabel");
   const hudStatusValue = t("useCases.hud.statusValue");
 
-  // ✅ 4 videos (optimized)
+  // ✅ PERF MODE:
+  // - mobile => heavy effects disabled
+  // - reduced motion => also treat as perf
+  const perfMode = isMobile || reduced;
+
+  // ✅ Videos: desktop only by default (max FPS). Mobile istəyirsənsə, 1 dənə açarıq.
   const VIDEOS = useMemo(
     () => [
       optimizeCloudinaryVideo("https://res.cloudinary.com/dppoomunj/video/upload/v1770594527/neox/media/asset_1770594489151_13bb67859a0f3.mp4"), // Retail
@@ -678,7 +768,7 @@ export default function UseCases() {
       />
 
       <style>{`
-        /* ✅ ROOT-LEVEL FIX — eyni Blog/Contact kimi (kökdən bağlayır) */
+        /* ✅ ROOT hard lock */
         html, body{
           background:#000 !important;
           margin:0;
@@ -705,7 +795,14 @@ export default function UseCases() {
         }
         .uc-page *{ min-width:0; max-width:100%; }
 
-        .uc-stack{ position: relative; isolation: isolate; overflow: clip; }
+        /* ✅ HUGE FPS win: offscreen sections not painted */
+        .uc-stack{
+          position: relative;
+          isolation: isolate;
+          overflow: clip;
+          content-visibility: auto;
+          contain-intrinsic-size: 820px;
+        }
 
         .uc-page .uc-grad{
           background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
@@ -735,7 +832,7 @@ export default function UseCases() {
         }
         .uc-pop:hover, .uc-pop:focus-within{
           z-index: 60;
-          transform: translate3d(0,-10px,0) scale(1.03);
+          transform: translate3d(0,-8px,0) scale(1.02);
         }
 
         .uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
@@ -880,7 +977,7 @@ export default function UseCases() {
         }
         .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
-        /* ===== MONITOR / TV FRAME (premium) ===== */
+        /* ===== MONITOR ===== */
         .uc-monitor{
           border-radius: 28px;
           border: 1px solid rgba(255,255,255,.12);
@@ -930,8 +1027,9 @@ export default function UseCases() {
           width: 100%;
           height: 100%;
           object-fit: cover;
-          transform: scale(1.03);
-          filter: contrast(1.06) saturate(1.08);
+          transform: scale(1.01);
+          /* ✅ remove heavy filters for FPS */
+          filter: none;
         }
         .uc-screenTint{
           position:absolute;
@@ -992,28 +1090,6 @@ export default function UseCases() {
           opacity: .07;
           pointer-events:none;
         }
-        .uc-hudRing{
-          position:absolute;
-          width: 260px; height: 260px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          box-shadow: 0 0 0 8px rgba(47,184,255,.06), 0 0 0 1px rgba(0,0,0,.4) inset;
-          opacity: .55;
-          pointer-events:none;
-        }
-        .uc-hudOrbit{
-          position:absolute;
-          width: 320px; height: 320px;
-          border-radius: 999px;
-          border: 1px dashed rgba(255,255,255,.12);
-          opacity: .22;
-          pointer-events:none;
-        }
-        .uc-hudIcon{
-          width: 168px; height: 168px;
-          opacity: .12;
-          color: rgba(255,255,255,.92);
-        }
 
         .uc-hudChips{
           position:absolute;
@@ -1060,11 +1136,24 @@ export default function UseCases() {
         }
         @media (max-width: 560px){
           .uc-hudInner{ min-height: 320px; }
-          .uc-hudIcon{ width: 150px; height: 150px; }
         }
+
+        /* ✅ PERF MODE: disable heavy composite things */
+        .uc-perf.uc-pop:hover, .uc-perf.uc-pop:focus-within{ transform:none !important; }
+        .uc-perf .uc-hudGrid{ opacity: .07; }
+        .uc-perf .uc-hudScan{ opacity: .05; }
+        .uc-perf .uc-hudChip,
+        .uc-perf .uc-hudBadge{
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+        }
+        .uc-perf .uc-monitor::before{ mix-blend-mode: normal; opacity: .45; }
+        .uc-perf .uc-screenTint,
+        .uc-perf .uc-screenGlass{ mix-blend-mode: normal; opacity: .35; }
 
         .uc-section{ background: transparent !important; }
 
+        /* Reveal */
         .uc-reveal{ opacity: 1; transform: none; }
         .uc-page.uc-io .uc-reveal{
           opacity: 0;
@@ -1083,7 +1172,6 @@ export default function UseCases() {
           .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
           .uc-pop{ transition:none !important; transform:none !important; }
           .uc-btn{ transition:none !important; }
-          .uc-hudOrbit{ animation: none !important; }
         }
         @media (hover: none){
           .uc-pop:hover{ transform:none !important; }
@@ -1153,6 +1241,7 @@ export default function UseCases() {
             radial-gradient(700px 240px at 80% 10%, rgba(255,255,255,.06), transparent 62%);
           mix-blend-mode: screen;
         }
+        .uc-perf.uc-hud::before{ mix-blend-mode: normal; opacity: .35; }
 
         @media (min-width: 1024px){
           .uc-stack::after{
@@ -1236,8 +1325,9 @@ export default function UseCases() {
                 hudMetricLabel={hudMetricLabel}
                 hudStatusLabel={hudStatusLabel}
                 hudStatusValue={hudStatusValue}
-                // ✅ 4 panel = 4 video (lazy + deactivate inside CreativeHUD)
-                videoUrl={VIDEOS[idx]}
+                // ✅ Desktop: videos on. Mobile/perf: videos OFF for max FPS
+                videoUrl={perfMode ? undefined : VIDEOS[idx]}
+                perfMode={perfMode}
               />
             ))}
           </div>
