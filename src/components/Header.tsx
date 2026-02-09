@@ -70,10 +70,22 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/* ===== Desktop language dropdown (single button) ===== */
+/* ===== Desktop language dropdown (hover-open) ===== */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const closeT = useRef<number | null>(null);
+
+  const cancelClose = () => {
+    if (closeT.current) {
+      window.clearTimeout(closeT.current);
+      closeT.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeT.current = window.setTimeout(() => setOpen(false), 120) as any;
+  };
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -104,13 +116,23 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
       : "Español";
 
   return (
-    <div ref={rootRef} className={cx("langMenu", open && "is-open")} data-wg-notranslate>
+    <div
+      ref={rootRef}
+      className={cx("langMenu", open && "is-open")}
+      data-wg-notranslate
+      onMouseEnter={() => {
+        cancelClose();
+        setOpen(true);
+      }}
+      onMouseLeave={() => scheduleClose()}
+    >
       <button
         type="button"
         className="langMenu__btn"
         aria-label="Dil seçimi"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((v) => !v)} // touch devices üçün yaxşıdır
+        onFocus={() => setOpen(true)}
       >
         <span className="langMenu__dot" aria-hidden="true" />
         <span className="langMenu__code">{lang.toUpperCase()}</span>
@@ -140,31 +162,24 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   );
 }
 
-type ServiceId = "agents" | "automation" | "analytics" | "support" | "integrations" | "security";
+type ServiceId = "chatbot" | "workflows" | "websites" | "mobile" | "smm" | "support";
 type ServiceDef = { id: ServiceId; label: string; to: string; hint: string };
 
+type UseCaseId = "healthcare" | "logistics" | "finance" | "retail" | "hotels";
 type UseCaseDef = {
-  id: ServiceId;
+  id: UseCaseId;
   title: string;
   subtitle: string;
+  to: string;
   lines: string[];
 };
-
-function makeTerminalLines(serviceLabel: string): string[] {
-  // default fallback if you want to auto-generate later; for now kept unused
-  return [
-    `boot: neox.usecases/${serviceLabel.toLowerCase().replace(/\s+/g, "-")}`,
-    `init: workflow graph...`,
-    `loading: triggers, SLA rules, handoff...`,
-  ];
-}
 
 /* =========================
    Header
 ========================= */
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const [hdrp, setHdrp] = useState(0); // mobil blur driver
+  const [hdrp, setHdrp] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
   const [open, setOpen] = useState(false);
@@ -176,7 +191,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const [svcDropOpen, setSvcDropOpen] = useState(false);
   const [aboutDropOpen, setAboutDropOpen] = useState(false);
   const [resDropOpen, setResDropOpen] = useState(false);
-
   const [ucDropOpen, setUcDropOpen] = useState(false);
 
   const closeT = useRef<number | null>(null);
@@ -186,7 +200,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const ucRef = useRef<HTMLDivElement | null>(null);
 
   // UseCases mega internal state
-  const [ucActive, setUcActive] = useState<ServiceId>("automation");
+  const [ucActive, setUcActive] = useState<UseCaseId>("healthcare");
   const [ucRendered, setUcRendered] = useState<string[]>([]);
   const [ucCursor, setUcCursor] = useState(true);
 
@@ -211,7 +225,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const rafPending = useRef(false);
   const lastPRef = useRef<number>(-1);
 
-  // matchMedia: mobil olub-olmadığını bilək
+  // matchMedia
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 920px)");
     const apply = () => setIsMobile(!!mq.matches);
@@ -249,43 +263,44 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
+  // ✅ Services: REAL routes (sənin App.tsx ilə eyni)
   const SERVICES: ServiceDef[] = useMemo(
     () => [
       {
-        id: "automation",
-        label: "Automation Workflows",
-        to: "/services/automation",
+        id: "chatbot",
+        label: "Chatbot 24/7",
+        to: "/services/chatbot-24-7",
+        hint: "Instant answers, lead capture, operator handoff.",
+      },
+      {
+        id: "workflows",
+        label: "Business Workflows",
+        to: "/services/business-workflows",
         hint: "Trigger → route → act → confirm. End-to-end automation.",
       },
       {
-        id: "agents",
-        label: "AI Agents",
-        to: "/services/ai-agents",
-        hint: "Sales & ops agents that act, not just chat.",
+        id: "websites",
+        label: "Websites",
+        to: "/services/websites",
+        hint: "Modern websites with premium UI and performance.",
       },
       {
-        id: "analytics",
-        label: "Insights & Analytics",
-        to: "/services/analytics",
-        hint: "Real-time dashboards, anomaly detection, KPI automation.",
+        id: "mobile",
+        label: "Mobile Apps",
+        to: "/services/mobile-apps",
+        hint: "iOS/Android apps with clean UX and fast delivery.",
+      },
+      {
+        id: "smm",
+        label: "SMM Automation",
+        to: "/services/smm-automation",
+        hint: "Content + workflows to grow and convert.",
       },
       {
         id: "support",
-        label: "Support & Handoff",
-        to: "/services/support",
-        hint: "Smart escalation, SLA alerts, operator handoff.",
-      },
-      {
-        id: "integrations",
-        label: "Integrations",
-        to: "/services/integrations",
-        hint: "CRM/ERP, Telegram/WhatsApp, payments, webhooks.",
-      },
-      {
-        id: "security",
-        label: "Security & Deploy",
-        to: "/services/security",
-        hint: "Auth, rate-limit, audit logs, secure production deploy.",
+        label: "Technical Support",
+        to: "/services/technical-support",
+        hint: "Monitoring, fixes, updates, and uptime care.",
       },
     ],
     []
@@ -293,6 +308,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const ABOUT_LINKS: NavDef[] = useMemo(
     () => [
+      { to: "/about", label: "Overview" },
       { to: "/about/company", label: "Company" },
       { to: "/about/mission", label: "Mission" },
       { to: "/about/technology", label: "Technology" },
@@ -313,100 +329,77 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
+  // ✅ Use Cases: REAL scenario routes (sənin UseCase pages-lə eyni)
   const USE_CASES: UseCaseDef[] = useMemo(() => {
     return [
       {
-        id: "automation",
-        title: "Automation Workflows",
-        subtitle: "Business-ready flows that run 24/7",
+        id: "healthcare",
+        title: "Healthcare",
+        subtitle: "Patient flows, triage, scheduling, and support",
+        to: "/use-cases/healthcare",
         lines: [
-          "boot: neox/usecases/automation",
-          "init: event triggers → router → actions",
-          "load: crm.sync, lead.capture, sla.timer",
-          "rule: if no-reply > 5m → nudge + alert operator",
-          "route: finance inquiry → pricing flow → checkout",
-          "deploy: versioned workflow + audit log",
+          "boot: neox/usecases/healthcare",
+          "init: intake → classify → route",
+          "flow: appointment → reminders → follow-up",
+          "guard: privacy-safe summaries",
+          "handoff: operator escalation",
+          "ok: faster response, better experience",
+        ],
+      },
+      {
+        id: "logistics",
+        title: "Logistics",
+        subtitle: "Tracking, ETA updates, ops automation",
+        to: "/use-cases/logistics",
+        lines: [
+          "boot: neox/usecases/logistics",
+          "ingest: orders, tracking, status updates",
+          "notify: delay → proactive message",
+          "auto: tickets + route to operator",
+          "ok: fewer calls, smoother ops",
+        ],
+      },
+      {
+        id: "finance",
+        title: "Finance",
+        subtitle: "Automation for market workflows and customer service",
+        to: "/use-cases/finance",
+        lines: [
+          "boot: neox/usecases/finance",
+          "init: intent → compliance guard",
+          "flow: pricing → demo → conversion",
+          "alert: high-value lead → operator ping",
           "ok: conversion ↑, response time ↓",
         ],
       },
       {
-        id: "agents",
-        title: "AI Agents",
-        subtitle: "Sales-first assistants that execute tasks",
+        id: "retail",
+        title: "Retail",
+        subtitle: "Product Q&A, upsells, support, and checkout nudges",
+        to: "/use-cases/retail",
         lines: [
-          "boot: neox/usecases/agents",
-          "init: persona=sales, tone=clear, length=short",
-          "cap: understand intent → propose next action",
-          "tool: create lead → schedule demo → send summary",
-          "guard: refuse off-topic + keep business focus",
-          "handoff: operator button / keyword → instant takeover",
-          "ok: higher qualified leads",
+          "boot: neox/usecases/retail",
+          "flow: product match → upsell → checkout",
+          "rule: no-reply → gentle nudge",
+          "handoff: operator takeover",
+          "ok: more sales, less friction",
         ],
       },
       {
-        id: "analytics",
-        title: "Insights & Analytics",
-        subtitle: "Dashboards + anomaly detection in real time",
+        id: "hotels",
+        title: "Hotels & Resorts",
+        subtitle: "Booking, concierge automation, guest support",
+        to: "/use-cases/hotels",
         lines: [
-          "boot: neox/usecases/analytics",
-          "ingest: chats, leads, conversions, channels",
-          "metric: daily chats, operator requests, lead rate",
-          "detect: anomalies → notify → suggest actions",
-          "export: csv / weekly summary",
-          "ok: decisions faster, waste lower",
-        ],
-      },
-      {
-        id: "support",
-        title: "Support & Handoff",
-        subtitle: "SLA, tags, assignments, escalation",
-        lines: [
-          "boot: neox/usecases/support",
-          "sla: start timer at first message",
-          "tag: billing | onboarding | bug | urgent",
-          "assign: 'I took it' ownership flow",
-          "alert: long no-reply → telegram ping + admin link",
-          "ok: support load balanced",
-        ],
-      },
-      {
-        id: "integrations",
-        title: "Integrations",
-        subtitle: "Connect your stack without friction",
-        lines: [
-          "boot: neox/usecases/integrations",
-          "connect: CRM, ERP, webhooks, email, telegram",
-          "sync: contact + notes + conversation transcript",
-          "action: payment link, booking, ticket creation",
-          "ok: one system, no manual copy-paste",
-        ],
-      },
-      {
-        id: "security",
-        title: "Security & Deploy",
-        subtitle: "Production hardening & scalable deploy",
-        lines: [
-          "boot: neox/usecases/security",
-          "auth: jwt sessions + admin magic links",
-          "limit: rate-limit + ip allowlist",
-          "store: postgres migration + indexes",
-          "deploy: railway/render + cloudinary media",
-          "ok: stable, safe, auditable",
+          "boot: neox/usecases/hotels",
+          "flow: availability → booking → confirmation",
+          "auto: pre-arrival reminders + upsells",
+          "handoff: VIP requests → operator",
+          "ok: higher satisfaction, higher bookings",
         ],
       },
     ];
   }, []);
-
-  const links: NavDef[] = useMemo(
-    () => [
-      { to: "/", label: t("nav.home"), end: true },
-      { to: "/about", label: t("nav.about") }, // main page stays
-      { to: "/services", label: t("nav.services") }, // main page stays
-      { to: "/use-cases", label: t("nav.useCases") }, // optional page stays
-      { to: "/blog", label: t("nav.blog") },
-    ],
-    [t]
-  );
 
   const navItem = ({ isActive }: { isActive: boolean }) => cx("nav-link", isActive && "is-active");
 
@@ -547,7 +540,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [closeMobile]);
 
-  // lock body scroll when mobile menu open
+  // lock scroll when mobile menu open
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
@@ -577,18 +570,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
         { open: ucDropOpen, ref: ucRef, close: () => setUcDropOpen(false) },
       ];
 
-      for (const t of targets) {
-        if (!t.open) continue;
-        const el = t.ref.current;
+      for (const t0 of targets) {
+        if (!t0.open) continue;
+        const el = t0.ref.current;
         if (!el) continue;
-        if (!el.contains(e.target as Node)) t.close();
+        if (!el.contains(e.target as Node)) t0.close();
       }
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
   }, [svcDropOpen, aboutDropOpen, resDropOpen, ucDropOpen]);
 
-  // small helper for hover open/close with tiny delay
   const openDrop = (set: (v: boolean) => void) => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
@@ -601,33 +593,19 @@ export default function Header({ introReady }: { introReady: boolean }) {
     closeT.current = window.setTimeout(() => set(false), 110) as any;
   };
 
-  const isUseCasesActive = useMemo(() => {
-    const p = location.pathname.toLowerCase();
-    return p.includes("/use-cases");
-  }, [location.pathname]);
-
-  const isServicesActive = useMemo(() => {
-    const p = location.pathname.toLowerCase();
-    return p.includes("/services");
-  }, [location.pathname]);
-
-  const isAboutActive = useMemo(() => {
-    const p = location.pathname.toLowerCase();
-    return p.includes("/about");
-  }, [location.pathname]);
-
+  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
+  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
+  const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
   const isResActive = useMemo(() => {
     const p = location.pathname.toLowerCase();
     return p.includes("/resources") || p.includes("/privacy");
   }, [location.pathname]);
 
-  // ===== Use Cases terminal stream engine =====
+  // ===== Use Cases terminal engine =====
   const ucActiveDef = useMemo(() => USE_CASES.find((x) => x.id === ucActive) ?? USE_CASES[0], [USE_CASES, ucActive]);
 
   useEffect(() => {
     if (!ucDropOpen) return;
-
-    // blink cursor
     const tmr = window.setInterval(() => setUcCursor((v) => !v), 520);
     return () => window.clearInterval(tmr);
   }, [ucDropOpen]);
@@ -635,7 +613,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
   useEffect(() => {
     if (!ucDropOpen) return;
 
-    // render stream slowly when active changes
     const lines = ucActiveDef.lines;
     if (prefersReduced) {
       setUcRendered(lines);
@@ -649,16 +626,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
       i += 1;
       setUcRendered(lines.slice(0, i));
       if (i >= lines.length) return;
-      window.setTimeout(step, 520 + Math.round(Math.random() * 160)); // slow
+      window.setTimeout(step, 520 + Math.round(Math.random() * 160));
     };
 
-    const startDelay = 220;
-    const timer = window.setTimeout(step, startDelay);
-
+    const timer = window.setTimeout(step, 220);
     return () => window.clearTimeout(timer);
   }, [ucActiveDef, ucDropOpen, prefersReduced]);
 
-  // mobile styles
+  // mobile header inline style
   const mobileP = clamp01(hdrp);
   const base = 0.03;
   const mobileBgAlpha = open ? 0.88 : base + 0.68 * mobileP;
@@ -746,18 +721,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className={cx("nav-acc__panel", mobileAboutOpen && "is-open")} aria-hidden={!mobileAboutOpen}>
-              <NavLink
-                to={withLang("/about")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">Overview</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
-
               {ABOUT_LINKS.map((s) => (
                 <NavLink
                   key={s.to}
@@ -795,18 +758,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className={cx("nav-acc__panel", mobileSvcOpen && "is-open")} aria-hidden={!mobileSvcOpen}>
-              <NavLink
-                to={withLang("/services")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">All Services</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
-
               {SERVICES.map((s) => (
                 <NavLink
                   key={s.id}
@@ -844,27 +795,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className={cx("nav-acc__panel", mobileUcOpen && "is-open")} aria-hidden={!mobileUcOpen}>
-              <NavLink
-                to={withLang("/use-cases")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">Open Use Cases</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
-
-              {SERVICES.map((s) => (
+              {USE_CASES.map((u) => (
                 <NavLink
-                  key={s.id}
-                  to={withLang(`/use-cases?svc=${encodeURIComponent(s.id)}`)}
+                  key={u.id}
+                  to={withLang(u.to)}
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
                   <span className="nav-acc__bullet" aria-hidden="true" />
-                  <span className="nav-acc__text">{s.label}</span>
+                  <span className="nav-acc__text">{u.title}</span>
                   <span className="nav-acc__arrow" aria-hidden="true">
                     →
                   </span>
@@ -907,18 +846,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   </span>
                 </NavLink>
               ))}
-
-              <NavLink
-                to={withLang("/store")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">NEOX Store</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
             </div>
           </div>
 
@@ -956,10 +883,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     >
       {/* ✅ FULL CSS INJECT — yekun */}
       <style>{`
-        :root{
-          --hdrh: 72px;
-          --hdrp: 0;
-        }
+        :root{ --hdrh: 72px; --hdrp: 0; }
 
         .site-header{
           position: sticky;
@@ -972,14 +896,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-bottom: 1px solid rgba(255,255,255,0.04);
           transition: background-color .18s ease, border-color .18s ease;
         }
-
         .site-header.is-scrolled{
           background: rgba(10, 12, 18, calc(0.08 + 0.26 * var(--hdrp)));
           border-bottom-color: rgba(255,255,255, calc(0.06 + 0.06 * var(--hdrp)));
           -webkit-backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
           backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
         }
-
         .site-header.is-open{
           background: rgba(10, 12, 18, 0.88);
           border-bottom-color: rgba(255,255,255,0.10);
@@ -987,38 +909,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
           backdrop-filter: blur(18px) saturate(1.35);
         }
 
-        .container{
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 0 18px;
-        }
-
-        .header-inner{
-          height: var(--hdrh);
-          display: grid;
-          align-items: center;
-        }
-
-        .header-grid{
-          grid-template-columns: auto 1fr auto;
-          gap: 16px;
-        }
-
+        .container{ max-width: 1180px; margin: 0 auto; padding: 0 18px; }
+        .header-inner{ height: var(--hdrh); display: grid; align-items: center; }
+        .header-grid{ grid-template-columns: auto 1fr auto; gap: 16px; }
         .header-left{ display:flex; align-items:center; }
         .header-mid{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .header-right{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
 
-        .brand-link{
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          text-decoration: none;
-        }
-
+        .brand-link{ display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
         .headerBrand{ position: relative; display:flex; align-items:center; }
         .headerBrand__aura{
-          position:absolute;
-          inset:-10px -16px;
+          position:absolute; inset:-10px -16px;
           background:
             radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.16), transparent 60%),
             radial-gradient(120px 44px at 70% 40%, rgba(167,89,255,.12), transparent 62%);
@@ -1027,7 +928,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
         }
 
-        /* Desktop links */
         .nav-link{
           position: relative;
           display: inline-flex;
@@ -1044,43 +944,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
           letter-spacing: .02em;
           transition: color .16s ease, background-color .16s ease, transform .16s ease;
         }
-        .nav-link:hover{
-          color: rgba(255,255,255,.90);
-          background: rgba(255,255,255,.06);
-        }
-        .nav-link.is-active{
-          color: rgba(255,255,255,.94);
-          background: rgba(255,255,255,.09);
-        }
+        .nav-link:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
+        .nav-link.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        .nav-label--short{ display:none; }
-
-        /* Dropdown base */
         .nav-dd{ position: relative; display:inline-flex; }
         .nav-dd__btn{
           position: relative;
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
-          height: 40px;
-          padding: 0 12px;
-          border-radius: 999px;
+          display:inline-flex; align-items:center; gap: 8px;
+          height: 40px; padding: 0 12px; border-radius: 999px;
           color: rgba(255,255,255,.72);
-          background: transparent;
-          border: 0;
-          cursor: pointer;
-          font: inherit;
-          font-weight: 700;
-          letter-spacing: .02em;
+          background: transparent; border: 0; cursor: pointer;
+          font: inherit; font-weight: 700; letter-spacing: .02em;
           transition: color .16s ease, background-color .16s ease;
         }
         .nav-dd__btn:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
         .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        .nav-dd__chev{
-          opacity: .8;
-          transition: transform .14s ease;
-        }
+        .nav-dd__chev{ opacity: .8; transition: transform .14s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
         .nav-dd__panel{
@@ -1162,18 +1042,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-dd__arrow{ opacity: .7; margin-top: 2px; }
 
-        /* Use Cases mega dropdown */
-        .nav-dd--mega .nav-dd__panel{
-          width: 820px;
-          padding: 14px;
-          border-radius: 20px;
-        }
-        .uc-mega{
-          display:grid;
-          grid-template-columns: 1fr 1.15fr;
-          gap: 12px;
-          align-items: stretch;
-        }
+        /* Use Cases mega */
+        .nav-dd--mega .nav-dd__panel{ width: 820px; padding: 14px; border-radius: 20px; }
+        .uc-mega{ display:grid; grid-template-columns: 1fr 1.15fr; gap: 12px; align-items: stretch; }
         .uc-left{
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,.08);
@@ -1204,22 +1075,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .uc-item:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
         .uc-item.is-active{ background: rgba(47,184,255,.10); }
-        .uc-itemTitle{
-          font-weight: 900;
-          font-size: 13px;
-          line-height: 1.15;
-        }
-        .uc-itemSub{
-          margin-top: 4px;
-          font-size: 12px;
-          color: rgba(255,255,255,.56);
-          line-height: 1.2;
-        }
-        .uc-itemIcon{
-          opacity: .7;
-          margin-top: 2px;
-          flex: 0 0 auto;
-        }
+        .uc-itemTitle{ font-weight: 900; font-size: 13px; line-height: 1.15; }
+        .uc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.56); line-height: 1.2; }
+        .uc-itemIcon{ opacity: .7; margin-top: 2px; flex: 0 0 auto; }
 
         .uc-right{
           border-radius: 16px;
@@ -1239,12 +1097,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
         }
-        .uc-termTitle{
-          font-size: 11px;
-          letter-spacing: .18em;
-          color: rgba(255,255,255,.60);
-          font-weight: 900;
-        }
+        .uc-termTitle{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.60); font-weight: 900; }
         .uc-live{
           display:inline-flex;
           align-items:center;
@@ -1272,12 +1125,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.82);
           min-height: 210px;
         }
-        .uc-line{
-          display:block;
-          margin: 0 0 6px;
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
+        .uc-line{ display:block; margin: 0 0 6px; white-space: pre-wrap; word-break: break-word; }
         .uc-prompt{ color: rgba(47,184,255,.92); }
         .uc-cursor{
           display:inline-block;
@@ -1288,7 +1136,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           background: rgba(255,255,255,.82);
           opacity: .9;
         }
-
         .uc-footer{
           padding: 10px 12px;
           border-top: 1px solid rgba(255,255,255,.06);
@@ -1321,7 +1168,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           text-overflow: ellipsis;
         }
 
-        /* CTA */
         .nav-cta{
           display:inline-flex;
           align-items:center;
@@ -1342,7 +1188,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .nav-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .nav-cta--desktopOnly{ display:inline-flex; }
 
-        /* Hamburger */
         .nav-toggle{
           width: 44px;
           height: 40px;
@@ -1358,15 +1203,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .nav-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
-        .nav-toggle__bar{
-          width: 18px;
-          height: 2px;
-          border-radius: 999px;
-          background: rgba(255,255,255,.86);
-          opacity: .9;
-        }
+        .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
 
-        /* Lang menu */
         .langMenu{ position: relative; }
         .langMenu__btn{
           display:inline-flex;
@@ -1435,7 +1273,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
         .langMenu__itemName{ opacity: .85; font-weight: 700; }
 
-        /* Mobile overlay */
         .nav-overlay{
           position: fixed;
           inset: 0;
@@ -1467,13 +1304,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border: 1px solid rgba(255,255,255,.10);
           overflow: hidden;
           transform: translateY(-10px) scale(.985);
-          opacity: .0;
+          opacity: 0;
           transition: transform .16s ease, opacity .16s ease;
         }
-        .nav-sheet.is-open{
-          transform: translateY(0) scale(1);
-          opacity: 1;
-        }
+        .nav-sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
         .nav-sheet__bg{
           position:absolute;
           inset:0;
@@ -1502,15 +1336,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
           justify-content: space-between;
           padding: 14px 14px 10px;
         }
-        .nav-sheet__brand{
-          display:flex;
-          align-items:center;
-          gap: 10px;
-        }
+        .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
         .nav-sheet__dot{
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
+          width: 10px; height: 10px; border-radius: 999px;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
           box-shadow: 0 0 0 4px rgba(47,184,255,.10);
         }
@@ -1521,8 +1349,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.70);
         }
         .nav-sheet__close{
-          width: 40px;
-          height: 38px;
+          width: 40px; height: 38px;
           border-radius: 12px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
@@ -1535,13 +1362,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
 
-        .nav-sheet__list{
-          position: relative;
-          z-index: 2;
-          padding: 8px 14px 14px;
-          display:grid;
-          gap: 10px;
-        }
+        .nav-sheet__list{ position: relative; z-index: 2; padding: 8px 14px 14px; display:grid; gap: 10px; }
 
         .nav-stagger{
           transform: translateY(6px);
@@ -1549,9 +1370,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           animation: navIn .24s ease forwards;
           animation-delay: calc(0.03s * var(--i, 0));
         }
-        @keyframes navIn{
-          to{ transform: translateY(0); opacity: 1; }
-        }
+        @keyframes navIn{ to{ transform: translateY(0); opacity: 1; } }
 
         .nav-sheetLink{
           display:flex;
@@ -1566,22 +1385,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.84);
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
-        .nav-sheetLink:hover{
-          transform: translateY(-1px);
-          background: rgba(255,255,255,.06);
-          border-color: rgba(255,255,255,.12);
-        }
-        .nav-sheetLink.is-active{
-          background: rgba(47,184,255,.10);
-          border-color: rgba(47,184,255,.22);
-        }
+        .nav-sheetLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
+        .nav-sheetLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
 
         .nav-sheetLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
         .nav-sheetLink__ico{
           width: 32px; height: 32px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
+          display:flex; align-items:center; justify-content:center;
           border-radius: 12px;
           background: rgba(255,255,255,.05);
           border: 1px solid rgba(255,255,255,.07);
@@ -1602,7 +1412,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-color: rgba(255,255,255,.12);
         }
 
-        /* Mobile accordion */
         .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
         .nav-acc__head{
           width: 100%;
@@ -1625,7 +1434,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           overflow: hidden;
           transition: max-height .18s ease;
         }
-        .nav-acc__panel.is-open{ max-height: 720px; }
+        .nav-acc__panel.is-open{ max-height: 760px; }
         .nav-acc__item{
           display:flex;
           align-items:center;
@@ -1651,19 +1460,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .nav-acc__text{ font-weight: 800; }
         .nav-acc__arrow{ opacity: .7; }
 
-        /* Responsive */
         @media (max-width: 920px){
-          .header-grid{ grid-template-columns: auto 1fr auto; }
           .header-mid{ display:none; }
           .nav-toggle{ display:inline-flex; }
           .nav-cta--desktopOnly{ display:none; }
           .langMenu__btn{ height: 40px; }
         }
-
         @media (max-width: 920px){
-          .nav-dd__panel{ display:none; } /* desktop dropdown hidden on mobile (we use overlay) */
+          .nav-dd__panel{ display:none; }
         }
-
         @media (max-width: 520px){
           .container{ padding: 0 14px; }
           .header-right{ gap: 10px; }
@@ -1701,9 +1506,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </div>
 
         <nav className="header-mid" aria-label="Əsas menyu">
-          {/* HOME */}
           <NavLink to={withLang("/")} end className={navItem}>
-            <span className="nav-label nav-label--full">{t("nav.home")}</span>
+            {t("nav.home")}
           </NavLink>
 
           {/* ABOUT dropdown */}
@@ -1721,7 +1525,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setAboutDropOpen((v) => !v)}
               onFocus={() => openDrop(setAboutDropOpen)}
             >
-              <span className="nav-label nav-label--full">{t("nav.about")}</span>
+              {t("nav.about")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1730,24 +1534,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             <div className="nav-dd__panel" role="menu" aria-hidden={!aboutDropOpen}>
               <div className="nav-dd__title">ABOUT</div>
               <div className="nav-dd__grid">
-                <NavLink
-                  to={withLang("/about")}
-                  className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
-                  role="menuitem"
-                  onClick={() => setAboutDropOpen(false)}
-                >
-                  <span className="nav-dd__left">
-                    <span className="nav-dd__dot" aria-hidden="true" />
-                    <span className="nav-dd__labelWrap">
-                      <span className="nav-dd__label">Overview</span>
-                      <span className="nav-dd__hint">What NEOX is and why it matters</span>
-                    </span>
-                  </span>
-                  <span className="nav-dd__arrow" aria-hidden="true">
-                    →
-                  </span>
-                </NavLink>
-
                 {ABOUT_LINKS.map((s) => (
                   <NavLink
                     key={s.to}
@@ -1760,7 +1546,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                       <span className="nav-dd__dot" aria-hidden="true" />
                       <span className="nav-dd__labelWrap">
                         <span className="nav-dd__label">{s.label}</span>
-                        <span className="nav-dd__hint">Premium accordion page</span>
+                        <span className="nav-dd__hint">Premium section</span>
                       </span>
                     </span>
                     <span className="nav-dd__arrow" aria-hidden="true">
@@ -1787,7 +1573,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setSvcDropOpen((v) => !v)}
               onFocus={() => openDrop(setSvcDropOpen)}
             >
-              <span className="nav-label nav-label--full">{t("nav.services")}</span>
+              {t("nav.services")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1835,7 +1621,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setUcDropOpen((v) => !v)}
               onFocus={() => openDrop(setUcDropOpen)}
             >
-              <span className="nav-label nav-label--full">{t("nav.useCases")}</span>
+              {t("nav.useCases")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1845,31 +1631,28 @@ export default function Header({ introReady }: { introReady: boolean }) {
               <div className="nav-dd__title">USE CASES</div>
 
               <div className="uc-mega">
-                {/* LEFT list = same 6 services */}
+                {/* LEFT list */}
                 <div className="uc-left">
-                  <div className="uc-leftHead">SELECT A SERVICE</div>
+                  <div className="uc-leftHead">SELECT A SCENARIO</div>
 
-                  {SERVICES.map((s) => {
-                    const active = s.id === ucActive;
-                    const uc = USE_CASES.find((x) => x.id === s.id);
+                  {USE_CASES.map((u) => {
+                    const active = u.id === ucActive;
                     return (
                       <button
-                        key={s.id}
+                        key={u.id}
                         type="button"
                         className={cx("uc-item", active && "is-active")}
-                        onMouseEnter={() => setUcActive(s.id)}
-                        onFocus={() => setUcActive(s.id)}
+                        onMouseEnter={() => setUcActive(u.id)}
+                        onFocus={() => setUcActive(u.id)}
                         onClick={() => {
-                          // click = open full page (optional) OR go service page
-                          // Here: open use-cases page focused
                           setUcDropOpen(false);
-                          navigate(withLang(`/use-cases?svc=${encodeURIComponent(s.id)}`));
+                          navigate(withLang(u.to));
                           window.scrollTo({ top: 0, left: 0, behavior: "auto" });
                         }}
                       >
                         <span style={{ minWidth: 0 }}>
-                          <div className="uc-itemTitle">{s.label}</div>
-                          <div className="uc-itemSub">{uc?.subtitle ?? s.hint}</div>
+                          <div className="uc-itemTitle">{u.title}</div>
+                          <div className="uc-itemSub">{u.subtitle}</div>
                         </span>
                         <span className="uc-itemIcon" aria-hidden="true">
                           →
@@ -1903,11 +1686,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
                   <div className="uc-footer">
                     <NavLink
-                      to={withLang(`/use-cases?svc=${encodeURIComponent(ucActive)}`)}
+                      to={withLang(ucActiveDef.to)}
                       className="uc-miniLink"
                       onClick={() => setUcDropOpen(false)}
                     >
-                      Open {t("nav.useCases")} →
+                      Open {ucActiveDef.title} →
                     </NavLink>
                     <div className="uc-miniHint">{ucActiveDef.subtitle}</div>
                   </div>
@@ -1931,7 +1714,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setResDropOpen((v) => !v)}
               onFocus={() => openDrop(setResDropOpen)}
             >
-              <span className="nav-label nav-label--full">Resources</span>
+              Resources
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1960,35 +1743,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     </span>
                   </NavLink>
                 ))}
-
-                <NavLink
-                  to={withLang("/store")}
-                  className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
-                  role="menuitem"
-                  onClick={() => setResDropOpen(false)}
-                >
-                  <span className="nav-dd__left">
-                    <span className="nav-dd__dot" aria-hidden="true" />
-                    <span className="nav-dd__labelWrap">
-                      <span className="nav-dd__label">NEOX Store</span>
-                      <span className="nav-dd__hint">Products, packages, add-ons</span>
-                    </span>
-                  </span>
-                  <span className="nav-dd__arrow" aria-hidden="true">
-                    →
-                  </span>
-                </NavLink>
               </div>
             </div>
           </div>
 
-          {/* BLOG direct */}
           <NavLink to={withLang("/blog")} className={navItem}>
-            <span className="nav-label nav-label--full">{t("nav.blog")}</span>
+            {t("nav.blog")}
           </NavLink>
         </nav>
 
         <div className="header-right">
+          {/* ✅ hover-open language switcher */}
           <LangMenu lang={lang} onPick={(c) => switchLang(c)} />
 
           <Link to={withLang("/contact")} className="nav-cta nav-cta--desktopOnly">
