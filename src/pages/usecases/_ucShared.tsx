@@ -1,3 +1,4 @@
+// src/pages/usecases/_ucShared.tsx
 import React, { memo, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
@@ -489,7 +490,11 @@ export const BreadcrumbPill = memo(function BreadcrumbPill({
   delayMs: number;
 }) {
   return (
-    <div className={cx("uc-crumb uc-enter", enter && "uc-in")} style={{ ["--d" as any]: `${delayMs}ms` }} aria-label="Breadcrumb">
+    <div
+      className={cx("uc-crumb uc-enter", enter && "uc-in")}
+      style={{ ["--d" as any]: `${delayMs}ms` }}
+      aria-label="Breadcrumb"
+    >
       <span className="uc-crumbDot" aria-hidden="true" />
       <span className="uc-crumbText">{text}</span>
     </div>
