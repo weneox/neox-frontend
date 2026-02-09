@@ -1,9 +1,18 @@
 // src/pages/UseCases.tsx
-// CENTER-TRIGGER REVEAL (only when element hits viewport center) + STAGGER SEQ + 1 VIDEO MAX + MOBILE FIT
+// FIX: Faster reveal (3/4 entered) + Mobile visible + Videos work (1 active by visibility)
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Building2, ShoppingBag, Stethoscope, GraduationCap, Landmark, Truck, TrendingUp, CheckCircle } from "lucide-react";
+import {
+  Building2,
+  ShoppingBag,
+  Stethoscope,
+  GraduationCap,
+  Landmark,
+  Truck,
+  TrendingUp,
+  CheckCircle,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -26,7 +35,13 @@ function withLang(path: string, lang: Lang) {
 
 function optimizeCloudinaryVideo(url: string) {
   if (!url) return url;
-  if (url.includes("/video/upload/q_auto") || url.includes("/video/upload/f_auto") || url.includes("/video/upload/q_")) return url;
+  if (
+    url.includes("/video/upload/q_auto") ||
+    url.includes("/video/upload/f_auto") ||
+    url.includes("/video/upload/q_")
+  ) {
+    return url;
+  }
   return url.replace("/video/upload/", "/video/upload/q_auto,f_auto/");
 }
 
@@ -62,85 +77,143 @@ function useMedia(query: string, initial = false) {
 }
 
 /* ------------------------------------------------------------------
-   ✅ CENTER TRIGGER REVEAL (no IO)
-   - Element ancaq viewport mərkəzinə gələndə açılır
-   - Seq elementləri (uc-seq) sıra ilə açılır
-   - FPS üçün: scroll handler rAF + passive
+   ✅ REVEAL when ~3/4 entered (IO)
+   - starts earlier (not center)
+   - keeps revealed (no flicker)
+   - seq children animate in order
 ------------------------------------------------------------------ */
-function useCenterReveal(rootRef: React.RefObject<HTMLElement>, opts?: { tolerancePx?: number; seqDelayMs?: number }) {
-  const tolerancePx = opts?.tolerancePx ?? 44; // mərkəzə yaxınlıq
+function useRevealOnEnter(
+  rootRef: React.RefObject<HTMLElement>,
+  opts?: { threshold?: number; rootMargin?: string; seqDelayMs?: number }
+) {
+  const threshold = opts?.threshold ?? 0.62; // ~60-70% visible => “3/4 girəndə” hissi
+  const rootMargin = opts?.rootMargin ?? "0px 0px -10% 0px";
   const seqDelayMs = opts?.seqDelayMs ?? 80;
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
-    root.classList.add("uc-center");
+    root.classList.add("uc-io");
 
-    const items = Array.from(root.querySelectorAll<HTMLElement>("[data-center-reveal]"));
+    const items = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (!items.length) return;
 
-    // seq index set (stable)
+    // seq delays
     items.forEach((wrap) => {
       const seq = Array.from(wrap.querySelectorAll<HTMLElement>(".uc-seq"));
       seq.forEach((el, i) => el.style.setProperty("--sd", `${i * seqDelayMs}ms`));
     });
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduced) {
+    if (reduced || typeof IntersectionObserver === "undefined") {
       items.forEach((el) => el.classList.add("is-in"));
-      items.forEach((el) => el.classList.add("is-center")); // video enable
       return;
     }
 
-    let raf = 0;
-    const seen = new WeakSet<Element>();
-
-    const check = () => {
-      raf = 0;
-      const vh = window.innerHeight || 0;
-      const centerY = vh / 2;
-
-      for (const el of items) {
-        if (seen.has(el)) continue;
-
-        const r = el.getBoundingClientRect();
-
-        // elementin mərkəzi
-        const elCenter = r.top + r.height / 2;
-
-        // element viewport-da “tam içəri girməyib” => açma
-        // burada tələb: “sehifenin tam icine girmemis acilmasinlar”
-        // => elementin üstü viewport-a daxil olsun + altı da daxil olsun (az tolerant)
-        const fullyInside = r.top <= centerY + 6 && r.bottom >= centerY - 6;
-
-        // mərkəz trigger: element mərkəzi viewport mərkəzinə yaxın
-        const nearCenter = Math.abs(elCenter - centerY) <= tolerancePx;
-
-        if (fullyInside && nearCenter) {
-          el.classList.add("is-in");     // slide-in
-          el.classList.add("is-center"); // video enable
-          seen.add(el);
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const el = e.target as HTMLElement;
+          if (el.classList.contains("is-in")) continue;
+          // yalnız yetərincə görünəndə
+          if ((e.intersectionRatio || 0) >= threshold) {
+            el.classList.add("is-in");
+            io.unobserve(el); // revealed = done
+          }
         }
-      }
-    };
+      },
+      { threshold: [0, 0.25, 0.4, 0.55, 0.62, 0.75, 0.9], rootMargin }
+    );
 
-    const onScroll = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(check);
-    };
+    items.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [rootRef, threshold, rootMargin, seqDelayMs]);
+}
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    // initial
-    onScroll();
+/* ------------------------------------------------------------------
+   ✅ GLOBAL VIDEO PICKER (fix: only Retail bug)
+   - each video panel reports its intersectionRatio
+   - globally choose best visible panel
+   - only best plays; others pause + src removed
+------------------------------------------------------------------ */
+type VideoReg = { id: string; setAllow: (v: boolean) => void };
+const VIDEO_REG_KEY = "__neox_uc_video_regs__";
+const VIDEO_PICK_KEY = "__neox_uc_video_pick__";
+
+function useBestVisibleVideo(elRef: React.RefObject<HTMLElement>, enabled: boolean) {
+  const [allow, setAllow] = useState(false);
+  const idRef = useRef<string>(Math.random().toString(16).slice(2) + Date.now().toString(16));
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !enabled) return;
+
+    const w = window as any;
+    if (!w[VIDEO_REG_KEY]) w[VIDEO_REG_KEY] = new Map<string, VideoReg>();
+    const regs: Map<string, VideoReg> = w[VIDEO_REG_KEY];
+
+    regs.set(idRef.current, { id: idRef.current, setAllow });
+
+    if (!w[VIDEO_PICK_KEY]) {
+      w[VIDEO_PICK_KEY] = { io: null as IntersectionObserver | null, ratio: new Map<string, number>() };
+
+      w[VIDEO_PICK_KEY].io = new IntersectionObserver(
+        (entries: IntersectionObserverEntry[]) => {
+          for (const e of entries) {
+            const target = e.target as HTMLElement;
+            const vid = target.getAttribute("data-vid") || "";
+            if (!vid) continue;
+            w[VIDEO_PICK_KEY].ratio.set(vid, e.isIntersecting ? (e.intersectionRatio || 0) : 0);
+          }
+
+          // pick best
+          let bestId = "";
+          let bestRatio = 0;
+          regs.forEach((r) => {
+            const rr = w[VIDEO_PICK_KEY].ratio.get(r.id) || 0;
+            if (rr > bestRatio) {
+              bestRatio = rr;
+              bestId = r.id;
+            }
+          });
+
+          // only allow if meaningful visible
+          regs.forEach((r) => {
+            const rr = w[VIDEO_PICK_KEY].ratio.get(r.id) || 0;
+            r.setAllow(r.id === bestId && rr >= 0.35);
+          });
+        },
+        {
+          threshold: [0, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95],
+          rootMargin: "0px 0px 0px 0px",
+        }
+      );
+    }
+
+    el.setAttribute("data-vid", idRef.current);
+    (w[VIDEO_PICK_KEY].io as IntersectionObserver).observe(el);
 
     return () => {
-      window.removeEventListener("scroll", onScroll as any);
-      window.removeEventListener("resize", onScroll as any);
-      if (raf) window.cancelAnimationFrame(raf);
+      const w2 = window as any;
+      regs.delete(idRef.current);
+      try {
+        (w2[VIDEO_PICK_KEY]?.io as IntersectionObserver | undefined)?.unobserve?.(el);
+      } catch {}
+
+      // cleanup
+      if (regs.size === 0) {
+        try {
+          (w2[VIDEO_PICK_KEY]?.io as IntersectionObserver | undefined)?.disconnect?.();
+        } catch {}
+        delete w2[VIDEO_PICK_KEY];
+        delete w2[VIDEO_REG_KEY];
+      }
     };
-  }, [rootRef, tolerancePx, seqDelayMs]);
+  }, [elRef, enabled]);
+
+  return allow;
 }
 
 /* ---------------- types ---------------- */
@@ -167,7 +240,15 @@ type CaseText = {
 type MoreText = { title: string; text: string };
 
 /* ---------------- UI parts ---------------- */
-const BreadcrumbPill = memo(function BreadcrumbPill({ text, enter, delayMs }: { text: string; enter: boolean; delayMs: number }) {
+const BreadcrumbPill = memo(function BreadcrumbPill({
+  text,
+  enter,
+  delayMs,
+}: {
+  text: string;
+  enter: boolean;
+  delayMs: number;
+}) {
   return (
     <div className={cx("uc-crumb uc-enter", enter && "uc-in")} style={{ ["--d" as any]: `${delayMs}ms` }} aria-label="Breadcrumb">
       <span className="uc-crumbDot" aria-hidden="true" />
@@ -205,19 +286,38 @@ const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: strin
   );
 });
 
-/* ------------------------------------------------------------------
-   ✅ 1 VIDEO MAX + only when WRAPPER becomes "is-center"
-   - each HUD listens its wrapper class change via prop "enabled"
------------------------------------------------------------------- */
-function useVideoActive(enabled: boolean, videoUrl?: string) {
+/* ---------------- VIDEO HUD (video only) ---------------- */
+const VideoHUD = memo(function VideoHUD({
+  tint,
+  videoUrl,
+  play,
+}: {
+  tint: Tint;
+  videoUrl?: string;
+  play: boolean;
+}) {
+  const tintMap: Record<Tint, { a: string; b: string }> = {
+    cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.12)" },
+    violet: { a: "rgba(42,125,255,.18)", b: "rgba(47,184,255,.10)" },
+    pink: { a: "rgba(170,225,255,.16)", b: "rgba(47,184,255,.10)" },
+    amber: { a: "rgba(80,170,255,.16)", b: "rgba(47,184,255,.10)" },
+  };
+  const tt = tintMap[tint];
+
+  const hudRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // ✅ best visible video (global)
+  const allow = useBestVisibleVideo(hudRef as any, !!videoUrl);
 
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
-    if (!videoUrl) return;
+    if (!v || !videoUrl) return;
 
-    if (enabled) {
+    // only attach src when allowed AND wrapper says play allowed
+    const shouldPlay = !!play && !!allow;
+
+    if (shouldPlay) {
       if (v.src !== videoUrl) {
         v.preload = "metadata";
         v.src = videoUrl;
@@ -231,73 +331,11 @@ function useVideoActive(enabled: boolean, videoUrl?: string) {
       v.preload = "none";
       try { v.load(); } catch {}
     }
-  }, [enabled, videoUrl]);
-
-  return videoRef;
-}
-
-// global lock: only 1 video playing
-function useGlobalSingleVideoLock(enabled: boolean) {
-  const [allow, setAllow] = useState(false);
-  const idRef = useRef<string>(Math.random().toString(16).slice(2) + Date.now().toString(16));
-  const key = "__neox_uc_oneVideo__";
-
-  useEffect(() => {
-    const w = window as any;
-    if (!w[key]) w[key] = { activeId: "" };
-
-    if (!enabled) {
-      if (w[key].activeId === idRef.current) w[key].activeId = "";
-      setAllow(false);
-      return;
-    }
-
-    // if boşdursa götür
-    if (!w[key].activeId) {
-      w[key].activeId = idRef.current;
-      setAllow(true);
-      return;
-    }
-
-    // başqa biri aktivdirsə, gözlə
-    setAllow(w[key].activeId === idRef.current);
-
-    const t = window.setInterval(() => {
-      const ok = w[key].activeId === idRef.current || !w[key].activeId;
-      if (!ok) return;
-      if (!w[key].activeId) w[key].activeId = idRef.current;
-      setAllow(true);
-      window.clearInterval(t);
-    }, 120);
-
-    return () => window.clearInterval(t);
-  }, [enabled]);
-
-  useEffect(() => {
-    return () => {
-      const w = window as any;
-      if (w[key]?.activeId === idRef.current) w[key].activeId = "";
-    };
-  }, []);
-
-  return allow;
-}
-
-/* ---------------- VIDEO-ONLY HUD ---------------- */
-const VideoHUD = memo(function VideoHUD({ tint, videoUrl, enabled }: { tint: Tint; videoUrl?: string; enabled: boolean }) {
-  const tintMap: Record<Tint, { a: string; b: string }> = {
-    cyan: { a: "rgba(47,184,255,.18)", b: "rgba(42,125,255,.12)" },
-    violet: { a: "rgba(42,125,255,.18)", b: "rgba(47,184,255,.10)" },
-    pink: { a: "rgba(170,225,255,.16)", b: "rgba(47,184,255,.10)" },
-    amber: { a: "rgba(80,170,255,.16)", b: "rgba(47,184,255,.10)" },
-  };
-  const tt = tintMap[tint];
-
-  const allow = useGlobalSingleVideoLock(enabled);
-  const videoRef = useVideoActive(allow, videoUrl);
+  }, [allow, play, videoUrl]);
 
   return (
     <div
+      ref={hudRef}
       className="uc-hud uc-monitor"
       data-tint={tint}
       style={{
@@ -319,7 +357,6 @@ const VideoHUD = memo(function VideoHUD({ tint, videoUrl, enabled }: { tint: Tin
   );
 });
 
-/* ---------------- CaseRow (center-trigger wrapper) ---------------- */
 const CaseRow = memo(function CaseRow({
   c,
   flip,
@@ -342,28 +379,9 @@ const CaseRow = memo(function CaseRow({
   videoUrl?: string;
 }) {
   const Icon = c.icon;
-  const [enabled, setEnabled] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  // enabled = wrapper class "is-center" (set by useCenterReveal)
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const mo = new MutationObserver(() => {
-      setEnabled(el.classList.contains("is-center"));
-    });
-    mo.observe(el, { attributes: true, attributeFilter: ["class"] });
-    setEnabled(el.classList.contains("is-center"));
-    return () => mo.disconnect();
-  }, []);
 
   return (
-    <div
-      ref={wrapRef}
-      data-center-reveal
-      className={cx("uc-centerWrap", flip ? "flip" : "noflip")}
-      data-tint={c.tint}
-    >
+    <div data-reveal className={cx("uc-wrap", flip ? "flip" : "noflip")} data-tint={c.tint}>
       <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
         {/* TEXT */}
         <div className={cx("uc-panel", flip ? "from-right lg:order-2" : "from-left")}>
@@ -413,7 +431,8 @@ const CaseRow = memo(function CaseRow({
 
         {/* VIDEO */}
         <div className={cx("uc-panel", flip ? "from-left lg:order-1" : "from-right")}>
-          <VideoHUD tint={c.tint} videoUrl={videoUrl} enabled={enabled} />
+          {/* play flag = reveal olmuş wrapper */}
+          <VideoHUD tint={c.tint} videoUrl={videoUrl} play={true} />
         </div>
       </div>
     </div>
@@ -447,6 +466,7 @@ export default function UseCases() {
   const ctaServices = t("useCases.cta.services");
   const ctaSchedule = t("useCases.cta.schedule");
 
+  // ✅ videos
   const VIDEOS = useMemo(
     () => [
       optimizeCloudinaryVideo("https://res.cloudinary.com/dppoomunj/video/upload/v1770594527/neox/media/asset_1770594489151_13bb67859a0f3.mp4"),
@@ -512,17 +532,12 @@ export default function UseCases() {
     return out;
   }, [MORE_META, moreText]);
 
-  // SEO (qalsın)
-  useEffect(() => {
-    const prev = document.title;
-    document.title = t("useCases.seo.title");
-    return () => {
-      document.title = prev;
-    };
-  }, [t, lang]);
-
-  // ✅ center reveal: ancaq ortada olanda aç
-  useCenterReveal(rootRef, { tolerancePx: isMobile ? 34 : 44, seqDelayMs: isMobile ? 70 : 85 });
+  // ✅ reveal earlier (3/4)
+  useRevealOnEnter(rootRef, {
+    threshold: isMobile ? 0.55 : 0.62,
+    rootMargin: "0px 0px -10% 0px",
+    seqDelayMs: isMobile ? 70 : 85,
+  });
 
   return (
     <main ref={rootRef as any} className="uc-page">
@@ -561,9 +576,9 @@ export default function UseCases() {
 
         .uc-enter{
           opacity: 0;
-          transform: translate3d(0, 16px, 0);
-          filter: blur(7px);
-          transition: opacity .62s ease, transform .62s ease, filter .62s ease;
+          transform: translate3d(0, 14px, 0);
+          filter: blur(6px);
+          transition: opacity .55s ease, transform .55s ease, filter .55s ease;
           transition-delay: var(--d, 0ms);
         }
         .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
@@ -645,7 +660,7 @@ export default function UseCases() {
             radial-gradient(120px 60px at 30% 30%, rgba(170,225,255,.18), transparent 62%),
             linear-gradient(180deg, rgba(10,24,40,.72), rgba(5,10,18,.55));
           box-shadow: 0 10px 26px rgba(0,0,0,.55), 0 0 0 1px rgba(47,184,255,.10) inset;
-          transition: transform .18s ease;
+          transition: transform .16s ease;
         }
         .uc-btn:hover{ transform: translate3d(0,-2px,0); }
         .uc-btnGhost{ border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.03); }
@@ -690,55 +705,39 @@ export default function UseCases() {
         }
         .uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
-        /* ====== CENTER WRAPPER: hidden until is-in ====== */
-        .uc-centerWrap{
-          position: relative;
-          isolation: isolate;
-          overflow: clip;
-          content-visibility: auto;
-          contain-intrinsic-size: 860px;
-        }
+        /* ✅ Reveal system */
+        .uc-wrap{ position: relative; isolation: isolate; overflow: clip; }
 
-        /* Panel base state (hidden) */
-        .uc-center .uc-centerWrap .uc-panel{
+        .uc-page.uc-io [data-reveal] .uc-panel{
           opacity: 0;
-          transform: translate3d(0,0,0);
           filter: blur(8px);
-          transition:
-            opacity .55s ease,
-            transform .55s cubic-bezier(.2,.85,.2,1),
-            filter .55s ease;
+          transition: opacity .38s ease, transform .38s cubic-bezier(.2,.85,.2,1), filter .38s ease;
           will-change: transform, opacity, filter;
         }
-        .uc-center .uc-centerWrap .uc-panel.from-left{ transform: translate3d(-42px, 0, 0); }
-        .uc-center .uc-centerWrap .uc-panel.from-right{ transform: translate3d(42px, 0, 0); }
+        .uc-page.uc-io [data-reveal] .uc-panel.from-left{ transform: translate3d(-34px, 0, 0); }
+        .uc-page.uc-io [data-reveal] .uc-panel.from-right{ transform: translate3d(34px, 0, 0); }
 
-        /* When wrapper hits center */
-        .uc-center .uc-centerWrap.is-in .uc-panel{
+        .uc-page.uc-io [data-reveal].is-in .uc-panel{
           opacity: 1;
           transform: translate3d(0,0,0);
           filter: blur(0px);
         }
 
-        /* Seq inside wrapper (stagger) */
-        .uc-center .uc-centerWrap .uc-seq{
+        /* ✅ Seq (sözlər/bullets/tiles) */
+        .uc-page.uc-io [data-reveal] .uc-seq{
           opacity: 0;
           transform: translate3d(0, 10px, 0);
           filter: blur(6px);
-          transition:
-            opacity .48s ease,
-            transform .48s ease,
-            filter .48s ease;
+          transition: opacity .42s ease, transform .42s ease, filter .42s ease;
           transition-delay: var(--sd, 0ms);
-          will-change: transform, opacity, filter;
         }
-        .uc-center .uc-centerWrap.is-in .uc-seq{
+        .uc-page.uc-io [data-reveal].is-in .uc-seq{
           opacity: 1;
           transform: translate3d(0,0,0);
           filter: blur(0px);
         }
 
-        /* Bullets: small connector line */
+        /* Bullets connector */
         .uc-bullet{ position: relative; padding-left: 2px; }
         .uc-bullet::before{
           content:"";
@@ -751,43 +750,37 @@ export default function UseCases() {
           opacity: .55;
         }
 
-        /* ====== VIDEO MONITOR (mobile-safe) ====== */
+        /* ✅ VIDEO MONITOR (mobile-safe) */
         .uc-monitor{
           border-radius: 28px;
           border: 1px solid rgba(255,255,255,.12);
           background: linear-gradient(180deg, rgba(255,255,255,.020), rgba(255,255,255,.010));
           overflow: hidden;
-          box-shadow: 0 14px 46px rgba(0,0,0,.55);
         }
         .uc-hud{ position: relative; overflow: hidden; }
-        .uc-hudInner{
-          width: 100%;
-          aspect-ratio: 16 / 10;
-        }
+        .uc-hudInner{ width:100%; aspect-ratio: 16 / 10; }
         @media (max-width: 560px){
           .uc-hudInner{ aspect-ratio: 16 / 11; }
           .uc-monitor{ border-radius: 24px; }
         }
-
         .uc-screen{
           position:absolute;
           inset: 12px;
           border-radius: 22px;
           overflow: hidden;
-          background: #000;
+          background:#000;
           pointer-events:none;
         }
         @media (max-width: 560px){
           .uc-screen{ inset: 10px; border-radius: 18px; }
         }
-
         .uc-screenVideo{
           position:absolute;
           inset:0;
           width:100%;
           height:100%;
           display:block;
-          object-fit: cover;  /* monitor içində qalır */
+          object-fit: cover;
           background:#000;
         }
         .uc-screenVignette{
@@ -799,12 +792,12 @@ export default function UseCases() {
         }
 
         @media (prefers-reduced-motion: reduce){
-          .uc-center .uc-centerWrap .uc-panel,
-          .uc-center .uc-centerWrap .uc-seq{
+          .uc-page.uc-io [data-reveal] .uc-panel,
+          .uc-page.uc-io [data-reveal] .uc-seq{
             opacity: 1 !important;
-            transform: none !important;
-            filter: none !important;
-            transition: none !important;
+            transform:none !important;
+            filter:none !important;
+            transition:none !important;
           }
         }
       `}</style>
@@ -831,10 +824,10 @@ export default function UseCases() {
               </p>
 
               <div className={cx("mt-8 flex flex-wrap items-center justify-center gap-3 uc-enter", enter && "uc-in")} style={d(270)}>
-                <Link to={toContact} className="uc-btn" aria-label={t("useCases.aria.contact")}>
+                <Link to={withLang("/contact", lang)} className="uc-btn" aria-label={t("useCases.aria.contact")}>
                   {ctaOwnCase} <span aria-hidden="true">→</span>
                 </Link>
-                <Link to={toServices} className="uc-btn uc-btnGhost" aria-label={t("useCases.aria.services")}>
+                <Link to={withLang("/services", lang)} className="uc-btn uc-btnGhost" aria-label={t("useCases.aria.services")}>
                   {ctaServices}
                 </Link>
               </div>
@@ -843,6 +836,7 @@ export default function UseCases() {
             </div>
           </div>
         </div>
+
         <div className="uc-spacer" />
       </section>
 
@@ -868,7 +862,7 @@ export default function UseCases() {
         </div>
       </section>
 
-      {/* MORE (istəsən bunu da center trigger edə bilərik, indi sadə saxladım) */}
+      {/* MORE */}
       <section className="py-16 sm:py-20" aria-label={t("useCases.aria.more")}>
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="text-center">
@@ -932,3 +926,4 @@ export default function UseCases() {
     </main>
   );
 }
+ 
