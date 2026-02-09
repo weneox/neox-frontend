@@ -1,5 +1,5 @@
 // src/pages/usecases/UseCaseSingle.tsx
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ShoppingBag, Landmark, Stethoscope, Truck } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -21,7 +21,10 @@ function withLang(path: string, lang: Lang) {
 }
 
 /* Reveal (same behavior) */
-function useRevealScopedBatched(rootRef: React.RefObject<HTMLElement>, rootMargin = "0px 0px -18% 0px") {
+function useRevealScopedBatched(
+  rootRef: React.RefObject<HTMLElement>,
+  rootMargin = "0px 0px -18% 0px"
+) {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -179,6 +182,9 @@ export default function UseCaseSingle({
     };
   }, [casesText, caseIndex, meta.icon, meta.tint]);
 
+  // ✅ FIX: dynamic icon component
+  const Icon = c.icon;
+
   useSeo({
     title: c.sektor ? `${c.sektor} — ${t("useCases.seo.title")}` : t("useCases.seo.title"),
     description: c.hekayə || t("useCases.seo.description"),
@@ -205,7 +211,11 @@ export default function UseCaseSingle({
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-reveal reveal-bottom")}>
+              <p
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-reveal reveal-bottom"
+                )}
+              >
                 {c.hekayə || t("useCases.hero.subtitle")}
               </p>
 
@@ -235,7 +245,7 @@ export default function UseCaseSingle({
                 <header className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="uc-ic" aria-hidden="true">
-                      <c.icon className="h-5 w-5" />
+                      <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
                       <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
@@ -278,7 +288,7 @@ export default function UseCaseSingle({
             <div className="uc-reveal reveal-right">
               <div className="uc-hud uc-pop uc-contain" data-tint={c.tint}>
                 <div className="uc-hudInner">
-                  <c.icon className="uc-hudIcon" aria-hidden="true" />
+                  <Icon className="uc-hudIcon" aria-hidden="true" />
                   <div className="text-white/70 text-center max-w-[420px]">
                     <div className="text-[12px] tracking-[.14em] uppercase text-white/60">Visual panel</div>
                     <div className="mt-2 text-white font-semibold">Video will be placed here</div>
