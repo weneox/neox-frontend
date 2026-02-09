@@ -9,8 +9,6 @@ import {
   ShieldCheck,
   ArrowRight,
   CheckCircle2,
-  Bell,
-  Gauge,
 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
@@ -18,12 +16,13 @@ function cx(...xs: Array<string | false | null | undefined>) {
 }
 
 const RAW_VIDEO =
-  "https://res.cloudinary.com/dppoomunj/video/upload/v1770673590/neox/media/asset_1770673578452_69109b2e9cd08.mp4";
+  "https://res.cloudinary.com/dppoomunj/video/upload/v1770675145/neox/media/asset_1770675134359_b91c8b8d8927a.mp4";
 
 // Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
   try {
     if (!url.includes("/upload/")) return url;
+    // don’t duplicate
     if (url.includes("/upload/q_auto") || url.includes("/upload/f_auto")) return url;
     return url.replace("/upload/", "/upload/q_auto,f_auto/");
   } catch {
@@ -504,9 +503,9 @@ function ServicePage({
                 : "Premium mobile UX with fast load, smooth animation and offline-ready architecture."}
             </div>
             <div style={{ marginTop: 12 }}>
-              {featuresLeft.map((f) => (
-                <Feature key={f.title} title={f.title} desc={f.desc} />
-              ))}
+              <Feature title={lang === "az" ? "Fast" : "Fast"} desc={lang === "az" ? "Optimized bundle, caching, minimal latency və sürətli açılış." : "Optimized bundle, caching, minimal latency."} />
+              <Feature title={lang === "az" ? "Scalable" : "Scalable"} desc={lang === "az" ? "Modular arxitektura, rahat genişlənmə və clean code." : "Modular architecture, easy to extend."} />
+              <Feature title={lang === "az" ? "Offline-ready" : "Offline-ready"} desc={lang === "az" ? "Smart cache, queue və zəif internetdə belə stabil iş." : "Smart cache and queues for poor connections."} />
             </div>
           </div>
 
@@ -521,9 +520,9 @@ function ServicePage({
                 : "Secure APIs with auth, rate-limits, auditing, plus deploy/monitoring, analytics and push."}
             </div>
             <div style={{ marginTop: 12 }}>
-              {featuresRight.map((f) => (
-                <Feature key={f.title} title={f.title} desc={f.desc} />
-              ))}
+              <Feature title={lang === "az" ? "Secure" : "Secure"} desc={lang === "az" ? "JWT, roles, logging, rate-limit və qorunma layer-ləri." : "JWT, roles, logging, rate-limits."} />
+              <Feature title={lang === "az" ? "Push / Events" : "Push / Events"} desc={lang === "az" ? "Bildirişlər, event tracking, funnel və analitika." : "Notifications, event tracking, funnel analytics."} />
+              <Feature title={lang === "az" ? "Deploy & Monitor" : "Deploy & Monitor"} desc={lang === "az" ? "Release flow, crash monitoring, performance izləmə." : "Release flow, crash monitoring, performance tracking."} />
             </div>
           </div>
         </div>
@@ -545,16 +544,8 @@ export default memo(function ServiceMobileApps() {
       }
       icon={Smartphone}
       pills={["iOS/Android", "Premium UX", "Fast", "Secure API", "Push/Events"]}
-      featuresLeft={[
-        { title: "Fast", desc: "Optimized bundle, caching, minimal latency və sürətli açılış." },
-        { title: "Scalable", desc: "Modular arxitektura, rahat genişlənmə və clean code." },
-        { title: "Offline-ready", desc: "Smart cache, queue və zəif internetdə belə stabil iş." },
-      ]}
-      featuresRight={[
-        { title: "Secure", desc: "JWT, roles, logging, rate-limit və qorunma layer-ləri." },
-        { title: "Push / Events", desc: "Bildirişlər, event tracking, funnel və analitika." },
-        { title: "Deploy & Monitor", desc: "Release flow, crash monitoring, performance izləmə." },
-      ]}
+      featuresLeft={[]}
+      featuresRight={[]}
       videoUrl={VIDEO_URL}
     />
   );
