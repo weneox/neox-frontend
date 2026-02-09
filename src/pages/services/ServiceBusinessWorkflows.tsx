@@ -1,364 +1,576 @@
-import React, { memo, useEffect, useRef, useState } from "react";
-import { GitBranch, SlidersHorizontal, Zap, ShieldCheck } from "lucide-react";
+// src/pages/services/ServiceBusinessWorkflows.tsx
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import {
+  GitBranch,
+  SlidersHorizontal,
+  Zap,
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  Workflow,
+  Timer,
+  Settings2,
+} from "lucide-react";
 
-/**
- * ServiceBusinessWorkflows — Premium page-integrated video hero
- * - Video plays 0→INTRO_END once (intro text anim can happen there)
- * - Then loops LOOP_FROM→LOOP_TO forever (never returns to 0, so intro text won't re-trigger)
- * - Cloudinary URL uses q_auto,f_auto
- * - Video looks like part of the page (no “block” feel)
- */
+function cx(...xs: Array<string | false | null | undefined>) {
+  return xs.filter(Boolean).join(" ");
+}
 
-const RAW_VIDEO_URL =
+const RAW_VIDEO =
   "https://res.cloudinary.com/dppoomunj/video/upload/v1770673590/neox/media/asset_1770673578452_69109b2e9cd08.mp4";
 
-// q_auto,f_auto (Cloudinary)
-const VIDEO_URL = RAW_VIDEO_URL.replace("/video/upload/", "/video/upload/q_auto,f_auto/");
+// Cloudinary transform: insert q_auto,f_auto right after /upload/
+function cloudinaryAuto(url: string) {
+  try {
+    if (!url.includes("/upload/")) return url;
+    if (url.includes("/upload/q_auto") || url.includes("/upload/f_auto")) return url;
+    return url.replace("/upload/", "/upload/q_auto,f_auto/");
+  } catch {
+    return url;
+  }
+}
+const VIDEO_URL = cloudinaryAuto(RAW_VIDEO);
 
-// ✅ Set these for your video (seconds)
-const INTRO_END = 3.0; // intro finishes here (0→3 plays once)
-const LOOP_FROM = 3.0; // loop start
-const LOOP_TO = 6.0;   // loop end (set to real duration or last usable second)
+const TINTS = {
+  amber: {
+    a: "rgba(255,184,47,.22)",
+    b: "rgba(255,184,47,.10)",
+    c: "rgba(255,184,47,.06)",
+    d: "rgba(255,184,47,.28)",
+  },
+} as const;
 
-export default memo(function ServiceBusinessWorkflows() {
+type Lang = "az" | "en" | "tr" | "ru" | "es";
+const LANGS: Lang[] = ["az", "en", "tr", "ru", "es"];
+
+function getLangFromPath(pathname: string): Lang {
+  const seg = (pathname.split("/")[1] || "").toLowerCase() as Lang;
+  return LANGS.includes(seg) ? seg : "az";
+}
+function withLang(path: string, lang: Lang) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `/${lang}${p}`;
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const on = () => setReduced(!!mq.matches);
+    on();
+    mq.addEventListener ? mq.addEventListener("change", on) : (mq as any).addListener(on);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener("change", on) : (mq as any).removeListener(on);
+    };
+  }, []);
+  return reduced;
+}
+
+/** Smooth reveal-on-scroll (very light, FPS-friendly) */
+function useRevealOnScroll(disabled: boolean) {
+  useEffect(() => {
+    if (disabled) return;
+
+    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (!els.length) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            (e.target as HTMLElement).classList.add("is-in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.16, rootMargin: "0px 0px -10% 0px" }
+    );
+
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [disabled]);
+}
+
+function Pill({ children }: { children: React.ReactNode }) {
+  return <span className="svc-pill">{children}</span>;
+}
+
+function Feature({ title, desc }: { title: string; desc: string }) {
   return (
-    <div>
-      <section style={{ paddingTop: "var(--hdrh,72px)" }} />
-      <Inner />
+    <div className="svc-feat" data-reveal>
+      <div className="svc-feat__tick" aria-hidden="true">
+        <CheckCircle2 size={16} />
+      </div>
+      <div className="svc-feat__body">
+        <div className="svc-feat__t">{title}</div>
+        <div className="svc-feat__d">{desc}</div>
+      </div>
     </div>
   );
-});
+}
 
-function Inner() {
-  const vref = useRef<HTMLVideoElement | null>(null);
-  const [introDone, setIntroDone] = useState(false);
+function ServicePage({
+  tint = "amber",
+  kicker,
+  title,
+  subtitle,
+  icon: Icon,
+  pills,
+  featuresLeft,
+  featuresRight,
+  videoUrl,
+}: {
+  tint?: keyof typeof TINTS;
+  kicker: string;
+  title: string;
+  subtitle: string;
+  icon: any;
+  pills: string[];
+  featuresLeft: Array<{ title: string; desc: string }>;
+  featuresRight: Array<{ title: string; desc: string }>;
+  videoUrl: string;
+}) {
+  const location = useLocation();
+  const lang = useMemo(() => getLangFromPath(location.pathname), [location.pathname]);
+  const reduced = usePrefersReducedMotion();
+  useRevealOnScroll(reduced);
 
+  const T = TINTS[tint];
+
+  const vidRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
-    const v = vref.current;
+    const v = vidRef.current;
     if (!v) return;
-
-    // Start from 0 on first mount
-    try {
-      v.currentTime = 0;
-    } catch {}
-
-    // We loop a segment by timeupdate (more reliable than Cloudinary loop transforms)
-    const onTimeUpdate = () => {
-      if (!introDone && v.currentTime >= INTRO_END - 0.03) {
-        setIntroDone(true);
-      }
-      if (v.currentTime >= LOOP_TO - 0.03) {
-        // never go back to 0; jump to LOOP_FROM
-        v.currentTime = LOOP_FROM;
-        void v.play?.();
+    const tryPlay = async () => {
+      try {
+        await v.play();
+      } catch {
+        // ignore (mobile may block until user gesture)
       }
     };
+    tryPlay();
+  }, []);
 
-    // Safety: if metadata reveals duration smaller than LOOP_TO, clamp
-    const onLoadedMeta = () => {
-      const dur = Number.isFinite(v.duration) ? v.duration : 0;
-      if (dur && LOOP_TO > dur - 0.05) {
-        // If video is shorter than your LOOP_TO, just loop near the end
-        // (you can also adjust LOOP_TO manually to the exact duration)
-        // eslint-disable-next-line no-console
-        console.warn("[NEOX] LOOP_TO > duration; consider adjusting LOOP_TO.");
-      }
-      void v.play?.();
-    };
-
-    v.addEventListener("timeupdate", onTimeUpdate);
-    v.addEventListener("loadedmetadata", onLoadedMeta);
-
-    return () => {
-      v.removeEventListener("timeupdate", onTimeUpdate);
-      v.removeEventListener("loadedmetadata", onLoadedMeta);
-    };
-    // introDone is state; we read it in handler, so we re-bind when it changes
-  }, [introDone]);
+  const L = useMemo(() => {
+    // minimal labels (AZ primary, EN fallback)
+    const contact =
+      lang === "az" ? "Əlaqə saxla" : lang === "tr" ? "İletişim" : lang === "ru" ? "Связаться" : lang === "es" ? "Contacto" : "Contact";
+    const pricing =
+      lang === "az" ? "Qiymətlər" : lang === "tr" ? "Fiyatlar" : lang === "ru" ? "Цены" : lang === "es" ? "Precios" : "Pricing";
+    const what =
+      lang === "az" ? "Nə qururuq?" : "What we build";
+    const control =
+      lang === "az" ? "Ölçmə & idarəetmə" : "Measurement & control";
+    const scrimLabel =
+      lang === "az" ? "LIVE FLOW" : "LIVE FLOW";
+    const badgeRight =
+      lang === "az" ? "Automate" : "Automate";
+    return { contact, pricing, what, control, scrimLabel, badgeRight };
+  }, [lang]);
 
   return (
-    <main style={{ padding: "28px 0 84px" }}>
+    <section className="svc">
       <style>{`
-        .svc2{ overflow-x:hidden; }
-        .svc2 .container{ max-width:1180px; margin:0 auto; padding:0 18px; }
+        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; }
+        .svc *{ box-sizing:border-box; }
+        .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
-        /* ===============================
-           Page-integrated video hero
-        =============================== */
-        .svc2-heroWrap{
-          position: relative;
-          min-height: clamp(560px, 78vh, 860px);
-          overflow: clip;
-          border-radius: 0; /* not a block */
-          padding: 0;
-          margin: 0;
+        /* reveal */
+        [data-reveal]{
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity .55s ease, transform .55s ease;
+          will-change: opacity, transform;
+        }
+        .is-in{ opacity: 1 !important; transform: translateY(0) !important; }
+        @media (prefers-reduced-motion: reduce){
+          [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        .svc2-bg{
+        .svc-hero{
+          position: relative;
+          border-radius: 26px;
+          border: 1px solid rgba(255,255,255,.08);
+          background:
+            radial-gradient(120% 90% at 18% 10%, ${T.a}, transparent 55%),
+            radial-gradient(120% 90% at 86% 10%, rgba(167,89,255,.12), transparent 60%),
+            rgba(10,12,18,.55);
+          box-shadow: 0 26px 120px rgba(0,0,0,.55);
+          overflow:hidden;
+        }
+        .svc-hero::before{
+          content:"";
+          position:absolute; inset:-2px;
+          background: radial-gradient(620px 260px at 22% 18%, ${T.b}, transparent 60%);
+          opacity:.85;
+          filter: blur(14px);
+          pointer-events:none;
+        }
+        .svc-hero__inner{
+          position:relative;
+          padding: 28px 22px;
+          display:grid;
+          grid-template-columns: 1.02fr .98fr;
+          gap: 18px;
+          align-items: stretch;
+          min-width:0;
+        }
+        @media (max-width: 980px){
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
+        }
+
+        .svc-left{ min-width:0; }
+        .svc-kicker{
+          display:inline-flex; align-items:center; gap:10px;
+          font-weight:900; letter-spacing:.18em; font-size:11px;
+          color: rgba(255,255,255,.70);
+          text-transform:uppercase;
+        }
+        .svc-kdot{
+          width:10px; height:10px; border-radius:999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
+          box-shadow: 0 0 0 4px ${T.c};
+        }
+
+        .svc-title{
+          margin-top: 10px;
+          font-size: clamp(28px, 3.2vw, 44px);
+          line-height: 1.06;
+          color: rgba(255,255,255,.94);
+          font-weight: 900;
+          letter-spacing: -0.02em;
+        }
+        .svc-sub{
+          margin-top: 10px;
+          color: rgba(255,255,255,.72);
+          font-size: 15px;
+          line-height: 1.65;
+          max-width: 68ch;
+        }
+
+        .svc-pills{
+          margin-top: 14px;
+          display:flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .svc-pill{
+          display:inline-flex; align-items:center;
+          height: 34px; padding: 0 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.05);
+          color: rgba(255,255,255,.86);
+          font-weight: 800;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+
+        .svc-ctaRow{
+          margin-top: 18px;
+          display:flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .svc-cta{
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          gap: 10px;
+          height: 44px;
+          padding: 0 16px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background:
+            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
+            rgba(255,255,255,.06);
+          color: rgba(255,255,255,.92);
+          font-weight: 900;
+          text-decoration:none;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+        }
+        .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
+        .svc-cta--ghost{ background: rgba(255,255,255,.04); }
+
+        /* RIGHT = CLEAN VIDEO (NO HEAVY OVERLAYS) */
+        .svc-right{
+          min-width:0;
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.08);
+          overflow:hidden;
+          position:relative;
+          background: rgba(0,0,0,.22);
+        }
+
+        .svc-videoWrap{
+          position: relative;
+          width: 100%;
+          height: 100%;
+          min-height: 320px;
+          border-radius: 22px;
+          overflow:hidden;
+          transform: translateZ(0);
+        }
+        @media (max-width: 980px){
+          .svc-videoWrap{ min-height: 260px; }
+        }
+
+        .svc-video{
           position:absolute; inset:0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          display:block;
+          transform: translateZ(0);
+        }
+
+        /* subtle readability scrim (very light) */
+        .svc-videoScrim{
+          position:absolute; inset:0;
+          background:
+            radial-gradient(120% 90% at 20% 15%, rgba(255,184,47,.14), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
 
-        .svc2-video{
-          position:absolute; inset:-1px;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transform: scale(1.03);
-          filter: saturate(1.06) contrast(1.05);
+        /* small badge only */
+        .svc-badge{
+          position:absolute; top: 12px; left: 12px; right: 12px;
+          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+          pointer-events:none;
+        }
+        .svc-badgeLeft{
+          display:inline-flex; align-items:center; gap: 10px;
+          padding: 9px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.28);
+          color: rgba(255,255,255,.88);
+          font-weight: 900;
+          letter-spacing: .12em;
+          font-size: 11px;
+        }
+        .svc-badgeRight{
+          display:inline-flex; align-items:center; gap: 8px;
+          padding: 9px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.28);
+          color: rgba(255,255,255,.86);
+          font-weight: 900;
+          font-size: 12px;
+        }
+        .svc-dot{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
+          box-shadow: 0 0 0 4px ${T.c};
+          ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
+        }
+        @keyframes svcBreath{
+          0%,100%{ transform: scale(1); opacity:.95; }
+          50%{ transform: scale(1.18); opacity:.80; }
         }
 
-        .svc2-vignette{
-          position:absolute; inset:-2px;
-          background:
-            radial-gradient(1100px 700px at 18% 12%, rgba(255,184,47,.20), transparent 60%),
-            radial-gradient(900px 620px at 86% 18%, rgba(167,89,255,.16), transparent 62%),
-            radial-gradient(900px 700px at 55% 90%, rgba(20,160,255,.10), transparent 60%),
-            linear-gradient(180deg, rgba(5,7,11,.86), rgba(5,7,11,.24) 45%, rgba(5,7,11,.92));
-        }
-
-        .svc2-noise{
-          position:absolute; inset:0;
-          opacity:.09;
-          mix-blend-mode: overlay;
-          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
-        }
-
-        .svc2-glowLine{
-          position:absolute; left:-20%; right:-20%; top:72px; height:1px;
-          background: linear-gradient(90deg, transparent, rgba(255,184,47,.22), rgba(167,89,255,.18), transparent);
-          opacity:.75;
-        }
-
-        .svc2-content{
-          position: relative;
-          z-index: 1;
-          padding: clamp(28px, 4.8vw, 58px) 0;
-        }
-
-        .svc2-heroInner{
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 0 18px;
-        }
-
-        .svc2-k{
-          font-weight:900;
-          letter-spacing:.18em;
-          font-size:11px;
-          color:rgba(255,255,255,.72);
-          text-transform:uppercase;
-          display:flex;
-          align-items:center;
-          gap:10px;
-        }
-
-        .svc2-dot{
-          width:10px;
-          height:10px;
-          border-radius:999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(255,184,47,.85));
-          box-shadow:0 0 0 4px rgba(255,184,47,.10);
-        }
-
-        .svc2-title{
-          margin-top:12px;
-          font-size:clamp(30px,3.6vw,54px);
-          line-height:1.04;
-          font-weight:900;
-          color:rgba(255,255,255,.94);
-          letter-spacing:-.03em;
-          max-width: 18ch;
-        }
-
-        .svc2-sub{
-          margin-top:12px;
-          color:rgba(255,255,255,.74);
-          font-size:15.5px;
-          line-height:1.7;
-          max-width:72ch;
-        }
-
-        /* intro text appears once; after intro we keep it stable (no re-typing loop) */
-        .svc2-sub b{ color: rgba(255,255,255,.92); font-weight:900; }
-
-        .svc2-grid{
-          margin-top:22px;
+        /* section grid */
+        .svc-section{
+          margin-top: 26px;
           display:grid;
           grid-template-columns: 1fr 1fr;
-          gap:14px;
+          gap: 18px;
+          align-items: start;
         }
-
         @media (max-width: 980px){
-          .svc2-grid{ grid-template-columns:1fr; }
-          .svc2-title{ max-width: 26ch; }
-          .svc2-heroWrap{ min-height: clamp(620px, 86vh, 980px); }
+          .svc-section{ grid-template-columns: 1fr; }
         }
 
-        .svc2-card{
-          border-radius:22px;
-          border:1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
-          -webkit-backdrop-filter: blur(18px) saturate(1.18);
-          backdrop-filter: blur(18px) saturate(1.18);
-          padding:16px;
-          box-shadow:0 22px 90px rgba(0,0,0,.42);
+        .svc-card{
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+          padding: 16px 16px;
+          box-shadow: 0 22px 90px rgba(0,0,0,.40);
+        }
+        .svc-card__title{
+          display:flex; align-items:center; gap: 10px;
+          font-weight: 900;
+          color: rgba(255,255,255,.90);
+          letter-spacing: -.01em;
+        }
+        .svc-card__desc{
+          margin-top: 8px;
+          color: rgba(255,255,255,.68);
+          line-height: 1.7;
+          font-size: 14px;
         }
 
-        .svc2-h{
-          display:flex;
-          align-items:center;
-          gap:10px;
-          font-weight:900;
-          color:rgba(255,255,255,.92);
+        .svc-feat{
+          display:flex; gap: 10px; align-items:flex-start;
+          padding: 10px 10px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.07);
+          background: rgba(0,0,0,.18);
         }
-
-        .svc2-p{
-          margin-top:8px;
-          color:rgba(255,255,255,.70);
-          line-height:1.75;
-          font-size:14px;
+        .svc-feat + .svc-feat{ margin-top: 10px; }
+        .svc-feat__tick{
+          width: 30px; height: 30px; border-radius: 12px;
+          display:flex; align-items:center; justify-content:center;
+          border: 1px solid rgba(255,255,255,.10);
+          background: ${T.c};
+          color: rgba(255,255,255,.92);
+          flex: 0 0 auto;
         }
-
-        .svc2-li{ margin-top:10px; display:grid; gap:10px; }
-
-        .svc2-it{
-          display:flex;
-          gap:10px;
-          align-items:flex-start;
-          padding:10px;
-          border-radius:16px;
-          border:1px solid rgba(255,255,255,.08);
-          background: rgba(0,0,0,.20);
-        }
-
-        .svc2-ico{
-          width:30px;
-          height:30px;
-          border-radius:12px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          border:1px solid rgba(255,255,255,.12);
-          background: rgba(255,184,47,.08);
-          color:rgba(255,255,255,.94);
-          flex:0 0 auto;
-        }
-
-        .svc2-itT{ font-weight:900; color:rgba(255,255,255,.92); }
-        .svc2-itD{ margin-top:4px; color:rgba(255,255,255,.70); line-height:1.65; font-size:13.5px; }
-
-        /* subtle “page blend” bottom fade so hero flows into next sections */
-        .svc2-bottomFade{
-          position:absolute; left:0; right:0; bottom:-1px; height:120px;
-          background: linear-gradient(180deg, transparent, rgba(5,7,11,.88));
-        }
-
-        /* reduced motion: stop video if user prefers */
-        @media (prefers-reduced-motion: reduce){
-          .svc2-video{ display:none; }
-        }
+        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.90); }
+        .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
 
-      <section className="svc2">
-        <div className="svc2-heroWrap">
-          <div className="svc2-bg" aria-hidden="true">
-            <video
-              ref={vref}
-              className="svc2-video"
-              src={VIDEO_URL}
-              autoPlay
-              muted
-              playsInline
-              preload="auto"
-            />
-            <div className="svc2-vignette" />
-            <div className="svc2-noise" />
-            <div className="svc2-glowLine" />
-            <div className="svc2-bottomFade" />
-          </div>
-
-          <div className="svc2-content">
-            <div className="svc2-heroInner">
-              <div className="svc2-k">
-                <span className="svc2-dot" aria-hidden="true" />
-                <span>SERVICES</span>
+      <div className="container">
+        <div className="svc-hero">
+          <div className="svc-hero__inner">
+            <div className="svc-left">
+              <div className="svc-kicker" data-reveal>
+                <span className="svc-kdot" aria-hidden="true" />
+                <span>{kicker}</span>
               </div>
 
-              <div className="svc2-title">Biznes workflowlarının qurulması</div>
-
-              <div className="svc2-sub">
-                Satış, lead, müştəri dəstəyi və daxili əməliyyatlar üçün avtomatlaşdırılmış proseslər:{" "}
-                <b>form → CRM → bildiriş → hesabat → növbəti addım</b>.
-                {!introDone ? (
-                  <span style={{ opacity: 0.9 }}> {/* intro zamanı sənin “yazı” effektin burda ola bilər */}</span>
-                ) : null}
+              <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
+                {title}
+              </div>
+              <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
+                {subtitle}
               </div>
 
-              <div className="svc2-grid">
-                <div className="svc2-card">
-                  <div className="svc2-h">
-                    <GitBranch size={18} />
-                    <span>Proses dizaynı</span>
-                  </div>
+              <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
+                {pills.map((p) => (
+                  <Pill key={p}>{p}</Pill>
+                ))}
+              </div>
 
-                  <div className="svc2-p">
-                    Sənin iş modelinə uyğun “step-by-step” axın: kim nə vaxt nə edir, hansı triggerlər işləyir.
-                  </div>
+              <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
+                <Link to={withLang("/contact", lang)} className="svc-cta">
+                  {L.contact} <ArrowRight size={16} />
+                </Link>
+                <Link to={withLang("/pricing", lang)} className="svc-cta svc-cta--ghost">
+                  {L.pricing}
+                </Link>
+              </div>
+            </div>
 
-                  <div className="svc2-li">
-                    <Item
-                      icon={<SlidersHorizontal size={16} />}
-                      title="Trigger & Rules"
-                      desc="Status, SLA, auto follow-up, eskalasiya."
-                    />
-                    <Item
-                      icon={<Zap size={16} />}
-                      title="Automation"
-                      desc="Formlar, CRM, Telegram bildirişləri, e-mail axınları."
-                    />
+            {/* ✅ CLEAN VIDEO PANEL */}
+            <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
+              <div className="svc-videoWrap">
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
+                <div className="svc-videoScrim" aria-hidden="true" />
+
+                <div className="svc-badge" aria-hidden="true">
+                  <div className="svc-badgeLeft">
+                    <Icon size={14} />
+                    <span>NEOX</span>
+                  </div>
+                  <div className="svc-badgeRight">
+                    <span className="svc-dot" />
+                    <span>{L.badgeRight}</span>
                   </div>
                 </div>
-
-                <div className="svc2-card">
-                  <div className="svc2-h">
-                    <ShieldCheck size={18} />
-                    <span>Ölçmə & optimizasiya</span>
-                  </div>
-
-                  <div className="svc2-p">
-                    KPI-lar: dönüşüm, cavab vaxtı, itən lead, operator yükü — hamısı panel və export ilə.
-                  </div>
-
-                  <div className="svc2-li">
-                    <Item icon={<Zap size={16} />} title="Dashboard" desc="Gündəlik statlar, funnel, conversion." />
-                    <Item icon={<SlidersHorizontal size={16} />} title="Iterate" desc="Həftəlik optimizasiya: daha az manual iş." />
-                  </div>
-                </div>
-              </div>
-
-              {/* optional: tiny meta row */}
-              <div style={{ marginTop: 16, color: "rgba(255,255,255,.58)", fontSize: 12 }}>
-                Video: intro (0–{INTRO_END}s) bir dəfə · loop ({LOOP_FROM}–{LOOP_TO}s) sonsuz
               </div>
             </div>
           </div>
         </div>
-      </section>
-    </main>
+
+        <div className="svc-section">
+          <div className="svc-card" data-reveal>
+            <div className="svc-card__title">
+              <GitBranch size={18} />
+              <span>{L.what}</span>
+            </div>
+            <div className="svc-card__desc">
+              {lang === "az"
+                ? "Satış, lead, müştəri dəstəyi və daxili əməliyyatlar üçün avtomatlaşdırılmış proseslər: form → CRM → bildiriş → hesabat → növbəti addım."
+                : "Automated processes for sales, leads, support and operations: form → CRM → notifications → reporting → next step."}
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              {featuresLeft.map((f) => (
+                <Feature key={f.title} title={f.title} desc={f.desc} />
+              ))}
+            </div>
+          </div>
+
+          <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
+            <div className="svc-card__title">
+              <ShieldCheck size={18} />
+              <span>{L.control}</span>
+            </div>
+            <div className="svc-card__desc">
+              {lang === "az"
+                ? "KPI-lar: dönüşüm, cavab vaxtı, itən lead, operator yükü — hamısı panel, export və iterasiya ilə."
+                : "KPIs: conversion, response time, dropped leads, operator workload — tracked via dashboards, exports and iteration."}
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              {featuresRight.map((f) => (
+                <Feature key={f.title} title={f.title} desc={f.desc} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function Item({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+export default memo(function ServiceBusinessWorkflows() {
+  useTranslation(); // keep parity with other pages (no unused warning if you later add t())
+
   return (
-    <div className="svc2-it">
-      <div className="svc2-ico" aria-hidden="true">
-        {icon}
-      </div>
-      <div>
-        <div className="svc2-itT">{title}</div>
-        <div className="svc2-itD">{desc}</div>
-      </div>
-    </div>
+    <ServicePage
+      tint="amber"
+      kicker={"SERVICES"}
+      title={"Biznes workflowlarının qurulması"}
+      subtitle={
+        "Satış, lead, müştəri dəstəyi və daxili əməliyyatlar üçün avtomatlaşdırılmış proseslər: form → CRM → bildiriş → hesabat → növbəti addım."
+      }
+      icon={Workflow}
+      pills={["Triggers", "Automation", "CRM", "Dashboards", "SLA"]}
+      featuresLeft={[
+        {
+          title: "Proses dizaynı (step-by-step)",
+          desc: "İş modelinə uyğun axın: kim nə vaxt nə edir, hansı triggerlər işləyir.",
+        },
+        {
+          title: "Trigger & Rules",
+          desc: "Status, SLA, auto follow-up, eskalasiya və qayda setləri.",
+        },
+        {
+          title: "Automation inteqrasiyası",
+          desc: "Formlar, CRM, Telegram bildirişləri, e-mail axınları, task yaratma.",
+        },
+      ]}
+      featuresRight={[
+        {
+          title: "Dashboard",
+          desc: "Gündəlik statlar, funnel, conversion, team performansı.",
+        },
+        {
+          title: "Iterate (optimallaşdırma)",
+          desc: "Həftəlik təkmilləşdirmə: daha az manual iş, daha çox nəticə.",
+        },
+        {
+          title: "Təhlükəsizlik & nəzarət",
+          desc: "Rollar, audit izi, export, dəyişikliklərin izlənməsi.",
+        },
+      ]}
+      videoUrl={VIDEO_URL}
+    />
   );
-}
+});
