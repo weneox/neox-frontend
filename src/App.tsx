@@ -15,11 +15,17 @@ import SmoothWheelScroll from "./components/SmoothWheelScroll";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
-import UseCases from "./pages/UseCases";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost"; // ✅ NEW
+import BlogPost from "./pages/BlogPost";
+
+// ✅ NEW: Use Cases split pages
+import UseCasesIndex from "./pages/usecases/UseCasesIndex";
+import UseCaseHealthcare from "./pages/usecases/UseCaseHealthcare";
+import UseCaseLogistics from "./pages/usecases/UseCaseLogistics";
+import UseCaseFinance from "./pages/usecases/UseCaseFinance";
+import UseCaseRetail from "./pages/usecases/UseCaseRetail";
 
 // ✅ ADMIN
 import AdminLayout from "./pages/Admin/AdminLayout";
@@ -216,7 +222,14 @@ export default function App() {
                   <Route index element={<Home />} />
                   <Route path="about" element={<About />} />
                   <Route path="services" element={<Services />} />
-                  <Route path="use-cases" element={<UseCases />} />
+
+                  {/* ✅ Use Cases (index + scenario pages) */}
+                  <Route path="use-cases" element={<UseCasesIndex />} />
+                  <Route path="use-cases/healthcare" element={<UseCaseHealthcare />} />
+                  <Route path="use-cases/logistics" element={<UseCaseLogistics />} />
+                  <Route path="use-cases/finance" element={<UseCaseFinance />} />
+                  <Route path="use-cases/retail" element={<UseCaseRetail />} />
+
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="contact" element={<Contact />} />
 
