@@ -1,4 +1,3 @@
-// src/pages/usecases/_ucShared.tsx
 import React, { memo, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
@@ -204,7 +203,6 @@ export type CaseItem = {
 };
 
 export const UC_STYLES = `
-/* ✅ ROOT-LEVEL FIX */
 html, body{
   background:#000 !important;
   margin:0;
@@ -231,7 +229,6 @@ html, body{
 }
 .uc-page *{ min-width:0; max-width:100%; }
 
-/* ✅ hover scale daşımasın */
 .uc-stack{ position: relative; isolation: isolate; overflow: clip; }
 
 .uc-page .uc-grad{
@@ -434,24 +431,32 @@ html, body{
   .uc-hudInner{ min-height: 320px; }
 }
 
-/* ✅ VIDEO PANEL (NEW) */
+/* =========================
+   ✅ VIDEO PANEL — HOLO RIGHT EDGE (not square)
+========================= */
 .uc-video{
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255,255,255,.10);
-  overflow: hidden;
+  background: rgba(0,0,0,.22);
   transform: translate3d(0,0,0);
-  background: rgba(0,0,0,.25);
+  overflow: visible; /* allow holo protrusion */
 }
+
+/* main clipped frame */
 .uc-videoInner{
   position: relative;
   min-height: 360px;
   display: grid;
   place-items: center;
+  border-radius: 22px;
+  overflow: hidden; /* clip the video itself */
 }
 @media (max-width: 560px){
   .uc-videoInner{ min-height: 320px; }
 }
+
+/* video */
 .uc-videoEl{
   width: 100%;
   height: 100%;
@@ -463,36 +468,93 @@ html, body{
 @media (max-width: 560px){
   .uc-videoEl{ min-height: 320px; }
 }
+
+/* shade */
 .uc-videoShade{
   pointer-events: none;
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.10), rgba(0,0,0,.72)),
-    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.55));
+    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.08), rgba(0,0,0,.70)),
+    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.52));
   opacity: .92;
 }
-.uc-videoBadge{
+
+/* holo protrusion on the right (glass fin + glow) */
+.uc-video::after{
+  content:"";
+  position:absolute;
+  top: 10px;
+  bottom: 10px;
+  right: -44px;
+  width: 120px;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015)),
+    radial-gradient(120px 160px at 40% 30%, rgba(47,184,255,.18), transparent 60%),
+    radial-gradient(120px 180px at 60% 80%, rgba(42,125,255,.14), transparent 62%);
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow:
+    0 18px 70px rgba(0,0,0,.55),
+    0 0 0 1px rgba(47,184,255,.10) inset,
+    0 0 40px rgba(47,184,255,.08);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  opacity: .95;
+  pointer-events: none;
+}
+
+/* extra glow trail */
+.uc-video::before{
+  content:"";
+  position:absolute;
+  top: 0;
+  bottom: 0;
+  right: -90px;
+  width: 220px;
+  background: radial-gradient(180px 380px at 20% 50%, rgba(47,184,255,.14), transparent 62%);
+  filter: blur(6px);
+  opacity: .65;
+  pointer-events: none;
+}
+
+/* on mobile: keep it clean (no protrusion) */
+@media (max-width: 560px){
+  .uc-video{ overflow:hidden; }
+  .uc-video::before, .uc-video::after{ display:none; }
+}
+
+/* LIVE dot (breathing) — no text */
+.uc-liveBadge{
   position: absolute;
   left: 14px;
   top: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
-  background: rgba(10,12,18,.55);
+  background: rgba(10,12,18,.52);
   backdrop-filter: blur(14px) saturate(1.2);
-  color: rgba(255,255,255,.85);
-  font-size: 11px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
-.uc-videoBadgeDot{
-  width: 8px; height: 8px; border-radius: 999px;
-  background: rgba(47,184,255,.95);
-  box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.32);
+
+.uc-liveDot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(47,184,255,.98);
+  box-shadow: 0 0 0 6px rgba(47,184,255,.14), 0 0 22px rgba(47,184,255,.30);
+  animation: ucBreath 1.35s ease-in-out infinite;
+  transform: translateZ(0);
+}
+
+@keyframes ucBreath{
+  0%   { transform: scale(0.88); opacity: .72; box-shadow: 0 0 0 5px rgba(47,184,255,.12), 0 0 16px rgba(47,184,255,.22); }
+  50%  { transform: scale(1.10); opacity: 1;    box-shadow: 0 0 0 8px rgba(47,184,255,.16), 0 0 30px rgba(47,184,255,.42); }
+  100% { transform: scale(0.88); opacity: .72; box-shadow: 0 0 0 5px rgba(47,184,255,.12), 0 0 16px rgba(47,184,255,.22); }
 }
 
 /* Reveal */
@@ -515,6 +577,7 @@ html, body{
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
   .uc-pop{ transition:none !important; transform:none !important; }
   .uc-btn{ transition:none !important; }
+  .uc-liveDot{ animation:none !important; }
 }
 @media (hover: none){
   .uc-pop:hover{ transform:none !important; }
@@ -606,9 +669,7 @@ export const CreativeHUD = memo(function CreativeHUD({
           <div className="mt-2 text-white/65 leading-[1.7]">{subtitle}</div>
 
           <div className="mt-6 text-white/55 text-[12px] tracking-[.14em] uppercase">{hint}</div>
-          <div className="mt-2 text-white/40 text-[12px]">
-            (Burada sonra video qoyacağıq — sən linkləri göndərəndə mən HUD-u video player-lə əvəz edəcəm.)
-          </div>
+          <div className="mt-2 text-white/40 text-[12px]">(Burada sonra video qoyacağıq — sən linkləri göndərəndə mən HUD-u video ilə əvəz edəcəm.)</div>
         </div>
       </div>
     </div>
@@ -691,30 +752,17 @@ export const CaseRow = memo(function CaseRow({
         {videoUrl ? (
           <div className="uc-video uc-pop uc-contain" data-tint={c.tint} aria-label="Scenario video">
             <div className="uc-videoInner">
-              <video
-                className="uc-videoEl"
-                src={videoUrl}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-              />
+              <video className="uc-videoEl" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
               <div className="uc-videoShade" aria-hidden="true" />
-              <div className="uc-videoBadge" aria-hidden="true">
-                <span className="uc-videoBadgeDot" />
-                SCENARIO VIDEO
+
+              {/* ✅ only LIVE dot (breathing) */}
+              <div className="uc-liveBadge" aria-hidden="true">
+                <span className="uc-liveDot" />
               </div>
             </div>
           </div>
         ) : (
-          <CreativeHUD
-            tint={c.tint}
-            icon={Icon}
-            title="Scenario Visual"
-            subtitle="Bu paneli az sonra video ilə əvəz edəcəyik."
-            hint="VIDEO PLACEHOLDER"
-          />
+          <CreativeHUD tint={c.tint} icon={Icon} title="Scenario Visual" subtitle="Bu paneli az sonra video ilə əvəz edəcəyik." hint="VIDEO PLACEHOLDER" />
         )}
       </div>
     </div>

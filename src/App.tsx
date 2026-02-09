@@ -26,6 +26,7 @@ import UseCaseHealthcare from "./pages/usecases/UseCaseHealthcare";
 import UseCaseLogistics from "./pages/usecases/UseCaseLogistics";
 import UseCaseFinance from "./pages/usecases/UseCaseFinance";
 import UseCaseRetail from "./pages/usecases/UseCaseRetail";
+import UseCaseHotel from "./pages/usecases/UseCaseHotel"; // ✅ NEW
 
 // ✅ ADMIN
 import AdminLayout from "./pages/Admin/AdminLayout";
@@ -229,6 +230,7 @@ export default function App() {
                   <Route path="use-cases/logistics" element={<UseCaseLogistics />} />
                   <Route path="use-cases/finance" element={<UseCaseFinance />} />
                   <Route path="use-cases/retail" element={<UseCaseRetail />} />
+                  <Route path="use-cases/hotels" element={<UseCaseHotel />} /> {/* ✅ NEW */}
 
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="contact" element={<Contact />} />
