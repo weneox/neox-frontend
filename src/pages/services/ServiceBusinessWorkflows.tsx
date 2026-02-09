@@ -10,16 +10,15 @@ import {
   ArrowRight,
   CheckCircle2,
   Workflow,
-  Timer,
-  Settings2,
 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
+/** ✅ NEW VIDEO (as you sent) */
 const RAW_VIDEO =
-  "https://res.cloudinary.com/dppoomunj/video/upload/v1770673590/neox/media/asset_1770673578452_69109b2e9cd08.mp4";
+  "https://res.cloudinary.com/dppoomunj/video/upload/v1770680044/neox/media/asset_1770680031070_b242f71157e47.mp4";
 
 // Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
@@ -155,20 +154,32 @@ function ServicePage({
   }, []);
 
   const L = useMemo(() => {
-    // minimal labels (AZ primary, EN fallback)
     const contact =
-      lang === "az" ? "Əlaqə saxla" : lang === "tr" ? "İletişim" : lang === "ru" ? "Связаться" : lang === "es" ? "Contacto" : "Contact";
+      lang === "az"
+        ? "Əlaqə saxla"
+        : lang === "tr"
+        ? "İletişim"
+        : lang === "ru"
+        ? "Связаться"
+        : lang === "es"
+        ? "Contacto"
+        : "Contact";
+
     const pricing =
-      lang === "az" ? "Qiymətlər" : lang === "tr" ? "Fiyatlar" : lang === "ru" ? "Цены" : lang === "es" ? "Precios" : "Pricing";
-    const what =
-      lang === "az" ? "Nə qururuq?" : "What we build";
-    const control =
-      lang === "az" ? "Ölçmə & idarəetmə" : "Measurement & control";
-    const scrimLabel =
-      lang === "az" ? "LIVE FLOW" : "LIVE FLOW";
-    const badgeRight =
-      lang === "az" ? "Automate" : "Automate";
-    return { contact, pricing, what, control, scrimLabel, badgeRight };
+      lang === "az"
+        ? "Qiymətlər"
+        : lang === "tr"
+        ? "Fiyatlar"
+        : lang === "ru"
+        ? "Цены"
+        : lang === "es"
+        ? "Precios"
+        : "Pricing";
+
+    const what = lang === "az" ? "Nə qururuq?" : "What we build";
+    const control = lang === "az" ? "Ölçmə & idarəetmə" : "Measurement & control";
+    const badgeRight = lang === "az" ? "Automate" : "Automate";
+    return { contact, pricing, what, control, badgeRight };
   }, [lang]);
 
   return (
@@ -295,7 +306,7 @@ function ServicePage({
         .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
-        /* RIGHT = CLEAN VIDEO (NO HEAVY OVERLAYS) */
+        /* RIGHT = CLEAN VIDEO */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -304,7 +315,6 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
         }
-
         .svc-videoWrap{
           position: relative;
           width: 100%;
@@ -317,7 +327,6 @@ function ServicePage({
         @media (max-width: 980px){
           .svc-videoWrap{ min-height: 260px; }
         }
-
         .svc-video{
           position:absolute; inset:0;
           width: 100%; height: 100%;
@@ -325,8 +334,6 @@ function ServicePage({
           display:block;
           transform: translateZ(0);
         }
-
-        /* subtle readability scrim (very light) */
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
@@ -335,7 +342,6 @@ function ServicePage({
           pointer-events:none;
         }
 
-        /* small badge only */
         .svc-badge{
           position:absolute; top: 12px; left: 12px; right: 12px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
@@ -373,7 +379,6 @@ function ServicePage({
           50%{ transform: scale(1.18); opacity:.80; }
         }
 
-        /* section grid */
         .svc-section{
           margin-top: 26px;
           display:grid;
@@ -457,7 +462,6 @@ function ServicePage({
               </div>
             </div>
 
-            {/* ✅ CLEAN VIDEO PANEL */}
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
                 <video
@@ -530,7 +534,7 @@ function ServicePage({
 }
 
 export default memo(function ServiceBusinessWorkflows() {
-  useTranslation(); // keep parity with other pages (no unused warning if you later add t())
+  useTranslation();
 
   return (
     <ServicePage
