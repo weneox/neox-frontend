@@ -35,6 +35,9 @@ export default function UseCaseRetail() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
+  const VIDEO_URL =
+    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770594527/neox/media/asset_1770594489151_13bb67859a0f3.mp4";
+
   useSeo({
     title: "NEOX — Retail Scenario",
     description: "Retail automation scenario: faster replies, higher conversion, smarter routing.",
@@ -68,7 +71,6 @@ export default function UseCaseRetail() {
     <main ref={rootRef as any} className="uc-page">
       <style>{UC_STYLES}</style>
 
-      {/* HERO */}
       <section className="uc-hero uc-section">
         <div className="uc-heroBG" aria-hidden="true" />
         <div className="uc-heroInner">
@@ -84,7 +86,10 @@ export default function UseCaseRetail() {
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
+              <p
+                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
+                style={d(180)}
+              >
                 Faster replies, better qualification, and clean handoff to operators — all inside one flow.
               </p>
 
@@ -95,7 +100,6 @@ export default function UseCaseRetail() {
         <div className="uc-spacer" />
       </section>
 
-      {/* CONTENT */}
       <section className="uc-section py-16 sm:py-20">
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <CaseRow
@@ -106,6 +110,7 @@ export default function UseCaseRetail() {
             toServices={toServices}
             ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
             ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
+            videoUrl={VIDEO_URL}
           />
         </div>
       </section>

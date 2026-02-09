@@ -434,6 +434,67 @@ html, body{
   .uc-hudInner{ min-height: 320px; }
 }
 
+/* ✅ VIDEO PANEL (NEW) */
+.uc-video{
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  overflow: hidden;
+  transform: translate3d(0,0,0);
+  background: rgba(0,0,0,.25);
+}
+.uc-videoInner{
+  position: relative;
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+}
+@media (max-width: 560px){
+  .uc-videoInner{ min-height: 320px; }
+}
+.uc-videoEl{
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  object-fit: cover;
+  display: block;
+  transform: translateZ(0);
+}
+@media (max-width: 560px){
+  .uc-videoEl{ min-height: 320px; }
+}
+.uc-videoShade{
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.10), rgba(0,0,0,.72)),
+    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.55));
+  opacity: .92;
+}
+.uc-videoBadge{
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(10,12,18,.55);
+  backdrop-filter: blur(14px) saturate(1.2);
+  color: rgba(255,255,255,.85);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.uc-videoBadgeDot{
+  width: 8px; height: 8px; border-radius: 999px;
+  background: rgba(47,184,255,.95);
+  box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.32);
+}
+
 /* Reveal */
 .uc-reveal{ opacity: 1; transform: none; }
 .uc-page.uc-io .uc-reveal{
@@ -554,6 +615,7 @@ export const CreativeHUD = memo(function CreativeHUD({
   );
 });
 
+// ✅ new prop: videoUrl
 export const CaseRow = memo(function CaseRow({
   c,
   flip,
@@ -562,6 +624,7 @@ export const CaseRow = memo(function CaseRow({
   toServices,
   ctaPrimary,
   ctaSecondary,
+  videoUrl,
 }: {
   c: CaseItem;
   flip: boolean;
@@ -570,6 +633,7 @@ export const CaseRow = memo(function CaseRow({
   toServices: string;
   ctaPrimary: string;
   ctaSecondary: string;
+  videoUrl?: string;
 }) {
   const Icon = c.icon;
 
@@ -622,15 +686,36 @@ export const CaseRow = memo(function CaseRow({
         </article>
       </div>
 
-      {/* VISUAL (sonra video olacaq) */}
+      {/* VISUAL */}
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        <CreativeHUD
-          tint={c.tint}
-          icon={Icon}
-          title="Scenario Visual"
-          subtitle="Bu paneli az sonra video ilə əvəz edəcəyik."
-          hint="VIDEO PLACEHOLDER"
-        />
+        {videoUrl ? (
+          <div className="uc-video uc-pop uc-contain" data-tint={c.tint} aria-label="Scenario video">
+            <div className="uc-videoInner">
+              <video
+                className="uc-videoEl"
+                src={videoUrl}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+              <div className="uc-videoShade" aria-hidden="true" />
+              <div className="uc-videoBadge" aria-hidden="true">
+                <span className="uc-videoBadgeDot" />
+                SCENARIO VIDEO
+              </div>
+            </div>
+          </div>
+        ) : (
+          <CreativeHUD
+            tint={c.tint}
+            icon={Icon}
+            title="Scenario Visual"
+            subtitle="Bu paneli az sonra video ilə əvəz edəcəyik."
+            hint="VIDEO PLACEHOLDER"
+          />
+        )}
       </div>
     </div>
   );

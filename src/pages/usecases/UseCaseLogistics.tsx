@@ -35,6 +35,9 @@ export default function UseCaseLogistics() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
+  const VIDEO_URL =
+    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770597681/neox/media/asset_1770597676765_677c534eb962b.mp4";
+
   useSeo({
     title: "NEOX — Logistics Scenario",
     description: "Logistics automation scenario: shipment updates, tracking, and fewer support tickets.",
@@ -83,7 +86,10 @@ export default function UseCaseLogistics() {
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
+              <p
+                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
+                style={d(180)}
+              >
                 Automated tracking answers + proactive updates = fewer tickets.
               </p>
 
@@ -104,6 +110,7 @@ export default function UseCaseLogistics() {
             toServices={toServices}
             ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
             ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
+            videoUrl={VIDEO_URL}
           />
         </div>
       </section>

@@ -35,6 +35,9 @@ export default function UseCaseHealthcare() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
+  const VIDEO_URL =
+    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770597820/neox/media/asset_1770597818950_bf62d9ddeca91.mp4";
+
   useSeo({
     title: "NEOX — Healthcare Scenario",
     description: "Healthcare automation scenario: scheduling, triage, and operator routing.",
@@ -83,7 +86,10 @@ export default function UseCaseHealthcare() {
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
+              <p
+                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
+                style={d(180)}
+              >
                 Faster scheduling, fewer no-shows, and instant patient answers.
               </p>
 
@@ -104,6 +110,7 @@ export default function UseCaseHealthcare() {
             toServices={toServices}
             ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
             ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
+            videoUrl={VIDEO_URL}
           />
         </div>
       </section>
