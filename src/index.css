@@ -9456,3 +9456,38 @@ html {
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
 
+.pageShell{ padding: 88px 0 90px; }
+.pageHero{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 18px;
+}
+.pageHero h1{
+  font-size: 44px;
+  letter-spacing: -0.02em;
+}
+.pageHero p{
+  margin-top: 10px;
+  color: rgba(255,255,255,.68);
+  max-width: 720px;
+}
+.pageActions{ margin-top: 18px; display:flex; gap: 10px; flex-wrap: wrap; }
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  height: 42px; padding: 0 14px; border-radius: 999px;
+  color: rgba(255,255,255,.92); text-decoration:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+}
+.btn:hover{ background: rgba(255,255,255,.08); }
+.btnGhost{ background: transparent; }
+.btnGhost:hover{ background: rgba(255,255,255,.06); }
+
+.pageSection{
+  max-width: 980px;
+  margin: 26px auto 0;
+  padding: 0 18px;
+}
+.pageSection h2{ margin-top: 18px; font-size: 18px; }
+.pageSection p{ margin-top: 8px; color: rgba(255,255,255,.70); }
