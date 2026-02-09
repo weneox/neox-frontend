@@ -432,7 +432,7 @@ html, body{
 }
 
 /* =========================
-   ✅ VIDEO PANEL — HOLO RIGHT EDGE (not square)
+   ✅ VIDEO PANEL — HOLO RIGHT EDGE
 ========================= */
 .uc-video{
   position: relative;
@@ -440,23 +440,19 @@ html, body{
   border: 1px solid rgba(255,255,255,.10);
   background: rgba(0,0,0,.22);
   transform: translate3d(0,0,0);
-  overflow: visible; /* allow holo protrusion */
+  overflow: visible;
 }
-
-/* main clipped frame */
 .uc-videoInner{
   position: relative;
   min-height: 360px;
   display: grid;
   place-items: center;
   border-radius: 22px;
-  overflow: hidden; /* clip the video itself */
+  overflow: hidden;
 }
 @media (max-width: 560px){
   .uc-videoInner{ min-height: 320px; }
 }
-
-/* video */
 .uc-videoEl{
   width: 100%;
   height: 100%;
@@ -468,8 +464,6 @@ html, body{
 @media (max-width: 560px){
   .uc-videoEl{ min-height: 320px; }
 }
-
-/* shade */
 .uc-videoShade{
   pointer-events: none;
   position: absolute;
@@ -480,7 +474,7 @@ html, body{
   opacity: .92;
 }
 
-/* holo protrusion on the right (glass fin + glow) */
+/* holo protrusion */
 .uc-video::after{
   content:"";
   position:absolute;
@@ -503,8 +497,6 @@ html, body{
   opacity: .95;
   pointer-events: none;
 }
-
-/* extra glow trail */
 .uc-video::before{
   content:"";
   position:absolute;
@@ -518,13 +510,12 @@ html, body{
   pointer-events: none;
 }
 
-/* on mobile: keep it clean (no protrusion) */
 @media (max-width: 560px){
   .uc-video{ overflow:hidden; }
   .uc-video::before, .uc-video::after{ display:none; }
 }
 
-/* LIVE dot (breathing) — no text */
+/* LIVE dot only */
 .uc-liveBadge{
   position: absolute;
   left: 14px;
@@ -540,7 +531,6 @@ html, body{
   place-items: center;
   pointer-events: none;
 }
-
 .uc-liveDot{
   width: 10px;
   height: 10px;
@@ -550,7 +540,6 @@ html, body{
   animation: ucBreath 1.35s ease-in-out infinite;
   transform: translateZ(0);
 }
-
 @keyframes ucBreath{
   0%   { transform: scale(0.88); opacity: .72; box-shadow: 0 0 0 5px rgba(47,184,255,.12), 0 0 16px rgba(47,184,255,.22); }
   50%  { transform: scale(1.10); opacity: 1;    box-shadow: 0 0 0 8px rgba(47,184,255,.16), 0 0 30px rgba(47,184,255,.42); }
@@ -571,7 +560,6 @@ html, body{
 .reveal-top{ --rx: 0px; --ry: 14px; }
 .reveal-bottom{ --rx: 0px; --ry: -14px; }
 
-/* Motion prefs */
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
@@ -614,11 +602,7 @@ export const BreadcrumbPill = memo(function BreadcrumbPill({
   delayMs: number;
 }) {
   return (
-    <div
-      className={cx("uc-crumb uc-enter", enter && "uc-in")}
-      style={{ ["--d" as any]: `${delayMs}ms` }}
-      aria-label="Breadcrumb"
-    >
+    <div className={cx("uc-crumb uc-enter", enter && "uc-in")} style={{ ["--d" as any]: `${delayMs}ms` }} aria-label="Breadcrumb">
       <span className="uc-crumbDot" aria-hidden="true" />
       <span className="uc-crumbText">{text}</span>
     </div>
@@ -755,7 +739,7 @@ export const CaseRow = memo(function CaseRow({
               <video className="uc-videoEl" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
               <div className="uc-videoShade" aria-hidden="true" />
 
-              {/* ✅ only LIVE dot (breathing) */}
+              {/* ✅ only LIVE dot */}
               <div className="uc-liveBadge" aria-hidden="true">
                 <span className="uc-liveDot" />
               </div>
