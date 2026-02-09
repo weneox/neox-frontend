@@ -10,7 +10,7 @@ function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-type NavDef = { to: string; label: string; end?: boolean };
+type NavDef = { to: string; label: string; end?: boolean; hint?: string };
 
 function getScrollableEl(): HTMLElement | Window {
   const se = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
@@ -175,14 +175,16 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   );
 }
 
-type ServiceId = "agents" | "automation" | "analytics" | "support" | "integrations" | "security";
-type ServiceDef = { id: ServiceId; label: string; to: string; hint: string };
+type MenuKey = "about" | "services" | "usecases" | "resources" | null;
 
-type UseCaseDef = {
-  id: ServiceId;
-  title: string;
+type ServiceDef = { id: string; label: string; to: string; hint: string };
+
+type ScenarioDef = {
+  id: string;
+  label: string;
+  to: string;
   subtitle: string;
-  lines: string[];
+  terminal: string[];
 };
 
 /* =========================
@@ -198,22 +200,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const prefersReduced = usePrefersReducedMotion();
 
-  // Desktop dropdown state
-  const [svcDropOpen, setSvcDropOpen] = useState(false);
-  const [aboutDropOpen, setAboutDropOpen] = useState(false);
-  const [resDropOpen, setResDropOpen] = useState(false);
-  const [ucDropOpen, setUcDropOpen] = useState(false);
+  // ✅ SINGLE OPEN MENU (fix: dropdownlar qarışmır)
+  const [openMenu, setOpenMenu] = useState<MenuKey>(null);
 
   const closeT = useRef<number | null>(null);
+
   const svcRef = useRef<HTMLDivElement | null>(null);
   const aboutRef = useRef<HTMLDivElement | null>(null);
   const resRef = useRef<HTMLDivElement | null>(null);
   const ucRef = useRef<HTMLDivElement | null>(null);
 
-  // UseCases mega internal state
-  const [ucActive, setUcActive] = useState<ServiceId>("automation");
-  const [ucRendered, setUcRendered] = useState<string[]>([]);
-  const [ucCursor, setUcCursor] = useState(true);
+  // UseCases terminal typing state
+  const [ucActive, setUcActive] = useState<string>("healthcare");
+  const [termText, setTermText] = useState<string>("");
+  const [termCursor, setTermCursor] = useState(true);
 
   // Mobile accordion state
   const [mobileUcOpen, setMobileUcOpen] = useState(false);
@@ -274,123 +274,153 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
+  // ✅ App.tsx ROUTES-una uyğun 6 services (dəqiq)
   const SERVICES: ServiceDef[] = useMemo(
     () => [
-      { id: "automation", label: "Automation Workflows", to: "/services/automation", hint: "Trigger → route → act → confirm. End-to-end automation." },
-      { id: "agents", label: "AI Agents", to: "/services/ai-agents", hint: "Sales & ops agents that act, not just chat." },
-      { id: "analytics", label: "Insights & Analytics", to: "/services/analytics", hint: "Real-time dashboards, anomaly detection, KPI automation." },
-      { id: "support", label: "Support & Handoff", to: "/services/support", hint: "Smart escalation, SLA alerts, operator handoff." },
-      { id: "integrations", label: "Integrations", to: "/services/integrations", hint: "CRM/ERP, Telegram/WhatsApp, payments, webhooks." },
-      { id: "security", label: "Security & Deploy", to: "/services/security", hint: "Auth, rate-limit, audit logs, secure production deploy." },
+      {
+        id: "chatbot-24-7",
+        label: "Chatbot 24/7",
+        to: "/services/chatbot-24-7",
+        hint: "Always-on chat that converts leads and answers fast.",
+      },
+      {
+        id: "business-workflows",
+        label: "Business Workflows",
+        to: "/services/business-workflows",
+        hint: "Trigger → route → act. End-to-end automation flows.",
+      },
+      {
+        id: "websites",
+        label: "Websites",
+        to: "/services/websites",
+        hint: "Premium, fast websites with modern UX.",
+      },
+      {
+        id: "mobile-apps",
+        label: "Mobile Apps",
+        to: "/services/mobile-apps",
+        hint: "iOS/Android apps with clean UI and scalable backend.",
+      },
+      {
+        id: "smm-automation",
+        label: "SMM Automation",
+        to: "/services/smm-automation",
+        hint: "Content, scheduling, funnels and automation.",
+      },
+      {
+        id: "technical-support",
+        label: "Technical Support",
+        to: "/services/technical-support",
+        hint: "Monitoring, fixes, deployments, and ongoing support.",
+      },
     ],
     []
   );
 
+  // ✅ App.tsx-də /about subpage yoxdur → only /about
   const ABOUT_LINKS: NavDef[] = useMemo(
     () => [
-      { to: "/about/company", label: "Company" },
-      { to: "/about/mission", label: "Mission" },
-      { to: "/about/technology", label: "Technology" },
-      { to: "/about/partners", label: "Partners" },
-      { to: "/about/careers", label: "Careers" },
+      { to: "/about", label: "About NEOX", hint: "Company, mission, technology (single page)" },
     ],
     []
   );
 
-  // ✅ FIX: Blog burdan çıxarıldı (Blog ayrıca nav link olaraq qalır)
+  // ✅ App.tsx resources: /resources/docs /resources/faq /resources/guides /privacy
   const RES_LINKS: NavDef[] = useMemo(
     () => [
-      { to: "/resources/docs", label: "Docs" },
-      { to: "/resources/faq", label: "FAQ" },
-      { to: "/resources/guides", label: "Guides" },
-      { to: "/privacy", label: "Privacy Policy" },
+      { to: "/resources/docs", label: "Docs", hint: "Documentation & references" },
+      { to: "/resources/faq", label: "FAQ", hint: "Most asked questions" },
+      { to: "/resources/guides", label: "Guides", hint: "Step-by-step tutorials" },
+      { to: "/privacy", label: "Privacy Policy", hint: "Policy & data handling" },
     ],
     []
   );
 
-  const USE_CASES: UseCaseDef[] = useMemo(() => {
-    return [
+  // ✅ Use Cases: sənin istədiyin 5 ssenari (hotel/finance/retail/logistics/healthcare)
+  const SCENARIOS: ScenarioDef[] = useMemo(
+    () => [
       {
-        id: "automation",
-        title: "Automation Workflows",
-        subtitle: "Business-ready flows that run 24/7",
-        lines: [
-          "boot: neox/usecases/automation",
-          "init: event triggers → router → actions",
-          "load: crm.sync, lead.capture, sla.timer",
-          "rule: if no-reply > 5m → nudge + alert operator",
-          "route: finance inquiry → pricing flow → checkout",
-          "deploy: versioned workflow + audit log",
-          "ok: conversion ↑, response time ↓",
+        id: "healthcare",
+        label: "Healthcare",
+        to: "/use-cases/healthcare",
+        subtitle: "Patient intake, scheduling, triage, secure flows",
+        terminal: [
+          "boot: neox/usecases/healthcare",
+          "init: intake → classify → route",
+          "flow: appointment booking + reminders",
+          "guard: privacy-first, minimal data, secure handoff",
+          "ops: reduce call load, faster response",
+          "ok: satisfaction ↑, waiting ↓",
         ],
       },
       {
-        id: "agents",
-        title: "AI Agents",
-        subtitle: "Sales-first assistants that execute tasks",
-        lines: [
-          "boot: neox/usecases/agents",
-          "init: persona=sales, tone=clear, length=short",
-          "cap: understand intent → propose next action",
-          "tool: create lead → schedule demo → send summary",
-          "guard: refuse off-topic + keep business focus",
-          "handoff: operator button / keyword → instant takeover",
-          "ok: higher qualified leads",
+        id: "logistics",
+        label: "Logistics",
+        to: "/use-cases/logistics",
+        subtitle: "Tracking, customer updates, support automation",
+        terminal: [
+          "boot: neox/usecases/logistics",
+          "init: order_id → status lookup",
+          "flow: ETA → notify customer → escalate if delayed",
+          "tool: ticket creation + transcript to operator",
+          "ops: fewer manual calls",
+          "ok: delivery transparency ↑",
         ],
       },
       {
-        id: "analytics",
-        title: "Insights & Analytics",
-        subtitle: "Dashboards + anomaly detection in real time",
-        lines: [
-          "boot: neox/usecases/analytics",
-          "ingest: chats, leads, conversions, channels",
-          "metric: daily chats, operator requests, lead rate",
-          "detect: anomalies → notify → suggest actions",
-          "export: csv / weekly summary",
-          "ok: decisions faster, waste lower",
+        id: "finance",
+        label: "Finance",
+        to: "/use-cases/finance",
+        subtitle: "Lead capture, compliance-aware flows, conversion",
+        terminal: [
+          "boot: neox/usecases/finance",
+          "init: intent → risk flags → safe response",
+          "flow: pricing → demo → conversion pipeline",
+          "guard: off-topic refuse, business-only focus",
+          "tool: lead → CRM → follow-up summary",
+          "ok: qualified leads ↑",
         ],
       },
       {
-        id: "support",
-        title: "Support & Handoff",
-        subtitle: "SLA, tags, assignments, escalation",
-        lines: [
-          "boot: neox/usecases/support",
-          "sla: start timer at first message",
-          "tag: billing | onboarding | bug | urgent",
-          "assign: 'I took it' ownership flow",
-          "alert: long no-reply → telegram ping + admin link",
-          "ok: support load balanced",
+        id: "retail",
+        label: "Retail",
+        to: "/use-cases/retail",
+        subtitle: "Product help, upsell, order questions, support",
+        terminal: [
+          "boot: neox/usecases/retail",
+          "init: product query → recommend bundles",
+          "flow: sizing/availability → checkout CTA",
+          "support: returns + shipping status",
+          "ops: faster answers, higher AOV",
+          "ok: conversion ↑",
         ],
       },
       {
-        id: "integrations",
-        title: "Integrations",
-        subtitle: "Connect your stack without friction",
-        lines: [
-          "boot: neox/usecases/integrations",
-          "connect: CRM, ERP, webhooks, email, telegram",
-          "sync: contact + notes + conversation transcript",
-          "action: payment link, booking, ticket creation",
-          "ok: one system, no manual copy-paste",
+        id: "hotels",
+        label: "Hotels & Resorts",
+        to: "/use-cases/hotels",
+        subtitle: "Reservations, concierge, guest experience automation",
+        terminal: [
+          "boot: neox/usecases/hotels",
+          "init: dates → availability → pricing",
+          "flow: booking request → confirmation → reminders",
+          "concierge: services, upgrades, local guide",
+          "handoff: operator for complex requests",
+          "ok: booking rate ↑, workload ↓",
         ],
       },
-      {
-        id: "security",
-        title: "Security & Deploy",
-        subtitle: "Production hardening & scalable deploy",
-        lines: [
-          "boot: neox/usecases/security",
-          "auth: jwt sessions + admin magic links",
-          "limit: rate-limit + ip allowlist",
-          "store: postgres migration + indexes",
-          "deploy: railway/render + cloudinary media",
-          "ok: stable, safe, auditable",
-        ],
-      },
-    ];
-  }, []);
+    ],
+    []
+  );
+
+  // Active checks
+  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
+  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
+  const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
+  const isResActive = useMemo(() => {
+    const p = location.pathname.toLowerCase();
+    return p.includes("/resources") || p.includes("/privacy");
+  }, [location.pathname]);
 
   const navItem = ({ isActive }: { isActive: boolean }) => cx("nav-link", isActive && "is-active");
 
@@ -506,10 +536,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   useEffect(() => {
     setOpen(false);
     setSoftOpen(false);
-    setSvcDropOpen(false);
-    setAboutDropOpen(false);
-    setResDropOpen(false);
-    setUcDropOpen(false);
+    setOpenMenu(null);
 
     setMobileUcOpen(false);
     setMobileSvcOpen(false);
@@ -537,77 +564,91 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => cancelAnimationFrame(raf);
   }, [open]);
 
-  // click outside for desktop dropdowns
+  // click outside for desktop dropdowns (single openMenu)
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      const targets: Array<{ open: boolean; ref: React.RefObject<HTMLDivElement>; close: () => void }> = [
-        { open: svcDropOpen, ref: svcRef, close: () => setSvcDropOpen(false) },
-        { open: aboutDropOpen, ref: aboutRef, close: () => setAboutDropOpen(false) },
-        { open: resDropOpen, ref: resRef, close: () => setResDropOpen(false) },
-        { open: ucDropOpen, ref: ucRef, close: () => setUcDropOpen(false) },
-      ];
+      if (!openMenu) return;
+      const target = e.target as Node;
 
-      for (const t of targets) {
-        if (!t.open) continue;
-        const el = t.ref.current;
-        if (!el) continue;
-        if (!el.contains(e.target as Node)) t.close();
-      }
+      const map: Record<Exclude<MenuKey, null>, React.RefObject<HTMLDivElement>> = {
+        about: aboutRef,
+        services: svcRef,
+        resources: resRef,
+        usecases: ucRef,
+      };
+
+      const ref = map[openMenu];
+      const el = ref?.current;
+      if (!el) return;
+      if (!el.contains(target)) setOpenMenu(null);
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [svcDropOpen, aboutDropOpen, resDropOpen, ucDropOpen]);
+  }, [openMenu]);
 
-  // small helper for hover open/close with tiny delay
-  const openDrop = (set: (v: boolean) => void) => {
+  // small helper for hover open/close with tiny delay (✅ closes others)
+  const openDrop = (menu: Exclude<MenuKey, null>) => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
       closeT.current = null;
     }
-    set(true);
+    setOpenMenu(menu);
   };
-  const scheduleCloseDrop = (set: (v: boolean) => void) => {
+  const scheduleCloseDrop = (menu: Exclude<MenuKey, null>) => {
     if (closeT.current) window.clearTimeout(closeT.current);
-    closeT.current = window.setTimeout(() => set(false), 110) as any;
+    closeT.current = window.setTimeout(() => {
+      setOpenMenu((cur) => (cur === menu ? null : cur));
+    }, 110) as any;
   };
 
-  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
-  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
-  const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
-  const isResActive = useMemo(() => {
-    const p = location.pathname.toLowerCase();
-    return p.includes("/resources") || p.includes("/privacy");
-  }, [location.pathname]);
-
-  const ucActiveDef = useMemo(() => USE_CASES.find((x) => x.id === ucActive) ?? USE_CASES[0], [USE_CASES, ucActive]);
+  // ======= UseCases TERMINAL typing (slow, left→right) =======
+  const activeScenario = useMemo(
+    () => SCENARIOS.find((s) => s.id === ucActive) ?? SCENARIOS[0],
+    [SCENARIOS, ucActive]
+  );
 
   useEffect(() => {
-    if (!ucDropOpen) return;
-    const tmr = window.setInterval(() => setUcCursor((v) => !v), 520);
+    if (openMenu !== "usecases") return;
+    const tmr = window.setInterval(() => setTermCursor((v) => !v), 520);
     return () => window.clearInterval(tmr);
-  }, [ucDropOpen]);
+  }, [openMenu]);
 
   useEffect(() => {
-    if (!ucDropOpen) return;
-    const lines = ucActiveDef.lines;
+    if (openMenu !== "usecases") return;
+
+    const full = activeScenario.terminal.join("\n");
     if (prefersReduced) {
-      setUcRendered(lines);
+      setTermText(full);
       return;
     }
 
     let i = 0;
-    setUcRendered([]);
+    setTermText("");
+
+    let cancelled = false;
 
     const step = () => {
+      if (cancelled) return;
       i += 1;
-      setUcRendered(lines.slice(0, i));
-      if (i >= lines.length) return;
-      window.setTimeout(step, 520 + Math.round(Math.random() * 160));
+      setTermText(full.slice(0, i));
+      if (i >= full.length) return;
+
+      // ✅ very slow typing
+      const ch = full[i] || "";
+      const base = ch === "\n" ? 260 : 48;
+      const jitter = ch === "\n" ? 120 : 32;
+      const delay = base + Math.round(Math.random() * jitter);
+
+      window.setTimeout(step, delay);
     };
 
-    const timer = window.setTimeout(step, 220);
-    return () => window.clearTimeout(timer);
-  }, [ucActiveDef, ucDropOpen, prefersReduced]);
+    const start = window.setTimeout(step, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(start);
+    };
+  }, [activeScenario, openMenu, prefersReduced]);
 
   // mobile styles
   const mobileP = clamp01(hdrp);
@@ -628,6 +669,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const logoH = isMobile ? 18 : 28;
   const logoMaxW = isMobile ? "124px" : "156px";
 
+  // ===== Mobile Overlay (same links as desktop) =====
   const MobileOverlay = (
     <div className={cx("nav-overlay", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
       <button className="nav-overlay__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
@@ -695,18 +737,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className={cx("nav-acc__panel", mobileAboutOpen && "is-open")} aria-hidden={!mobileAboutOpen}>
-              <NavLink
-                to={withLang("/about")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">Overview</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
-
               {ABOUT_LINKS.map((s) => (
                 <NavLink
                   key={s.to}
@@ -744,18 +774,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className={cx("nav-acc__panel", mobileSvcOpen && "is-open")} aria-hidden={!mobileSvcOpen}>
-              <NavLink
-                to={withLang("/services")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">All Services</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
-
               {SERVICES.map((s) => (
                 <NavLink
                   key={s.id}
@@ -799,16 +817,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 onClick={() => closeMobile()}
               >
                 <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">Open Use Cases</span>
+                <span className="nav-acc__text">All Use Cases</span>
                 <span className="nav-acc__arrow" aria-hidden="true">
                   →
                 </span>
               </NavLink>
 
-              {SERVICES.map((s) => (
+              {SCENARIOS.map((s) => (
                 <NavLink
                   key={s.id}
-                  to={withLang(`/use-cases?svc=${encodeURIComponent(s.id)}`)}
+                  to={withLang(s.to)}
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
@@ -856,26 +874,35 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   </span>
                 </NavLink>
               ))}
-
-              <NavLink
-                to={withLang("/store")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">NEOX Store</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
-              </NavLink>
             </div>
           </div>
+
+          {/* Blog direct */}
+          <NavLink
+            to={withLang("/blog")}
+            className={cx("nav-sheetLink", "nav-stagger")}
+            style={{ ["--i" as any]: 5 }}
+            onClick={() => {
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+              closeMobile();
+            }}
+          >
+            <span className="nav-sheetLink__left">
+              <span className="nav-sheetLink__ico" aria-hidden="true">
+                <BookOpen size={18} />
+              </span>
+              <span className="nav-sheetLink__label">{t("nav.blog")}</span>
+            </span>
+            <span className="nav-sheetLink__chev" aria-hidden="true">
+              →
+            </span>
+          </NavLink>
 
           {/* Contact */}
           <NavLink
             to={withLang("/contact")}
             className={cx("nav-sheetLink", "nav-sheetLink--contact", "nav-stagger")}
-            style={{ ["--i" as any]: 5 }}
+            style={{ ["--i" as any]: 6 }}
             onClick={() => {
               window.scrollTo({ top: 0, left: 0, behavior: "auto" });
               closeMobile();
@@ -896,6 +923,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </div>
   );
 
+  const aboutOpen = openMenu === "about";
+  const svcOpen = openMenu === "services";
+  const ucOpen = openMenu === "usecases";
+  const resOpen = openMenu === "resources";
+
   return (
     <header
       ref={headerRef}
@@ -903,7 +935,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ FULL CSS INJECT — yekun */}
+      {/* ✅ FULL CSS INJECT — updated (terminal + single-open menu behavior) */}
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
@@ -986,6 +1018,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform-origin: top center;
           transform: translateX(-50%) translateY(-6px) scale(.98);
           transition: opacity .14s ease, transform .14s ease;
+          z-index: 1300;
         }
         .nav-dd.is-open .nav-dd__panel{
           opacity: 1; pointer-events: auto;
@@ -1021,8 +1054,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-dd__arrow{ opacity: .7; margin-top: 2px; }
 
-        .nav-dd--mega .nav-dd__panel{ width: 820px; padding: 14px; border-radius: 20px; }
-        .uc-mega{ display:grid; grid-template-columns: 1fr 1.15fr; gap: 12px; align-items: stretch; }
+        /* ===== Use Cases mega ===== */
+        .nav-dd--mega .nav-dd__panel{ width: 860px; padding: 14px; border-radius: 20px; }
+        .uc-mega{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 12px; align-items: stretch; }
 
         .uc-left{ border-radius: 16px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); overflow: hidden; }
         .uc-leftHead{
@@ -1044,12 +1078,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .uc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.56); line-height: 1.2; }
         .uc-itemIcon{ opacity: .7; margin-top: 2px; flex: 0 0 auto; }
 
+        /* ===== Terminal (no LIVE) ===== */
         .uc-right{
           border-radius: 16px; border: 1px solid rgba(255,255,255,.10);
           background:
             radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.10), transparent 55%),
             radial-gradient(120% 80% at 90% 0%, rgba(167,89,255,.08), transparent 60%),
-            rgba(0,0,0,.20);
+            rgba(0,0,0,.22);
           overflow: hidden; position: relative;
         }
         .uc-termTop{
@@ -1057,27 +1092,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
         }
-        .uc-termTitle{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.60); font-weight: 900; }
-        .uc-live{ display:inline-flex; align-items:center; gap: 8px; font-size: 11px; letter-spacing: .12em; color: rgba(255,255,255,.64); }
-        .uc-liveDot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: rgba(47,184,255,.95);
-          box-shadow: 0 0 0 6px rgba(47,184,255,.10);
-          animation: ucBreath 1.6s ease-in-out infinite;
-        }
-        @keyframes ucBreath{ 0%,100%{ transform: scale(1); opacity: .9; } 50%{ transform: scale(1.25); opacity: 1; } }
+        .uc-termTitle{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.64); font-weight: 900; }
 
         .uc-termBody{
           padding: 12px;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 12px; line-height: 1.45; color: rgba(255,255,255,.82);
-          min-height: 210px;
+          font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.84);
+          min-height: 230px;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
-        .uc-line{ display:block; margin: 0 0 6px; white-space: pre-wrap; word-break: break-word; }
-        .uc-prompt{ color: rgba(47,184,255,.92); }
+        .uc-prompt{ color: rgba(47,184,255,.92); font-weight: 900; }
         .uc-cursor{
-          display:inline-block; width: 9px; height: 14px; margin-left: 4px;
-          transform: translateY(2px); background: rgba(255,255,255,.82); opacity: .9;
+          display:inline-block; width: 9px; height: 14px; margin-left: 6px;
+          transform: translateY(2px); background: rgba(255,255,255,.82);
         }
 
         .uc-footer{
@@ -1153,6 +1181,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           opacity: 0; pointer-events: none;
           transform: translateY(-6px) scale(.98);
           transition: opacity .14s ease, transform .14s ease;
+          z-index: 1500;
         }
         .langMenu.is-open .langMenu__panel{
           opacity: 1; pointer-events: auto;
@@ -1176,6 +1205,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
         .langMenu__itemName{ opacity: .85; font-weight: 700; }
 
+        /* ===== Mobile overlay ===== */
         .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .nav-overlay.is-mounted{ display:block; }
         .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
@@ -1354,20 +1384,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
             <span className="nav-label nav-label--full">{t("nav.home")}</span>
           </NavLink>
 
-          {/* ABOUT dropdown */}
+          {/* ABOUT dropdown (single link, App.tsx uyğun) */}
           <div
             ref={aboutRef}
-            className={cx("nav-dd", aboutDropOpen && "is-open")}
-            onMouseEnter={() => openDrop(setAboutDropOpen)}
-            onMouseLeave={() => scheduleCloseDrop(setAboutDropOpen)}
+            className={cx("nav-dd", aboutOpen && "is-open")}
+            onMouseEnter={() => openDrop("about")}
+            onMouseLeave={() => scheduleCloseDrop("about")}
           >
             <button
               type="button"
-              className={cx("nav-dd__btn", (isAboutActive || aboutDropOpen) && "is-active")}
+              className={cx("nav-dd__btn", (isAboutActive || aboutOpen) && "is-active")}
               aria-haspopup="menu"
-              aria-expanded={aboutDropOpen}
-              onClick={() => setAboutDropOpen((v) => !v)}
-              onFocus={() => openDrop(setAboutDropOpen)}
+              aria-expanded={aboutOpen}
+              onClick={() => setOpenMenu((v) => (v === "about" ? null : "about"))}
+              onFocus={() => openDrop("about")}
             >
               <span className="nav-label nav-label--full">{t("nav.about")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
@@ -1375,40 +1405,22 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
             </button>
 
-            <div className="nav-dd__panel" role="menu" aria-hidden={!aboutDropOpen}>
+            <div className="nav-dd__panel" role="menu" aria-hidden={!aboutOpen}>
               <div className="nav-dd__title">ABOUT</div>
               <div className="nav-dd__grid">
-                <NavLink
-                  to={withLang("/about")}
-                  className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
-                  role="menuitem"
-                  onClick={() => setAboutDropOpen(false)}
-                >
-                  <span className="nav-dd__left">
-                    <span className="nav-dd__dot" aria-hidden="true" />
-                    <span className="nav-dd__labelWrap">
-                      <span className="nav-dd__label">Overview</span>
-                      <span className="nav-dd__hint">What NEOX is and why it matters</span>
-                    </span>
-                  </span>
-                  <span className="nav-dd__arrow" aria-hidden="true">
-                    →
-                  </span>
-                </NavLink>
-
                 {ABOUT_LINKS.map((s) => (
                   <NavLink
                     key={s.to}
                     to={withLang(s.to)}
                     className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
                     role="menuitem"
-                    onClick={() => setAboutDropOpen(false)}
+                    onClick={() => setOpenMenu(null)}
                   >
                     <span className="nav-dd__left">
                       <span className="nav-dd__dot" aria-hidden="true" />
                       <span className="nav-dd__labelWrap">
                         <span className="nav-dd__label">{s.label}</span>
-                        <span className="nav-dd__hint">Premium accordion page</span>
+                        <span className="nav-dd__hint">{s.hint ?? "About page"}</span>
                       </span>
                     </span>
                     <span className="nav-dd__arrow" aria-hidden="true">
@@ -1420,20 +1432,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* SERVICES dropdown */}
+          {/* SERVICES dropdown (App.tsx-ə uyğun 6 link) */}
           <div
             ref={svcRef}
-            className={cx("nav-dd", svcDropOpen && "is-open")}
-            onMouseEnter={() => openDrop(setSvcDropOpen)}
-            onMouseLeave={() => scheduleCloseDrop(setSvcDropOpen)}
+            className={cx("nav-dd", svcOpen && "is-open")}
+            onMouseEnter={() => openDrop("services")}
+            onMouseLeave={() => scheduleCloseDrop("services")}
           >
             <button
               type="button"
-              className={cx("nav-dd__btn", (isServicesActive || svcDropOpen) && "is-active")}
+              className={cx("nav-dd__btn", (isServicesActive || svcOpen) && "is-active")}
               aria-haspopup="menu"
-              aria-expanded={svcDropOpen}
-              onClick={() => setSvcDropOpen((v) => !v)}
-              onFocus={() => openDrop(setSvcDropOpen)}
+              aria-expanded={svcOpen}
+              onClick={() => setOpenMenu((v) => (v === "services" ? null : "services"))}
+              onFocus={() => openDrop("services")}
             >
               <span className="nav-label nav-label--full">{t("nav.services")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
@@ -1441,7 +1453,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
             </button>
 
-            <div className="nav-dd__panel" role="menu" aria-hidden={!svcDropOpen}>
+            <div className="nav-dd__panel" role="menu" aria-hidden={!svcOpen}>
               <div className="nav-dd__title">SERVICES</div>
               <div className="nav-dd__grid">
                 {SERVICES.map((s) => (
@@ -1450,7 +1462,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     to={withLang(s.to)}
                     className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
                     role="menuitem"
-                    onClick={() => setSvcDropOpen(false)}
+                    onClick={() => setOpenMenu(null)}
                   >
                     <span className="nav-dd__left">
                       <span className="nav-dd__dot" aria-hidden="true" />
@@ -1468,20 +1480,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* USE CASES mega dropdown */}
+          {/* USE CASES mega dropdown (✅ scenarios list + slow terminal typing; no LIVE) */}
           <div
             ref={ucRef}
-            className={cx("nav-dd", "nav-dd--mega", ucDropOpen && "is-open")}
-            onMouseEnter={() => openDrop(setUcDropOpen)}
-            onMouseLeave={() => scheduleCloseDrop(setUcDropOpen)}
+            className={cx("nav-dd", "nav-dd--mega", ucOpen && "is-open")}
+            onMouseEnter={() => openDrop("usecases")}
+            onMouseLeave={() => scheduleCloseDrop("usecases")}
           >
             <button
               type="button"
-              className={cx("nav-dd__btn", (isUseCasesActive || ucDropOpen) && "is-active")}
+              className={cx("nav-dd__btn", (isUseCasesActive || ucOpen) && "is-active")}
               aria-haspopup="menu"
-              aria-expanded={ucDropOpen}
-              onClick={() => setUcDropOpen((v) => !v)}
-              onFocus={() => openDrop(setUcDropOpen)}
+              aria-expanded={ucOpen}
+              onClick={() => setOpenMenu((v) => (v === "usecases" ? null : "usecases"))}
+              onFocus={() => openDrop("usecases")}
             >
               <span className="nav-label nav-label--full">{t("nav.useCases")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
@@ -1489,16 +1501,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
             </button>
 
-            <div className="nav-dd__panel" role="menu" aria-hidden={!ucDropOpen}>
+            <div className="nav-dd__panel" role="menu" aria-hidden={!ucOpen}>
               <div className="nav-dd__title">USE CASES</div>
 
               <div className="uc-mega">
                 <div className="uc-left">
-                  <div className="uc-leftHead">SELECT A SERVICE</div>
+                  <div className="uc-leftHead">SELECT A SCENARIO</div>
 
-                  {SERVICES.map((s) => {
+                  {SCENARIOS.map((s) => {
                     const active = s.id === ucActive;
-                    const uc = USE_CASES.find((x) => x.id === s.id);
                     return (
                       <button
                         key={s.id}
@@ -1507,14 +1518,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         onMouseEnter={() => setUcActive(s.id)}
                         onFocus={() => setUcActive(s.id)}
                         onClick={() => {
-                          setUcDropOpen(false);
-                          navigate(withLang(`/use-cases?svc=${encodeURIComponent(s.id)}`));
+                          setOpenMenu(null);
+                          navigate(withLang(s.to));
                           window.scrollTo({ top: 0, left: 0, behavior: "auto" });
                         }}
                       >
                         <span style={{ minWidth: 0 }}>
                           <div className="uc-itemTitle">{s.label}</div>
-                          <div className="uc-itemSub">{uc?.subtitle ?? s.hint}</div>
+                          <div className="uc-itemSub">{s.subtitle}</div>
                         </span>
                         <span className="uc-itemIcon" aria-hidden="true">
                           →
@@ -1526,34 +1537,24 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
                 <div className="uc-right">
                   <div className="uc-termTop">
-                    <div className="uc-termTitle">{ucActiveDef.title}</div>
-                    <div className="uc-live">
-                      <span className="uc-liveDot" aria-hidden="true" />
-                      LIVE
+                    <div className="uc-termTitle">{activeScenario.label}</div>
+                    {/* ✅ LIVE removed */}
+                    <div style={{ fontSize: 11, letterSpacing: ".12em", color: "rgba(255,255,255,.55)", fontWeight: 800 }}>
+                      TERMINAL
                     </div>
                   </div>
 
                   <div className="uc-termBody" aria-live="polite">
-                    {ucRendered.map((ln, idx) => (
-                      <span key={idx} className="uc-line">
-                        <span className="uc-prompt">$</span> {ln}
-                      </span>
-                    ))}
-                    <span className="uc-line" aria-hidden="true">
-                      <span className="uc-prompt">$</span>{" "}
-                      <span className="uc-cursor" style={{ opacity: ucCursor ? 0.9 : 0.2 }} />
-                    </span>
+                    <span className="uc-prompt">$</span>{" "}
+                    {termText}
+                    <span className="uc-cursor" style={{ opacity: termCursor ? 0.9 : 0.2 }} aria-hidden="true" />
                   </div>
 
                   <div className="uc-footer">
-                    <NavLink
-                      to={withLang(`/use-cases?svc=${encodeURIComponent(ucActive)}`)}
-                      className="uc-miniLink"
-                      onClick={() => setUcDropOpen(false)}
-                    >
+                    <NavLink to={withLang("/use-cases")} className="uc-miniLink" onClick={() => setOpenMenu(null)}>
                       Open {t("nav.useCases")} →
                     </NavLink>
-                    <div className="uc-miniHint">{ucActiveDef.subtitle}</div>
+                    <div className="uc-miniHint">{activeScenario.subtitle}</div>
                   </div>
                 </div>
               </div>
@@ -1563,17 +1564,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
           {/* RESOURCES dropdown */}
           <div
             ref={resRef}
-            className={cx("nav-dd", resDropOpen && "is-open")}
-            onMouseEnter={() => openDrop(setResDropOpen)}
-            onMouseLeave={() => scheduleCloseDrop(setResDropOpen)}
+            className={cx("nav-dd", resOpen && "is-open")}
+            onMouseEnter={() => openDrop("resources")}
+            onMouseLeave={() => scheduleCloseDrop("resources")}
           >
             <button
               type="button"
-              className={cx("nav-dd__btn", (isResActive || resDropOpen) && "is-active")}
+              className={cx("nav-dd__btn", (isResActive || resOpen) && "is-active")}
               aria-haspopup="menu"
-              aria-expanded={resDropOpen}
-              onClick={() => setResDropOpen((v) => !v)}
-              onFocus={() => openDrop(setResDropOpen)}
+              aria-expanded={resOpen}
+              onClick={() => setOpenMenu((v) => (v === "resources" ? null : "resources"))}
+              onFocus={() => openDrop("resources")}
             >
               <span className="nav-label nav-label--full">Resources</span>
               <span className="nav-dd__chev" aria-hidden="true">
@@ -1581,7 +1582,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
             </button>
 
-            <div className="nav-dd__panel" role="menu" aria-hidden={!resDropOpen}>
+            <div className="nav-dd__panel" role="menu" aria-hidden={!resOpen}>
               <div className="nav-dd__title">RESOURCES</div>
               <div className="nav-dd__grid">
                 {RES_LINKS.map((s) => (
@@ -1590,13 +1591,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     to={withLang(s.to)}
                     className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
                     role="menuitem"
-                    onClick={() => setResDropOpen(false)}
+                    onClick={() => setOpenMenu(null)}
                   >
                     <span className="nav-dd__left">
                       <span className="nav-dd__dot" aria-hidden="true" />
                       <span className="nav-dd__labelWrap">
                         <span className="nav-dd__label">{s.label}</span>
-                        <span className="nav-dd__hint">Guides, docs, policy</span>
+                        <span className="nav-dd__hint">{s.hint ?? "Guides, docs, policy"}</span>
                       </span>
                     </span>
                     <span className="nav-dd__arrow" aria-hidden="true">
@@ -1604,24 +1605,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     </span>
                   </NavLink>
                 ))}
-
-                <NavLink
-                  to={withLang("/store")}
-                  className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
-                  role="menuitem"
-                  onClick={() => setResDropOpen(false)}
-                >
-                  <span className="nav-dd__left">
-                    <span className="nav-dd__dot" aria-hidden="true" />
-                    <span className="nav-dd__labelWrap">
-                      <span className="nav-dd__label">NEOX Store</span>
-                      <span className="nav-dd__hint">Products, packages, add-ons</span>
-                    </span>
-                  </span>
-                  <span className="nav-dd__arrow" aria-hidden="true">
-                    →
-                  </span>
-                </NavLink>
               </div>
             </div>
           </div>
