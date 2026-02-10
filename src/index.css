@@ -4119,11 +4119,6 @@ html, body{
   padding-top: 0 !important;
 }
 
-/* header fixed olduqda: yalnız 1 dəfə offset ver */
-.neox-home.neox-home--black .neo-hero-inner{
-  padding-top: 84px !important;  /* header hündürlüyünə görə 72/80/84 dəyiş */
-}
-
 /* HERO: content niyə aşağı düşür? - hard override */
 .neo-hero.neo-hero--full{
   display: flex !important;
@@ -6303,22 +6298,6 @@ html, body, #root{
   }
 }
 
-/* sağ blok həmişə eyni kənar boşluğu ilə */
-.site-header .header-right{
-  position: absolute !important;
-  right: clamp(16px, 2vw, 28px) !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-}
-
-/* sol logo da simmetrik olsun */
-.site-header .header-left{
-  position: absolute !important;
-  left: clamp(16px, 2vw, 28px) !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-}
-
 /* =========================
    ADMIN — panel vibe
 ========================= */
@@ -6390,12 +6369,6 @@ html, body {
 /* 2) Scrollbar stabil olsun (digər səhifələrdəki kimi) */
 html {
   scrollbar-gutter: stable; /* Windows-da layout shift olmasın */
-}
-
-/* Əgər header container-də max-width/padding varsa, sağ kənarı eyniləşdir */
-.neo-home .site-header .container,
-.neo-home .site-header__inner {
-  padding-right: 0 !important;
 }
 
 .neox-ai-msg.is-admin .neox-ai-bubble{
