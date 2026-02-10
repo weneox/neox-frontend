@@ -59,13 +59,43 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/** Smooth reveal-on-scroll (very light, FPS-friendly) */
-function useRevealOnScroll(disabled: boolean) {
+/** ✅ Soft mount: refresh zamanı ağır animasiyalar dərhal başlamasın */
+function useSoftMount(disabled: boolean) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (disabled) {
+      setReady(true);
+      return;
+    }
+    // 2x rAF — ilk paint + layout stabil olandan sonra start
+    const r1 = requestAnimationFrame(() => {
+      const r2 = requestAnimationFrame(() => setReady(true));
+      return () => cancelAnimationFrame(r2);
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [disabled]);
+  return ready;
+}
+
+/** Smooth reveal-on-scroll — ONLY within this section (perf-friendly) */
+function useRevealOnScroll(rootRef: React.RefObject<HTMLElement>, disabled: boolean, ready: boolean) {
   useEffect(() => {
     if (disabled) return;
+    if (!ready) return;
 
-    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    const root = rootRef.current;
+    if (!root) return;
+
+    const els = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (!els.length) return;
+
+    // Above-the-fold: mountdan sonra yumşaq “fade-in”
+    // (IO callback-larında jank olmasın)
+    const immediate = els.filter((el) => el.getBoundingClientRect().top < window.innerHeight * 0.9);
+    immediate.forEach((el) => el.classList.add("is-in"));
+
+    const rest = els.filter((el) => !el.classList.contains("is-in"));
+    if (!rest.length) return;
 
     const io = new IntersectionObserver(
       (entries) => {
@@ -79,9 +109,9 @@ function useRevealOnScroll(disabled: boolean) {
       { threshold: 0.16, rootMargin: "0px 0px -10% 0px" }
     );
 
-    els.forEach((el) => io.observe(el));
+    rest.forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, [disabled]);
+  }, [disabled, ready, rootRef]);
 }
 
 function Feature({ title, desc }: { title: string; desc: string }) {
@@ -99,19 +129,21 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 }
 
 /**
- * ✅ Rotator (TechSupport style) + ✅ Dynamic pill width
+ * ✅ Rotator + ✅ Dynamic width (pill sözə görə ölçü alır)
  * - ghost last item == first item
- * - when reaches ghost, snap to 0
- * - outer pill width adapts to current text (small word -> small pill, big word -> big pill)
+ * - snap to 0
+ * - width adapts to current label
  */
 function PillRotator({
   items,
   intervalMs = 2200,
   disabled,
+  ready,
 }: {
   items: string[];
   intervalMs?: number;
   disabled: boolean;
+  ready: boolean;
 }) {
   const safe = items.length ? items : [""];
   const track = safe.length > 1 ? [...safe, safe[0]] : safe;
@@ -119,16 +151,16 @@ function PillRotator({
   const [i, setI] = useState(0);
   const [noTrans, setNoTrans] = useState(false);
 
-  // width measurement
   const measureRef = useRef<HTMLSpanElement | null>(null);
   const [w, setW] = useState<number | null>(null);
 
   useEffect(() => {
     if (disabled) return;
+    if (!ready) return;
     if (safe.length <= 1) return;
     const t = window.setInterval(() => setI((p) => p + 1), intervalMs);
     return () => window.clearInterval(t);
-  }, [disabled, intervalMs, safe.length]);
+  }, [disabled, ready, intervalMs, safe.length]);
 
   useEffect(() => {
     if (safe.length <= 1) return;
@@ -142,29 +174,27 @@ function PillRotator({
     }
   }, [i, safe.length]);
 
-  // measure current visible text width (fit-content pill)
+  const label = safe[Math.min(i, safe.length - 1)];
+
   useEffect(() => {
     const el = measureRef.current;
     if (!el) return;
-    const id = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
       const rect = el.getBoundingClientRect();
-      // padding left+right in pill is handled by CSS, we add a tiny safety buffer
       setW(Math.ceil(rect.width));
     });
-    return () => cancelAnimationFrame(id);
-  }, [i, safe]);
+    return () => cancelAnimationFrame(raf);
+  }, [label]);
 
   const step = 34;
   const y = -i * step;
-
-  const label = safe[Math.min(i, safe.length - 1)];
 
   return (
     <span
       className="svc-pill svc-pill--rot"
       aria-label={label}
       style={{
-        width: w ? `${w + 34}px` : undefined, // ✅ dynamic pill width
+        width: w ? `${w + 34}px` : undefined, // padding buffer
         transition: disabled ? "none" : "width 260ms ease",
       }}
     >
@@ -178,7 +208,6 @@ function PillRotator({
           whiteSpace: "nowrap",
           fontSize: 12,
           fontWeight: 800,
-          letterSpacing: 0,
         }}
       >
         {label}
@@ -227,11 +256,13 @@ function ServicePage({
   const location = useLocation();
   const lang = useMemo(() => getLangFromPath(location.pathname), [location.pathname]);
   const reduced = usePrefersReducedMotion();
-  useRevealOnScroll(reduced);
+  const ready = useSoftMount(reduced);
+
+  const rootRef = useRef<HTMLElement | null>(null);
+  useRevealOnScroll(rootRef as any, reduced, ready);
 
   const T = TINTS[tint];
 
-  // ✅ Websites: video loops
   const vidRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const v = vidRef.current;
@@ -271,7 +302,8 @@ function ServicePage({
 
   return (
     <section
-      className="svc"
+      ref={rootRef as any}
+      className={cx("svc", ready && "svc-ready")}
       style={
         {
           ["--tA" as any]: T.a,
@@ -310,7 +342,8 @@ function ServicePage({
         }
 
         /* =========================
-           ✅ TEXT SWEEP (pills + section headings)
+           TEXT SWEEP (pills + section headings)
+           ✅ only starts when .svc-ready (prevents refresh jank)
         ========================= */
         .svc-sweepText{
           display:inline-block;
@@ -339,7 +372,10 @@ function ServicePage({
           background-clip: text;
           color: transparent;
           will-change: background-position;
-          ${reduced ? "" : "animation: svcTextSweep 2.2s linear infinite;"}
+          animation: none;
+        }
+        .svc.svc-ready .svc-sweepText{
+          animation: svcTextSweep 2.2s linear infinite;
         }
         @keyframes svcTextSweep{
           0%   { background-position: 0 0, -220% 0; }
@@ -349,11 +385,7 @@ function ServicePage({
           .svc-sweepText{ animation:none !important; }
         }
 
-        /* =========================
-           ✅ TITLE LENTA (ONLY H1)
-           - NOT allowed to overlap SERVICES pill anymore
-           - "goes into video" feel: fades to 0 before reaching full width
-        ========================= */
+        /* TITLE gradient (text itself) */
         .svc-grad{
           background: linear-gradient(
             90deg,
@@ -365,61 +397,6 @@ function ServicePage({
           -webkit-background-clip:text;
           background-clip:text;
           color:transparent;
-        }
-        .svc-shimmer{
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
-        .svc-shimmer::after{
-          content:"";
-          position:absolute;
-          inset:-10% -70%;
-          pointer-events:none;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            transparent 35%,
-            rgba(255,255,255,.30) 45%,
-            rgba(170,225,255,.60) 50%,
-            rgba(47,184,255,.52) 55%,
-            transparent 65%,
-            transparent 100%
-          );
-          mix-blend-mode: screen;
-
-          /* fade out towards the right (towards video) */
-          mask-image: linear-gradient(
-            90deg,
-            rgba(0,0,0,1) 0%,
-            rgba(0,0,0,1) 56%,
-            rgba(0,0,0,.70) 70%,
-            rgba(0,0,0,.22) 80%,
-            rgba(0,0,0,0) 92%,
-            rgba(0,0,0,0) 100%
-          );
-          -webkit-mask-image: linear-gradient(
-            90deg,
-            rgba(0,0,0,1) 0%,
-            rgba(0,0,0,1) 56%,
-            rgba(0,0,0,.70) 70%,
-            rgba(0,0,0,.22) 80%,
-            rgba(0,0,0,0) 92%,
-            rgba(0,0,0,0) 100%
-          );
-
-          opacity: .92;
-          transform: translate3d(-60%,0,0);
-          will-change: transform, opacity;
-          ${reduced ? "" : "animation: svcRibbon 2.35s linear infinite;"}
-        }
-        @keyframes svcRibbon{
-          0%   { transform: translate3d(-60%,0,0); opacity:.92; }
-          72%  { transform: translate3d(22%,0,0); opacity:.92; }
-          100% { transform: translate3d(34%,0,0); opacity:0; }
-        }
-        @media (prefers-reduced-motion: reduce){
-          .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
         .svc-hero{
@@ -446,10 +423,7 @@ function ServicePage({
         .svc-hero__inner{
           position:relative;
           z-index:1;
-
-          /* ✅ more top padding so SERVICES pill can move up without being clipped */
           padding: 34px 22px 28px;
-
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
@@ -460,9 +434,90 @@ function ServicePage({
           .svc-hero__inner{ grid-template-columns: 1fr; padding: 30px 16px 22px; }
         }
 
-        .svc-left{ min-width:0; }
+        /* =========================
+           ✅ RIBBON LAYER (BLOCK-BASED, not text-based)
+           - starts from block left edge
+           - slides across and goes behind video (z-index)
+           - fades out as it enters video area (mask), speed DOES NOT change
+           - restarts from beginning
+        ========================= */
+        .svc-ribbonLayer{
+          position:absolute;
+          left:0;
+          right:0;
+          /* align roughly with title line */
+          top: 84px;
+          height: 70px;
+          pointer-events:none;
+          z-index: 1; /* behind content, in front of background */
+          overflow:hidden;
+        }
+        @media (max-width: 980px){
+          .svc-ribbonLayer{ top: 96px; height: 62px; }
+        }
 
-        /* ✅ SERVICES pill: move up (no clipping) + blue dot */
+        .svc-ribbon{
+          position:absolute;
+          left:-35%;
+          width: 170%;
+          top: 50%;
+          height: 44px;
+          transform: translate3d(-60%, -50%, 0);
+          filter: blur(0.2px);
+          mix-blend-mode: screen;
+          opacity: .92;
+
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 32%,
+            rgba(255,255,255,.22) 42%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 56%,
+            transparent 66%,
+            transparent 100%
+          );
+
+          /* mask: visible on left, vanishes towards video (right) */
+          -webkit-mask-image: linear-gradient(
+            90deg,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,1) 56%,
+            rgba(0,0,0,.65) 70%,
+            rgba(0,0,0,.18) 82%,
+            rgba(0,0,0,0) 92%,
+            rgba(0,0,0,0) 100%
+          );
+          mask-image: linear-gradient(
+            90deg,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,1) 56%,
+            rgba(0,0,0,.65) 70%,
+            rgba(0,0,0,.18) 82%,
+            rgba(0,0,0,0) 92%,
+            rgba(0,0,0,0) 100%
+          );
+
+          animation: none;
+          will-change: transform;
+        }
+
+        /* ✅ start animation only after ready (prevents refresh FPS drop) */
+        .svc.svc-ready .svc-ribbon{
+          animation: svcRibbonMove 2.35s linear infinite;
+        }
+        @keyframes svcRibbonMove{
+          0%   { transform: translate3d(-60%, -50%, 0); }
+          100% { transform: translate3d(34%,  -50%, 0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-ribbon{ animation:none !important; display:none; }
+        }
+
+        .svc-left{ min-width:0; position:relative; z-index:2; } /* content above ribbon */
+        .svc-right{ position:relative; z-index:3; }            /* video ABOVE ribbon => ribbon goes behind video */
+
+        /* SERVICES pill */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -476,7 +531,6 @@ function ServicePage({
           font-size: 11px;
           color: rgba(255,255,255,.72);
           text-transform:uppercase;
-
           margin-top: -14px;
           transform: translate3d(0,-14px,0);
         }
@@ -489,10 +543,8 @@ function ServicePage({
           flex: 0 0 auto;
         }
 
-        /* ✅ IMPORTANT: keep ribbon inside H1 so it never touches SERVICES pill */
         .svc-title{
           position: relative;
-          overflow: hidden;         /* ✅ clamps the ribbon */
           margin-top: 14px;
           font-size: 40px;
           line-height: 1.05;
@@ -525,7 +577,7 @@ function ServicePage({
           align-items:center;
           justify-content:center;
           height: 34px;
-          padding: 0 14px;              /* slightly more padding */
+          padding: 0 14px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
@@ -534,23 +586,14 @@ function ServicePage({
           font-size: 12px;
           white-space: nowrap;
         }
-
-        /* ✅ rotator pill is now NOT fixed width */
         .svc-pill--rot{
           min-width: 0;
           width: fit-content;
           max-width: 100%;
         }
 
-        .svc-pillRot-clip{
-          height: 34px;
-          overflow:hidden;
-          display:block;
-        }
-        .svc-pillRot-track{
-          display:block;
-          will-change: transform;
-        }
+        .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; }
+        .svc-pillRot-track{ display:block; will-change: transform; }
         .svc-pillRot-item{
           height: 34px;
           line-height: 34px;
@@ -558,11 +601,6 @@ function ServicePage({
           align-items:center;
           justify-content:center;
           white-space: nowrap;
-        }
-        .svc-pillRot-item .svc-sweepText{
-          background-size: 100% 100%, 420% 100%;
-          background-position: 0 0, -240% 0;
-          ${reduced ? "" : "animation-duration: 2.0s;"}
         }
 
         /* CTA */
@@ -601,55 +639,17 @@ function ServicePage({
           text-transform: uppercase;
           color: rgba(255,255,255,.92);
         }
-        .svc-cta::before{
-          content:"";
-          position:absolute;
-          inset:-55% -70%;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            transparent 34%,
-            rgba(255,255,255,.30) 44%,
-            rgba(255,255,255,.95) 50%,
-            rgba(170,225,255,.72) 54%,
-            rgba(47,184,255,.45) 58%,
-            transparent 68%,
-            transparent 100%
-          );
-          transform: translate3d(-70%,0,0);
-          opacity: 0;
-          will-change: transform, opacity;
-          pointer-events:none;
-        }
-        .svc-cta:hover{
-          transform: translate3d(0,-1px,0);
-          border-color: rgba(47,184,255,.24);
-          background: rgba(255,255,255,.08);
-        }
-        .svc-cta:hover::before{
-          opacity: .98;
-          ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
-        }
-        @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-70%,0,0); }
-          100%{ transform: translate3d(70%,0,0); }
-        }
-        @media (hover: none){
-          .svc-cta:hover{ transform:none; }
-          .svc-cta:hover::before{ opacity:0; animation:none; }
-        }
         .svc-cta--ghost{
           background: rgba(255,255,255,.04);
           border-color: rgba(255,255,255,.10);
         }
 
-        /* VIDEO — fit exactly inside panel, no bleed */
+        /* VIDEO (no bleed) */
         .svc-right{
           min-width:0;
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.08);
           overflow:hidden;
-          position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
         }
@@ -683,7 +683,6 @@ function ServicePage({
             linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
-
         .svc-badge{
           position:absolute; top:12px; left:12px; right:12px;
           display:flex; align-items:center; justify-content: space-between; gap:10px;
@@ -714,7 +713,10 @@ function ServicePage({
           width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
-          ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
+          animation: none;
+        }
+        .svc.svc-ready .svc-dot{
+          animation: svcBreath 1.6s ease-in-out infinite;
         }
         @keyframes svcBreath{
           0%,100%{ transform: scale(1); opacity:.95; }
@@ -772,8 +774,11 @@ function ServicePage({
           background: var(--tC);
           color: rgba(170,225,255,.98);
           flex: 0 0 auto;
-          ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
+          animation: none;
           will-change: transform, filter;
+        }
+        .svc.svc-ready .svc-feat__tick{
+          animation: svcTickBreath 1.55s ease-in-out infinite;
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
@@ -782,12 +787,17 @@ function ServicePage({
 
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
-
-        .svc, .svc .container, .svc-hero, .svc-card { overflow-wrap:anywhere; }
       `}</style>
 
       <div className="container">
         <div className="svc-hero">
+          {/* ✅ ribbon is BLOCK-based and goes behind video */}
+          {!reduced && (
+            <div className="svc-ribbonLayer" aria-hidden="true">
+              <div className="svc-ribbon" />
+            </div>
+          )}
+
           <div className="svc-hero__inner">
             <div className="svc-left">
               <div className="svc-kicker" data-reveal>
@@ -796,7 +806,7 @@ function ServicePage({
               </div>
 
               <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+                <span className="svc-grad">{title}</span>
               </h1>
 
               <p className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
@@ -804,7 +814,7 @@ function ServicePage({
               </p>
 
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                <PillRotator items={pills} disabled={reduced} />
+                <PillRotator items={pills} disabled={reduced} ready={ready} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
