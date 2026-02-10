@@ -9,17 +9,47 @@ import { LANGS, DEFAULT_LANG, type Lang } from "../i18n/lang";
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
+
 type NavDef = { to: string; label: string; end?: boolean; hint?: string };
 type MenuKey = "about" | "services" | "usecases" | "resources" | null;
+
 type ServiceDef = { id: string; label: string; to: string; hint: string };
-type FlowDef = { id: string; label: string; to: string };
+type ScenarioPill = { id: string; label: string; to: string };
+
+function getScrollableEl(): HTMLElement | Window {
+  const se = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+
+  const candidates: Array<HTMLElement | null> = [
+    document.querySelector("main"),
+    document.querySelector("#root"),
+    document.querySelector("#app"),
+    document.querySelector(".app"),
+    document.querySelector(".layout"),
+    document.querySelector(".site"),
+    document.querySelector("[data-scroll]"),
+    document.querySelector("[data-scroll-container]"),
+  ];
+
+  const isScrollable = (el: HTMLElement) => {
+    const st = getComputedStyle(el);
+    const oy = st.overflowY;
+    return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 2;
+  };
+
+  for (const el of candidates) if (el && isScrollable(el)) return el;
+  if (se && isScrollable(se)) return se;
+
+  return window;
+}
 
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
 }
+
 function isLang(x: string | undefined | null): x is Lang {
   return !!x && (LANGS as readonly string[]).includes(x as any);
 }
+
 function getWindowScrollY() {
   return (
     window.scrollY ||
@@ -28,6 +58,7 @@ function getWindowScrollY() {
     0
   );
 }
+
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -43,7 +74,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/* ===== Desktop language dropdown (hover opens; click works) ===== */
+/* ===== Desktop language dropdown (hover opens) ===== */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -56,9 +87,10 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
     }
     setOpen(true);
   };
+
   const scheduleClose = () => {
     if (closeT.current) window.clearTimeout(closeT.current);
-    closeT.current = window.setTimeout(() => setOpen(false), 110) as any;
+    closeT.current = window.setTimeout(() => setOpen(false), 120) as any;
   };
 
   useEffect(() => {
@@ -118,13 +150,7 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
         </span>
       </button>
 
-      <div
-        className="langMenu__panel"
-        role="menu"
-        aria-hidden={!open}
-        onMouseEnter={openDrop}
-        onMouseLeave={scheduleClose}
-      >
+      <div className="langMenu__panel" role="menu" aria-hidden={!open} onMouseEnter={openDrop} onMouseLeave={scheduleClose}>
         {LANGS.map((code) => (
           <button
             key={code}
@@ -145,9 +171,6 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   );
 }
 
-/* =========================
-   Header
-========================= */
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [hdrp, setHdrp] = useState(0);
@@ -158,22 +181,21 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const prefersReduced = usePrefersReducedMotion();
 
-  // Single open desktop dropdown
+  // ✅ single-open dropdown
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const closeT = useRef<number | null>(null);
 
-  const svcRef = useRef<HTMLDivElement | null>(null);
   const aboutRef = useRef<HTMLDivElement | null>(null);
-  const resRef = useRef<HTMLDivElement | null>(null);
+  const svcRef = useRef<HTMLDivElement | null>(null);
   const ucRef = useRef<HTMLDivElement | null>(null);
+  const resRef = useRef<HTMLDivElement | null>(null);
 
-  // UseCases hover state
-  const [ucSvcActive, setUcSvcActive] = useState<string>("business-workflows");
-  const [ucFlowPhase, setUcFlowPhase] = useState(0); // for soft fade on hover change
+  // UseCases hover (service → hologram scenarios)
+  const [ucActiveSvc, setUcActiveSvc] = useState<string>("business-workflows");
 
   // Mobile accordion state
-  const [mobileSvcOpen, setMobileSvcOpen] = useState(false);
   const [mobileUcOpen, setMobileUcOpen] = useState(false);
+  const [mobileSvcOpen, setMobileSvcOpen] = useState(false);
   const [mobileAboutOpen, setMobileAboutOpen] = useState(false);
   const [mobileResOpen, setMobileResOpen] = useState(false);
 
@@ -186,6 +208,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const panelId = useId();
 
   const headerRef = useRef<HTMLElement | null>(null);
+  const scrollElRef = useRef<HTMLElement | Window | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   const rafPending = useRef(false);
   const lastPRef = useRef<number>(-1);
 
@@ -226,45 +251,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
-  // ✅ Services (6)
+  // ✅ App.tsx ROUTES-una uyğun 6 services
   const SERVICES: ServiceDef[] = useMemo(
     () => [
-      {
-        id: "chatbot-24-7",
-        label: "Chatbot 24/7",
-        to: "/services/chatbot-24-7",
-        hint: "Always-on chat that converts leads and answers fast.",
-      },
-      {
-        id: "business-workflows",
-        label: "Business Workflows",
-        to: "/services/business-workflows",
-        hint: "Trigger → route → act. End-to-end automation flows.",
-      },
-      {
-        id: "websites",
-        label: "Websites",
-        to: "/services/websites",
-        hint: "Premium, fast websites with modern UX.",
-      },
-      {
-        id: "mobile-apps",
-        label: "Mobile Apps",
-        to: "/services/mobile-apps",
-        hint: "iOS/Android apps with clean UI and scalable backend.",
-      },
-      {
-        id: "smm-automation",
-        label: "SMM Automation",
-        to: "/services/smm-automation",
-        hint: "Content, scheduling, funnels and automation.",
-      },
-      {
-        id: "technical-support",
-        label: "Technical Support",
-        to: "/services/technical-support",
-        hint: "Monitoring, fixes, deployments, and ongoing support.",
-      },
+      { id: "chatbot-24-7", label: "Chatbot 24/7", to: "/services/chatbot-24-7", hint: "Always-on chat that converts leads and answers fast." },
+      { id: "business-workflows", label: "Business Workflows", to: "/services/business-workflows", hint: "Trigger → route → act. End-to-end automation flows." },
+      { id: "websites", label: "Websites", to: "/services/websites", hint: "Premium, fast websites with modern UX." },
+      { id: "mobile-apps", label: "Mobile Apps", to: "/services/mobile-apps", hint: "iOS/Android apps with clean UI and scalable backend." },
+      { id: "smm-automation", label: "SMM Automation", to: "/services/smm-automation", hint: "Content, scheduling, funnels and automation." },
+      { id: "technical-support", label: "Technical Support", to: "/services/technical-support", hint: "Monitoring, fixes, deployments, and ongoing support." },
     ],
     []
   );
@@ -284,88 +279,123 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ Hologram flows (ONLY Use Cases)
-  // Business Workflows: the 5 you said (finance/healthcare/retail/logistics/hotels)
-  const FLOWS_BY_SERVICE: Record<string, FlowDef[]> = useMemo(
+  // ✅ UseCases = services list + hover hologram scenarios (NO big blocks)
+  const USECASE_SCENARIOS_BY_SERVICE: Record<string, ScenarioPill[]> = useMemo(
     () => ({
+      // user said: these 5 belong to Business Workflows
       "business-workflows": [
-        { id: "bw-f", label: "Finance", to: "/use-cases/finance" },
-        { id: "bw-h", label: "Healthcare", to: "/use-cases/healthcare" },
-        { id: "bw-r", label: "Retail", to: "/use-cases/retail" },
-        { id: "bw-l", label: "Logistics", to: "/use-cases/logistics" },
-        { id: "bw-ho", label: "Hotels & Resorts", to: "/use-cases/hotels" },
+        { id: "finance", label: "Finance", to: "/use-cases/finance" },
+        { id: "healthcare", label: "Healthcare", to: "/use-cases/healthcare" },
+        { id: "retail", label: "Retail", to: "/use-cases/retail" },
+        { id: "logistics", label: "Logistics", to: "/use-cases/logistics" },
+        { id: "hotels", label: "Hotels", to: "/use-cases/hotels" },
       ],
+      // creative additions (safe default routes – you can replace later)
       "chatbot-24-7": [
-        { id: "c1", label: "Lead Capture", to: "/use-cases/finance" },
-        { id: "c2", label: "Smart Triage", to: "/use-cases/healthcare" },
-        { id: "c3", label: "Upsell Assistant", to: "/use-cases/retail" },
-        { id: "c4", label: "Reservation Help", to: "/use-cases/hotels" },
+        { id: "lead-capture", label: "Lead Capture", to: "/use-cases/retail" },
+        { id: "instant-answers", label: "Instant Answers", to: "/use-cases/healthcare" },
+        { id: "handoff", label: "Smart Handoff", to: "/use-cases/logistics" },
+        { id: "demo-booking", label: "Demo Booking", to: "/use-cases/finance" },
       ],
       websites: [
-        { id: "w1", label: "Conversion Funnels", to: "/use-cases/finance" },
-        { id: "w2", label: "Product Discovery", to: "/use-cases/retail" },
-        { id: "w3", label: "Booking UX", to: "/use-cases/healthcare" },
+        { id: "landing", label: "Landing + CTA", to: "/use-cases/finance" },
+        { id: "multi-lang", label: "Multi-Language", to: "/use-cases/hotels" },
+        { id: "speed", label: "Speed Upgrade", to: "/use-cases/retail" },
       ],
       "mobile-apps": [
-        { id: "m1", label: "Tracking + Alerts", to: "/use-cases/logistics" },
-        { id: "m2", label: "In-app Support", to: "/use-cases/healthcare" },
-        { id: "m3", label: "Loyalty & Offers", to: "/use-cases/retail" },
+        { id: "onboarding", label: "Onboarding", to: "/use-cases/retail" },
+        { id: "push", label: "Smart Notifications", to: "/use-cases/logistics" },
+        { id: "secure", label: "Secure Flows", to: "/use-cases/healthcare" },
       ],
       "smm-automation": [
-        { id: "s1", label: "DM → Lead Flow", to: "/use-cases/finance" },
-        { id: "s2", label: "Campaign Assist", to: "/use-cases/retail" },
-        { id: "s3", label: "Concierge Promo", to: "/use-cases/hotels" },
+        { id: "content", label: "Content Pipeline", to: "/use-cases/retail" },
+        { id: "auto-dm", label: "Auto DM Flows", to: "/use-cases/finance" },
+        { id: "campaigns", label: "Campaign Ops", to: "/use-cases/hotels" },
+        { id: "analytics", label: "Analytics Loop", to: "/use-cases/finance" },
       ],
       "technical-support": [
-        { id: "t1", label: "SLA + Incidents", to: "/use-cases/logistics" },
-        { id: "t2", label: "Release Ops", to: "/use-cases/finance" },
-        { id: "t3", label: "Secure Handoff", to: "/use-cases/healthcare" },
+        { id: "monitoring", label: "Monitoring", to: "/use-cases/logistics" },
+        { id: "deploy", label: "Deploy & Fix", to: "/use-cases/finance" },
+        { id: "incidents", label: "Incident Response", to: "/use-cases/logistics" },
       ],
     }),
     []
   );
 
-  const activeFlows = useMemo(() => {
-    return FLOWS_BY_SERVICE[ucSvcActive] ?? FLOWS_BY_SERVICE["business-workflows"];
-  }, [FLOWS_BY_SERVICE, ucSvcActive]);
+  const activeUsecasePills = USECASE_SCENARIOS_BY_SERVICE[ucActiveSvc] ?? USECASE_SCENARIOS_BY_SERVICE["business-workflows"];
 
-  const isUseCasesActive = useMemo(
-    () => location.pathname.toLowerCase().includes("/use-cases"),
-    [location.pathname]
-  );
-  const isServicesActive = useMemo(
-    () => location.pathname.toLowerCase().includes("/services"),
-    [location.pathname]
-  );
+  // Active checks
+  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
+  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
   const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
   const isResActive = useMemo(() => {
     const p = location.pathname.toLowerCase();
     return p.includes("/resources") || p.includes("/privacy");
   }, [location.pathname]);
 
-  // Header height var
+  const navItem = ({ isActive }: { isActive: boolean }) => cx("nav-link", isActive && "is-active");
+
+  // Header height → CSS var
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
+
     const apply = () => {
       const h = Math.round(el.getBoundingClientRect().height || 72);
       document.documentElement.style.setProperty("--hdrh", `${h}px`);
     };
     apply();
+
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     window.addEventListener("resize", apply, { passive: true });
+
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", apply as any);
     };
   }, []);
 
-  // scroll blur
+  const ensureSentinel = useCallback(() => {
+    if (sentinelRef.current) return;
+
+    const el = document.createElement("div");
+    el.setAttribute("data-header-sentinel", "1");
+    el.style.position = "absolute";
+    el.style.top = "0";
+    el.style.left = "0";
+    el.style.width = "1px";
+    el.style.height = "1px";
+    el.style.pointerEvents = "none";
+    el.style.opacity = "0";
+    el.style.zIndex = "-1";
+
+    const sc = scrollElRef.current ?? getScrollableEl();
+    scrollElRef.current = sc;
+
+    if (sc === window) document.body.appendChild(el);
+    else {
+      const host = sc as HTMLElement;
+      const st = getComputedStyle(host);
+      if (st.position === "static") host.style.position = "relative";
+      host.appendChild(el);
+    }
+
+    sentinelRef.current = el;
+  }, []);
+
   const computeScrolled = useCallback(() => {
-    const y = getWindowScrollY();
+    const sc = scrollElRef.current ?? getScrollableEl();
+    scrollElRef.current = sc;
+
+    let y = 0;
+    if (sc === window) y = getWindowScrollY();
+    else y = (sc as HTMLElement).scrollTop || 0;
+
     const p = clamp01(y / 180);
+
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
+
     if (Math.abs(p - lastPRef.current) > 0.001) {
       lastPRef.current = p;
       setHdrp(p);
@@ -374,7 +404,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
   }, []);
 
   useEffect(() => {
+    scrollElRef.current = getScrollableEl();
+    ensureSentinel();
     computeScrolled();
+
     const schedule = () => {
       if (rafPending.current) return;
       rafPending.current = true;
@@ -383,28 +416,46 @@ export default function Header({ introReady }: { introReady: boolean }) {
         computeScrolled();
       });
     };
-    window.addEventListener("resize", schedule, { passive: true });
-    window.addEventListener("scroll", schedule, { passive: true });
+
+    const onResize = () => schedule();
+    const onScroll = () => schedule();
+
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("scroll", onScroll, { passive: true } as any);
+
+    const sc = scrollElRef.current;
+    if (sc && sc !== window) (sc as HTMLElement).addEventListener("scroll", onScroll, { passive: true });
+
     const tick = window.setInterval(() => schedule(), 180);
+
     return () => {
-      window.removeEventListener("resize", schedule as any);
-      window.removeEventListener("scroll", schedule as any);
+      window.removeEventListener("resize", onResize as any);
+      window.removeEventListener("scroll", onScroll as any);
+      document.removeEventListener("scroll", onScroll as any);
+      if (sc && sc !== window) (sc as HTMLElement).removeEventListener("scroll", onScroll as any);
       window.clearInterval(tick);
+
+      if (sentinelRef.current) {
+        sentinelRef.current.remove();
+        sentinelRef.current = null;
+      }
     };
-  }, [computeScrolled]);
+  }, [ensureSentinel, computeScrolled]);
 
   // route change reset
   useEffect(() => {
     setOpen(false);
     setSoftOpen(false);
     setOpenMenu(null);
-    setMobileSvcOpen(false);
+
     setMobileUcOpen(false);
+    setMobileSvcOpen(false);
     setMobileAboutOpen(false);
     setMobileResOpen(false);
   }, [location.pathname]);
 
-  // lock body scroll on mobile overlay
+  // lock body scroll when mobile menu open (overlay scrolls)
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
@@ -424,7 +475,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => cancelAnimationFrame(raf);
   }, [open]);
 
-  // click outside desktop dropdown
+  // click outside desktop dropdowns
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!openMenu) return;
@@ -433,9 +484,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
       const map: Record<Exclude<MenuKey, null>, React.RefObject<HTMLDivElement>> = {
         about: aboutRef,
         services: svcRef,
-        resources: resRef,
         usecases: ucRef,
+        resources: resRef,
       };
+
       const ref = map[openMenu];
       const el = ref?.current;
       if (!el) return;
@@ -445,6 +497,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => window.removeEventListener("mousedown", onDown);
   }, [openMenu]);
 
+  // hover open/close with tiny delay (close others)
   const openDrop = (menu: Exclude<MenuKey, null>) => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
@@ -456,10 +509,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
     if (closeT.current) window.clearTimeout(closeT.current);
     closeT.current = window.setTimeout(() => {
       setOpenMenu((cur) => (cur === menu ? null : cur));
-    }, 110) as any;
+    }, 120) as any;
   };
 
-  // Mobile style driver
+  // mobile blur driver
   const mobileP = clamp01(hdrp);
   const base = 0.03;
   const mobileBgAlpha = open ? 0.92 : base + 0.70 * mobileP;
@@ -475,231 +528,280 @@ export default function Header({ introReady }: { introReady: boolean }) {
       }
     : undefined;
 
-  const logoH = isMobile ? 16 : 26;
-  const logoMaxW = isMobile ? "112px" : "156px";
+  const logoH = isMobile ? 16 : 28; // ✅ smaller on mobile
+  const logoMaxW = isMobile ? "108px" : "156px";
 
-  // UseCases hover → soft fade phase
-  const bumpUcPhase = useCallback(() => {
-    setUcFlowPhase((p) => p + 1);
-  }, []);
+  const MobileOverlay = (
+    <div className={cx("nav-overlay", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
+      <button className="nav-overlay__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
+
+      <div id={panelId} className={cx("nav-sheet", softOpen && "is-open")} role="dialog" aria-modal="true" aria-label="Menyu">
+        <div className="nav-sheet__bg" aria-hidden="true" />
+        <div className="nav-sheet__noise" aria-hidden="true" />
+
+        <div className="nav-sheet__head">
+          <div className="nav-sheet__brand">
+            <span className="nav-sheet__dot" aria-hidden="true" />
+            <span className="nav-sheet__title">MENU</span>
+          </div>
+
+          <button className="nav-sheet__close" type="button" aria-label="Bağla" onClick={closeMobile}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="nav-sheet__scroll">
+          <div className="nav-sheet__list">
+            <NavLink
+              to={withLang("/")}
+              end
+              className={({ isActive }) => cx("nav-sheetLink", "nav-stagger", isActive && "is-active")}
+              style={{ ["--i" as any]: 0 }}
+              onClick={() => {
+                window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                closeMobile();
+              }}
+            >
+              <span className="nav-sheetLink__left">
+                <span className="nav-sheetLink__ico" aria-hidden="true">
+                  <Home size={18} />
+                </span>
+                <span className="nav-sheetLink__label">{t("nav.home")}</span>
+              </span>
+              <span className="nav-sheetLink__chev" aria-hidden="true">
+                →
+              </span>
+            </NavLink>
+
+            {/* About accordion */}
+            <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 1 }}>
+              <button
+                type="button"
+                className={cx("nav-acc__head", mobileAboutOpen && "is-open")}
+                onClick={() => setMobileAboutOpen((v) => !v)}
+                aria-expanded={mobileAboutOpen}
+              >
+                <span className="nav-sheetLink__left">
+                  <span className="nav-sheetLink__ico" aria-hidden="true">
+                    <Info size={18} />
+                  </span>
+                  <span className="nav-sheetLink__label">{t("nav.about")}</span>
+                </span>
+                <span className="nav-acc__chev" aria-hidden="true">
+                  <ChevronDown size={16} />
+                </span>
+              </button>
+
+              <div className={cx("nav-acc__panel", mobileAboutOpen && "is-open")} aria-hidden={!mobileAboutOpen}>
+                {ABOUT_LINKS.map((s) => (
+                  <NavLink
+                    key={s.to}
+                    to={withLang(s.to)}
+                    className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                    onClick={() => closeMobile()}
+                  >
+                    <span className="nav-acc__bullet" aria-hidden="true" />
+                    <span className="nav-acc__text">{s.label}</span>
+                    <span className="nav-acc__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            {/* Services accordion */}
+            <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 2 }}>
+              <button
+                type="button"
+                className={cx("nav-acc__head", mobileSvcOpen && "is-open")}
+                onClick={() => setMobileSvcOpen((v) => !v)}
+                aria-expanded={mobileSvcOpen}
+              >
+                <span className="nav-sheetLink__left">
+                  <span className="nav-sheetLink__ico" aria-hidden="true">
+                    <Sparkles size={18} />
+                  </span>
+                  <span className="nav-sheetLink__label">{t("nav.services")}</span>
+                </span>
+                <span className="nav-acc__chev" aria-hidden="true">
+                  <ChevronDown size={16} />
+                </span>
+              </button>
+
+              <div className={cx("nav-acc__panel", mobileSvcOpen && "is-open")} aria-hidden={!mobileSvcOpen}>
+                {SERVICES.map((s) => (
+                  <NavLink
+                    key={s.id}
+                    to={withLang(s.to)}
+                    className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                    onClick={() => closeMobile()}
+                  >
+                    <span className="nav-acc__bullet" aria-hidden="true" />
+                    <span className="nav-acc__text">{s.label}</span>
+                    <span className="nav-acc__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            {/* Use Cases accordion */}
+            <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 3 }}>
+              <button
+                type="button"
+                className={cx("nav-acc__head", mobileUcOpen && "is-open")}
+                onClick={() => setMobileUcOpen((v) => !v)}
+                aria-expanded={mobileUcOpen}
+              >
+                <span className="nav-sheetLink__left">
+                  <span className="nav-sheetLink__ico" aria-hidden="true">
+                    <Layers size={18} />
+                  </span>
+                  <span className="nav-sheetLink__label">{t("nav.useCases")}</span>
+                </span>
+                <span className="nav-acc__chev" aria-hidden="true">
+                  <ChevronDown size={16} />
+                </span>
+              </button>
+
+              <div className={cx("nav-acc__panel", mobileUcOpen && "is-open")} aria-hidden={!mobileUcOpen}>
+                <NavLink
+                  to={withLang("/use-cases")}
+                  className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                  onClick={() => closeMobile()}
+                >
+                  <span className="nav-acc__bullet" aria-hidden="true" />
+                  <span className="nav-acc__text">All Use Cases</span>
+                  <span className="nav-acc__arrow" aria-hidden="true">
+                    →
+                  </span>
+                </NavLink>
+
+                {/* show same 6 services under UseCases on mobile */}
+                {SERVICES.map((s) => (
+                  <NavLink
+                    key={s.id}
+                    to={withLang(s.to)}
+                    className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                    onClick={() => closeMobile()}
+                  >
+                    <span className="nav-acc__bullet" aria-hidden="true" />
+                    <span className="nav-acc__text">{s.label}</span>
+                    <span className="nav-acc__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            {/* Resources accordion */}
+            <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 4 }}>
+              <button
+                type="button"
+                className={cx("nav-acc__head", mobileResOpen && "is-open")}
+                onClick={() => setMobileResOpen((v) => !v)}
+                aria-expanded={mobileResOpen}
+              >
+                <span className="nav-sheetLink__left">
+                  <span className="nav-sheetLink__ico" aria-hidden="true">
+                    <BookOpen size={18} />
+                  </span>
+                  <span className="nav-sheetLink__label">Resources</span>
+                </span>
+                <span className="nav-acc__chev" aria-hidden="true">
+                  <ChevronDown size={16} />
+                </span>
+              </button>
+
+              <div className={cx("nav-acc__panel", mobileResOpen && "is-open")} aria-hidden={!mobileResOpen}>
+                {RES_LINKS.map((s) => (
+                  <NavLink
+                    key={s.to}
+                    to={withLang(s.to)}
+                    className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                    onClick={() => closeMobile()}
+                  >
+                    <span className="nav-acc__bullet" aria-hidden="true" />
+                    <span className="nav-acc__text">{s.label}</span>
+                    <span className="nav-acc__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            {/* Blog */}
+            <NavLink
+              to={withLang("/blog")}
+              className={cx("nav-sheetLink", "nav-stagger")}
+              style={{ ["--i" as any]: 5 }}
+              onClick={() => {
+                window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                closeMobile();
+              }}
+            >
+              <span className="nav-sheetLink__left">
+                <span className="nav-sheetLink__ico" aria-hidden="true">
+                  <BookOpen size={18} />
+                </span>
+                <span className="nav-sheetLink__label">{t("nav.blog")}</span>
+              </span>
+              <span className="nav-sheetLink__chev" aria-hidden="true">
+                →
+              </span>
+            </NavLink>
+
+            {/* Contact */}
+            <NavLink
+              to={withLang("/contact")}
+              className={cx("nav-sheetLink", "nav-sheetLink--contact", "nav-stagger")}
+              style={{ ["--i" as any]: 6 }}
+              onClick={() => {
+                window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                closeMobile();
+              }}
+            >
+              <span className="nav-sheetLink__left">
+                <span className="nav-sheetLink__ico" aria-hidden="true">
+                  <PhoneCall size={18} />
+                </span>
+                <span className="nav-sheetLink__label">{t("nav.contact")}</span>
+              </span>
+              <span className="nav-sheetLink__chev" aria-hidden="true">
+                →
+              </span>
+            </NavLink>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const aboutOpen = openMenu === "about";
   const svcOpen = openMenu === "services";
   const ucOpen = openMenu === "usecases";
   const resOpen = openMenu === "resources";
 
-  // ===== Mobile Overlay (kept premium + scrollable) =====
-  const MobileOverlay = (
-    <div className={cx("mnav", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
-      <button className="mnav__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
-
-      <div id={useId()} className={cx("mnav__sheet", softOpen && "is-open")} role="dialog" aria-modal="true">
-        <div className="mnav__bg" aria-hidden="true" />
-        <div className="mnav__head">
-          <Link
-            to={`/${lang}`}
-            className="mnav__brand"
-            onClick={() => {
-              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-              closeMobile();
-            }}
-          >
-            <span className="mnav__brandDot" aria-hidden="true" />
-            <span className="mnav__brandTxt">NEOX</span>
-          </Link>
-
-          <button className="mnav__close" type="button" aria-label="Bağla" onClick={closeMobile}>
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="mnav__body">
-          <NavLink
-            to={withLang("/")}
-            end
-            className={({ isActive }) => cx("mnavLink", isActive && "is-active")}
-            onClick={() => {
-              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-              closeMobile();
-            }}
-          >
-            <span className="mnavLink__left">
-              <span className="mnavLink__ico" aria-hidden="true">
-                <Home size={18} />
-              </span>
-              <span className="mnavLink__label">{t("nav.home")}</span>
-            </span>
-          </NavLink>
-
-          <div className={cx("macc", mobileSvcOpen && "is-open")}>
-            <button
-              type="button"
-              className="macc__head"
-              onClick={() => setMobileSvcOpen((v) => !v)}
-              aria-expanded={mobileSvcOpen}
-            >
-              <span className="mnavLink__left">
-                <span className="mnavLink__ico" aria-hidden="true">
-                  <Sparkles size={18} />
-                </span>
-                <span className="mnavLink__label">{t("nav.services")}</span>
-              </span>
-              <span className="macc__chev" aria-hidden="true">
-                <ChevronDown size={18} />
-              </span>
-            </button>
-            <div className="macc__panel" aria-hidden={!mobileSvcOpen}>
-              {SERVICES.map((s) => (
-                <NavLink
-                  key={s.id}
-                  to={withLang(s.to)}
-                  className={({ isActive }) => cx("macc__item", isActive && "is-active")}
-                  onClick={() => closeMobile()}
-                >
-                  <span className="macc__dot" aria-hidden="true" />
-                  <span className="macc__text">{s.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
-          <div className={cx("macc", mobileUcOpen && "is-open")}>
-            <button
-              type="button"
-              className="macc__head"
-              onClick={() => setMobileUcOpen((v) => !v)}
-              aria-expanded={mobileUcOpen}
-            >
-              <span className="mnavLink__left">
-                <span className="mnavLink__ico" aria-hidden="true">
-                  <Layers size={18} />
-                </span>
-                <span className="mnavLink__label">{t("nav.useCases")}</span>
-              </span>
-              <span className="macc__chev" aria-hidden="true">
-                <ChevronDown size={18} />
-              </span>
-            </button>
-            <div className="macc__panel" aria-hidden={!mobileUcOpen}>
-              <NavLink to={withLang("/use-cases")} className="macc__item" onClick={() => closeMobile()}>
-                <span className="macc__dot" aria-hidden="true" />
-                <span className="macc__text">All Use Cases</span>
-              </NavLink>
-              {/* keep simple on mobile (hologram is desktop hover) */}
-              {SERVICES.map((s) => (
-                <NavLink
-                  key={`uc-m-${s.id}`}
-                  to={withLang("/use-cases")}
-                  className="macc__item"
-                  onClick={() => closeMobile()}
-                >
-                  <span className="macc__dot" aria-hidden="true" />
-                  <span className="macc__text">{s.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
-          <div className={cx("macc", mobileAboutOpen && "is-open")}>
-            <button
-              type="button"
-              className="macc__head"
-              onClick={() => setMobileAboutOpen((v) => !v)}
-              aria-expanded={mobileAboutOpen}
-            >
-              <span className="mnavLink__left">
-                <span className="mnavLink__ico" aria-hidden="true">
-                  <Info size={18} />
-                </span>
-                <span className="mnavLink__label">{t("nav.about")}</span>
-              </span>
-              <span className="macc__chev" aria-hidden="true">
-                <ChevronDown size={18} />
-              </span>
-            </button>
-            <div className="macc__panel" aria-hidden={!mobileAboutOpen}>
-              {ABOUT_LINKS.map((s) => (
-                <NavLink key={s.to} to={withLang(s.to)} className="macc__item" onClick={() => closeMobile()}>
-                  <span className="macc__dot" aria-hidden="true" />
-                  <span className="macc__text">{s.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
-          <div className={cx("macc", mobileResOpen && "is-open")}>
-            <button
-              type="button"
-              className="macc__head"
-              onClick={() => setMobileResOpen((v) => !v)}
-              aria-expanded={mobileResOpen}
-            >
-              <span className="mnavLink__left">
-                <span className="mnavLink__ico" aria-hidden="true">
-                  <BookOpen size={18} />
-                </span>
-                <span className="mnavLink__label">Resources</span>
-              </span>
-              <span className="macc__chev" aria-hidden="true">
-                <ChevronDown size={18} />
-              </span>
-            </button>
-            <div className="macc__panel" aria-hidden={!mobileResOpen}>
-              {RES_LINKS.map((s) => (
-                <NavLink key={s.to} to={withLang(s.to)} className="macc__item" onClick={() => closeMobile()}>
-                  <span className="macc__dot" aria-hidden="true" />
-                  <span className="macc__text">{s.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
-          <NavLink
-            to={withLang("/blog")}
-            className={({ isActive }) => cx("mnavLink", isActive && "is-active")}
-            onClick={() => {
-              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-              closeMobile();
-            }}
-          >
-            <span className="mnavLink__left">
-              <span className="mnavLink__ico" aria-hidden="true">
-                <BookOpen size={18} />
-              </span>
-              <span className="mnavLink__label">{t("nav.blog")}</span>
-            </span>
-          </NavLink>
-
-          <NavLink
-            to={withLang("/contact")}
-            className={({ isActive }) => cx("mnavLink", "mnavLink--cta", isActive && "is-active")}
-            onClick={() => {
-              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-              closeMobile();
-            }}
-          >
-            <span className="mnavLink__left">
-              <span className="mnavLink__ico" aria-hidden="true">
-                <PhoneCall size={18} />
-              </span>
-              <span className="mnavLink__label">{t("nav.contact")}</span>
-            </span>
-          </NavLink>
-
-          <div className="mnavLangRow" data-wg-notranslate>
-            {LANGS.map((code) => (
-              <button
-                key={code}
-                type="button"
-                className={cx("mnavLang", code === lang && "is-active")}
-                onClick={() => switchLang(code)}
-              >
-                {code.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
+  // ✅ (desktop) lightweight dropdown row content
+  const DesktopDropShell = ({
+    title,
+    children,
+    className,
+  }: {
+    title: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <div className={cx("dropShell", className)}>
+      <div className="dropShell__bar">
+        <div className="dropShell__title">{title}</div>
+        <div className="dropShell__hint">hover → expand</div>
       </div>
+      <div className="dropShell__body">{children}</div>
     </div>
   );
 
@@ -710,25 +812,33 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
+      {/* ✅ FULL CSS INJECT — premium, no purple, no “block-in-block” mega */}
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        .site-header, .site-header *{
-          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
+        /* ===== tokens (NO purple) ===== */
+        .site-header{
+          --c: rgba(47,184,255,1);
+          --c2: rgba(63,227,196,1);
+          --bg0: rgba(10,12,18,0.02);
+          --bg1: rgba(10,12,18,0.86);
+          --stroke: rgba(255,255,255,0.08);
+          --stroke2: rgba(255,255,255,0.12);
+          --ink: rgba(255,255,255,0.92);
+          --muted: rgba(255,255,255,0.68);
+          --muted2: rgba(255,255,255,0.54);
         }
 
         .site-header{
           position: sticky; top: 0; z-index: 1100; width: 100%;
           transform: translateZ(0);
           will-change: backdrop-filter, background-color, border-color;
-          background: rgba(10, 12, 18, 0.02);
+          background: var(--bg0);
           border-bottom: 1px solid rgba(255,255,255,0.04);
           transition: background-color .18s ease, border-color .18s ease;
         }
         .site-header.is-scrolled{
-          background: rgba(10, 12, 18, calc(0.08 + 0.26 * var(--hdrp)));
+          background: rgba(10, 12, 18, calc(0.06 + 0.26 * var(--hdrp)));
           border-bottom-color: rgba(255,255,255, calc(0.06 + 0.06 * var(--hdrp)));
           -webkit-backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.18);
           backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.18);
@@ -736,8 +846,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .site-header.is-open{
           background: rgba(10, 12, 18, 0.92);
           border-bottom-color: rgba(255,255,255,0.10);
-          -webkit-backdrop-filter: blur(18px) saturate(1.30);
-          backdrop-filter: blur(18px) saturate(1.30);
+          -webkit-backdrop-filter: blur(18px) saturate(1.25);
+          backdrop-filter: blur(18px) saturate(1.25);
         }
 
         .container{ max-width: 1180px; margin: 0 auto; padding: 0 18px; }
@@ -750,273 +860,314 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .brand-link{ display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
         .headerBrand{ position: relative; display:flex; align-items:center; }
         .headerBrand__aura{
-          position:absolute; inset:-10px -16px;
+          position:absolute; inset:-12px -18px;
           background:
-            radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.18), transparent 60%),
-            radial-gradient(120px 44px at 72% 40%, rgba(47,184,255,.10), transparent 62%);
-          filter: blur(11px); opacity: .75; pointer-events:none;
+            radial-gradient(140px 52px at 22% 60%, rgba(47,184,255,.16), transparent 60%),
+            radial-gradient(120px 48px at 70% 40%, rgba(63,227,196,.10), transparent 62%);
+          filter: blur(12px); opacity: .72; pointer-events:none;
         }
 
+        /* ===== desktop nav buttons (premium type) ===== */
         .nav-link{
+          position: relative;
           display: inline-flex; align-items: center; justify-content: center;
           height: 40px; padding: 0 12px; border-radius: 999px;
-          text-decoration: none; color: rgba(255,255,255,.72);
-          font-weight: 760; font-size: 13px; letter-spacing: .01em;
+          text-decoration: none; color: rgba(255,255,255,.74);
+          font-weight: 750; font-size: 13px; letter-spacing: .02em;
           transition: color .16s ease, background-color .16s ease, transform .16s ease;
-          outline: none;
         }
         .nav-link:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
-        .nav-link.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.08); }
+        .nav-link.is-active{ color: rgba(255,255,255,.96); background: rgba(255,255,255,.09); }
 
         .nav-dd{ position: relative; display:inline-flex; }
         .nav-dd__btn{
-          display:inline-flex; align-items:center; gap: 8px;
+          position: relative; display:inline-flex; align-items:center; gap: 8px;
           height: 40px; padding: 0 12px; border-radius: 999px;
-          color: rgba(255,255,255,.72); background: transparent; border: 0;
-          cursor: pointer; font: inherit; font-weight: 780; letter-spacing: .01em;
+          color: rgba(255,255,255,.74); background: transparent; border: 0;
+          cursor: pointer;
+          font: inherit;
+          font-weight: 780;
+          letter-spacing: .02em;
           transition: color .16s ease, background-color .16s ease;
-          outline: none;
         }
         .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
-        .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.08); }
-        .nav-dd__chev{ opacity: .75; transition: transform .14s ease; }
+        .nav-dd__btn.is-active{ color: rgba(255,255,255,.96); background: rgba(255,255,255,.09); }
+
+        .nav-dd__chev{
+          opacity: .82;
+          transition: transform .16s ease;
+        }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
+        /* ===== compact futuristic dropdown shell (NOT block-in-block) ===== */
         .nav-dd__panel{
-          position:absolute; top: calc(100% + 10px); left: 50%;
+          position:absolute;
+          top: calc(100% + 10px);
+          left: 50%;
           transform: translateX(-50%);
-          width: 392px; border-radius: 18px; padding: 14px;
+          width: 560px;
+          border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.16), transparent 55%),
-            radial-gradient(120% 90% at 82% 10%, rgba(47,184,255,.09), transparent 60%),
-            rgba(10,12,18,.90);
+            radial-gradient(120% 80% at 18% 8%, rgba(47,184,255,.14), transparent 58%),
+            radial-gradient(120% 80% at 82% 10%, rgba(63,227,196,.10), transparent 60%),
+            rgba(10,12,18,.86);
           -webkit-backdrop-filter: blur(18px) saturate(1.22);
           backdrop-filter: blur(18px) saturate(1.22);
-          box-shadow: 0 24px 80px rgba(0,0,0,.66);
+          box-shadow: 0 28px 100px rgba(0,0,0,.70);
           opacity: 0; pointer-events: none;
           transform-origin: top center;
-          transform: translateX(-50%) translateY(-6px) scale(.985);
-          transition: opacity .14s ease, transform .14s ease;
+          transform: translateX(-50%) translateY(-8px) scale(.985);
+          transition: opacity .16s ease, transform .16s ease;
           z-index: 1300;
+          overflow: hidden;
         }
         .nav-dd.is-open .nav-dd__panel{
           opacity: 1; pointer-events: auto;
           transform: translateX(-50%) translateY(0) scale(1);
         }
-        .nav-dd__title{
-          font-size: 11px; letter-spacing: .18em;
-          color: rgba(255,255,255,.55);
-          padding: 2px 6px 10px;
-          font-weight: 900;
-        }
 
-        /* ===== Simple Services panel ONLY (no right side, no flows) ===== */
-        .ddGrid{ display:grid; gap: 8px; }
-        .ddItem{
-          display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
-          padding: 11px 11px; border-radius: 14px;
-          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
-          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+        .dropShell{ padding: 10px; }
+        .dropShell__bar{
+          display:flex; align-items:center; justify-content: space-between;
+          padding: 10px 10px 8px;
         }
-        .ddItem:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.11); transform: translateY(-1px); }
-        .ddItem.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-
-        .ddLeft{ display:flex; align-items:flex-start; gap: 10px; min-width: 0; }
-        .ddDot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
-          margin-top: 6px; flex: 0 0 auto;
-        }
-        .ddLabelWrap{ display:flex; flex-direction:column; min-width: 0; }
-        .ddLabel{ font-weight: 880; font-size: 13px; line-height: 1.15; }
-        .ddHint{
-          margin-top: 4px; font-size: 12px; line-height: 1.25;
-          color: rgba(255,255,255,.56);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          max-width: 260px;
-          font-weight: 600;
-        }
-
-        /* ===== Use Cases: services list + Hologram flows (not a huge panel) ===== */
-        .nav-dd--uc .nav-dd__panel{ width: 860px; border-radius: 20px; padding: 14px; }
-        .ucWrap{
-          display:grid;
-          grid-template-columns: 1fr 1.05fr;
-          gap: 12px;
-          align-items: start;
-        }
-
-        .ucLeft{
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-          overflow: hidden;
-        }
-        .ucLeftHead{
-          padding: 10px 12px;
+        .dropShell__title{
           font-size: 11px;
           letter-spacing: .18em;
-          color: rgba(255,255,255,.60);
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.02);
+          color: rgba(255,255,255,.66);
           font-weight: 900;
         }
-        .ucList{ display:grid; gap: 2px; padding: 6px; }
-        .ucSvc{
-          width: 100%;
-          text-align: left;
-          border: 0;
-          cursor: pointer;
-          border-radius: 14px;
-          padding: 10px 10px;
-          background: transparent;
-          color: rgba(255,255,255,.90);
-          transition: background-color .18s ease, transform .18s ease;
-          outline: none;
-        }
-        .ucSvc:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
-        .ucSvc.is-active{ background: rgba(47,184,255,.11); }
-        .ucSvc__label{ display:block; font-weight: 900; font-size: 13px; letter-spacing: .01em; }
-        .ucSvc__hint{ display:block; margin-top: 3px; font-size: 12px; color: rgba(255,255,255,.56); font-weight: 600; }
-
-        /* Hologram area (minimal, not “big terminal”) */
-        .ucHolo{
-          position: relative;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
-          background:
-            radial-gradient(120% 90% at 20% 0%, rgba(47,184,255,.14), transparent 55%),
-            radial-gradient(120% 90% at 85% 0%, rgba(47,184,255,.08), transparent 60%),
-            rgba(0,0,0,.18);
-          overflow: hidden;
-        }
-
-        .ucHoloTop{
-          padding: 10px 12px;
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.02);
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          gap: 10px;
-        }
-        .ucHoloTitle{
+        .dropShell__hint{
           font-size: 11px;
-          letter-spacing: .16em;
-          font-weight: 920;
-          color: rgba(255,255,255,.72);
-          text-transform: uppercase;
+          color: rgba(255,255,255,.50);
+          font-weight: 700;
+          letter-spacing: .02em;
+        }
+        .dropShell__body{
+          padding: 2px 4px 6px;
+          display: grid;
+          gap: 8px;
+        }
+
+        /* ===== list items (no harsh underline, no right-arrow lines) ===== */
+        .dropItem{
+          position: relative;
+          display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
+          padding: 12px 12px;
+          border-radius: 14px;
+          text-decoration:none;
+          border: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.04);
+          color: rgba(255,255,255,.86);
+          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+        }
+        .dropItem:hover{
+          background: rgba(255,255,255,.06);
+          border-color: rgba(255,255,255,.10);
+          transform: translateY(-1px);
+        }
+        .dropItem.is-active{
+          background: rgba(47,184,255,.10);
+          border-color: rgba(47,184,255,.22);
+        }
+
+        .dropItem__left{ display:flex; align-items:flex-start; gap: 10px; min-width: 0; }
+        .dropDot{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.82));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.10);
+          margin-top: 6px;
+          flex: 0 0 auto;
+        }
+        .dropItem__labelWrap{ display:flex; flex-direction:column; min-width: 0; }
+        .dropItem__label{
+          font-weight: 850;
+          font-size: 13px;
+          line-height: 1.14;
+          letter-spacing: .01em;
+        }
+        .dropItem__hint{
+          margin-top: 4px;
+          font-size: 12px;
+          line-height: 1.25;
+          color: rgba(255,255,255,.58);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          max-width: 420px;
+        }
+
+        /* arrow: DOWN on hover (as you asked) */
+        .dropItem__chev{
+          opacity: .75;
+          transform: rotate(-90deg);
+          transition: transform .18s ease, opacity .18s ease;
+          margin-top: 2px;
+          flex: 0 0 auto;
+        }
+        .dropItem:hover .dropItem__chev{
+          transform: rotate(0deg);
+          opacity: .92;
+        }
+
+        /* ===== Services dropdown (ONLY list) ===== */
+        .panel--services .dropShell__body{ gap: 8px; }
+
+        /* ===== UseCases dropdown: list + hologram stream (NOT big blocks) ===== */
+        .nav-dd--usecases .nav-dd__panel{ width: 720px; }
+        .ucWrap{
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          padding: 8px 10px 12px;
+        }
+        .ucList{
+          display:grid;
+          gap: 8px;
+          align-content: start;
+        }
+
+        /* right side: hologram stream (minimal, glassy) */
+        .ucHolo{
+          position: relative;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.08);
+          background:
+            radial-gradient(120% 90% at 25% 10%, rgba(47,184,255,.16), transparent 58%),
+            radial-gradient(120% 90% at 80% 0%, rgba(63,227,196,.10), transparent 60%),
+            rgba(255,255,255,.03);
+          overflow: hidden;
+          padding: 12px 12px 10px;
+          min-height: 168px;
+          transform: translateZ(0);
+        }
+        .ucHoloTop{
+          display:flex; align-items:center; justify-content: space-between;
+          padding-bottom: 8px;
+        }
+        .ucHoloTitle{
+          font-size: 11px;
+          letter-spacing: .18em;
+          font-weight: 900;
+          color: rgba(255,255,255,.64);
         }
         .ucHoloSub{
           font-size: 11px;
-          color: rgba(255,255,255,.52);
           font-weight: 700;
-          white-space: nowrap;
+          color: rgba(255,255,255,.48);
+          letter-spacing: .02em;
         }
 
-        .ucHoloBody{
-          padding: 10px 12px 12px;
-        }
-
-        .holoStage{
+        .ucStream{
           position: relative;
+          margin-top: 10px;
           border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
+          border: 1px solid rgba(255,255,255,.06);
+          background: rgba(0,0,0,.20);
           overflow: hidden;
-          padding: 12px 12px;
-          min-height: 120px;
+          padding: 12px 8px;
         }
-
-        /* Soft hologram beams */
-        .holoBeam{
+        .ucScan{
           position:absolute;
-          inset: -40% -20%;
+          inset:-40px -20px;
           background:
-            radial-gradient(60% 40% at 30% 30%, rgba(47,184,255,.18), transparent 58%),
-            radial-gradient(60% 40% at 70% 70%, rgba(47,184,255,.12), transparent 62%),
-            linear-gradient(180deg, rgba(255,255,255,.06), transparent 40%, rgba(255,255,255,.04));
-          filter: blur(10px);
-          opacity: .55;
+            linear-gradient(90deg, transparent 0%, rgba(47,184,255,.12) 20%, transparent 40%, transparent 100%);
+          transform: translateX(-30%);
+          opacity: .75;
+          filter: blur(1px);
           pointer-events:none;
-          transform: rotate(-6deg);
-          mix-blend-mode: screen;
+          animation: ucScan 8.2s linear infinite;
+        }
+        @keyframes ucScan{
+          0%{ transform: translateX(-45%); }
+          100%{ transform: translateX(45%); }
         }
 
-        /* Flow marquee (very slow + soft) */
-        .holoRow{
-          position: relative;
+        /* pills row – duplicated for seamless slow scroll */
+        .ucMarquee{
           display:flex;
-          align-items:center;
           gap: 10px;
           width: max-content;
-          will-change: transform, opacity;
-          animation: holoMarquee 36s linear infinite;
-          padding-right: 22px;
+          align-items: center;
+          animation: ucMarq 14s linear infinite;
+          will-change: transform;
         }
-        .holoRow.is-static{ animation: none; flex-wrap: wrap; width: 100%; }
-
-        @keyframes holoMarquee{
-          from{ transform: translateX(10px); }
-          to{ transform: translateX(-33.333%); }
-        }
-
-        .holoFadeSwap{
-          animation: holoSwap .42s ease both;
-        }
-        @keyframes holoSwap{
-          from{ opacity: 0; transform: translateY(4px); }
-          to{ opacity: 1; transform: translateY(0); }
+        .ucMarquee.is-reduced{ animation: none; }
+        @keyframes ucMarq{
+          0%{ transform: translateX(12%); }
+          100%{ transform: translateX(-52%); }
         }
 
-        .holoPill{
+        .ucPill{
           display:inline-flex;
           align-items:center;
           gap: 8px;
+          text-decoration:none;
           padding: 10px 12px;
           border-radius: 999px;
-          text-decoration:none;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
-          color: rgba(255,255,255,.90);
+            radial-gradient(120% 120% at 20% 20%, rgba(47,184,255,.16), transparent 60%),
+            rgba(255,255,255,.05);
+          color: rgba(255,255,255,.88);
           font-weight: 820;
           font-size: 12px;
           letter-spacing: .01em;
+          transition: transform .16s ease, border-color .16s ease, background-color .16s ease;
           white-space: nowrap;
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease, filter .16s ease;
         }
-        .holoPill:hover{
+        .ucPill:hover{
           transform: translateY(-1px);
-          border-color: rgba(47,184,255,.24);
+          border-color: rgba(47,184,255,.26);
           background:
-            radial-gradient(120% 140% at 25% 10%, rgba(47,184,255,.14), transparent 60%),
-            linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-          filter: drop-shadow(0 10px 22px rgba(0,0,0,.45));
+            radial-gradient(120% 120% at 20% 20%, rgba(47,184,255,.22), transparent 60%),
+            rgba(255,255,255,.06);
         }
-        .holoDot{
+        .ucPillDot{
           width: 7px; height: 7px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.90));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(63,227,196,.85));
+          box-shadow: 0 0 0 4px rgba(63,227,196,.10);
           flex: 0 0 auto;
         }
 
+        /* subtle fade edges for hologram stream */
+        .ucFadeL, .ucFadeR{
+          position:absolute; top:0; bottom:0; width: 42px; pointer-events:none;
+        }
+        .ucFadeL{ left:0; background: linear-gradient(90deg, rgba(10,12,18,.88), transparent); }
+        .ucFadeR{ right:0; background: linear-gradient(270deg, rgba(10,12,18,.88), transparent); }
+
+        .ucFoot{
+          margin-top: 10px;
+          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+          color: rgba(255,255,255,.58);
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .ucOpenAll{
+          text-decoration:none;
+          color: rgba(255,255,255,.88);
+          font-weight: 850;
+          padding: 8px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
+          white-space: nowrap;
+        }
+        .ucOpenAll:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
+
+        /* ===== CTA + toggle ===== */
         .nav-cta{
           display:inline-flex; align-items:center; justify-content:center;
           height: 38px; padding: 0 14px; border-radius: 999px; text-decoration:none;
-          font-weight: 860; font-size: 13px; color: rgba(255,255,255,.92);
+          font-weight: 850; font-size: 13px; color: rgba(255,255,255,.92);
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.24), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
             rgba(255,255,255,.06);
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
         }
         .nav-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .nav-cta--desktopOnly{ display:inline-flex; }
@@ -1028,12 +1179,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           display:none; align-items:center; justify-content:center;
           flex-direction: column; gap: 5px;
           cursor: pointer;
-          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
         }
         .nav-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
-        .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
+        .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.90); opacity: .9; }
 
-        /* Lang menu (cyan) */
+        /* ===== Lang ===== */
         .langMenu{ position: relative; }
         .langMenu__btn{
           display:inline-flex; align-items:center; gap: 8px;
@@ -1041,15 +1192,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
           color: rgba(255,255,255,.88);
-          font-weight: 860; font-size: 12px;
+          font-weight: 850; font-size: 12px;
           cursor: pointer;
-          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
         }
         .langMenu__btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .langMenu__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(47,184,255,.92));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(47,184,255,.90));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.10);
         }
         .langMenu__code{ letter-spacing: .08em; }
         .langMenu__chev{ opacity: .75; }
@@ -1059,12 +1210,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           width: 210px; border-radius: 16px; padding: 10px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(10,12,18,.92);
-          -webkit-backdrop-filter: blur(18px) saturate(1.2);
-          backdrop-filter: blur(18px) saturate(1.2);
+          -webkit-backdrop-filter: blur(18px) saturate(1.18);
+          backdrop-filter: blur(18px) saturate(1.18);
           box-shadow: 0 24px 80px rgba(0,0,0,.65);
           opacity: 0; pointer-events: none;
-          transform: translateY(-6px) scale(.98);
-          transition: opacity .14s ease, transform .14s ease;
+          transform: translateY(-6px) scale(.985);
+          transition: opacity .16s ease, transform .16s ease;
           z-index: 1500;
         }
         .langMenu.is-open .langMenu__panel{
@@ -1081,172 +1232,166 @@ export default function Header({ introReady }: { introReady: boolean }) {
           padding: 10px 10px;
           border-radius: 12px;
           cursor: pointer;
-          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
         }
         .langMenu__item + .langMenu__item{ margin-top: 8px; }
         .langMenu__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .langMenu__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.24); }
+        .langMenu__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.22); }
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
-        .langMenu__itemName{ opacity: .85; font-weight: 700; }
+        .langMenu__itemName{ opacity: .86; font-weight: 750; }
 
-        /* ===== Mobile overlay ===== */
-        .mnav{ position: fixed; inset: 0; z-index: 2200; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
-        .mnav.is-mounted{ display:block; }
-        .mnav.is-open{ opacity: 1; pointer-events: auto; }
-        .mnav__backdrop{
+        /* ===== Mobile overlay (root changes: scroll works) ===== */
+        .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+        .nav-overlay.is-mounted{ display:block; }
+        .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
+        .nav-overlay__backdrop{
           position:absolute; inset:0; border:0;
-          background: rgba(0,0,0,.52);
+          background: rgba(0,0,0,.48);
           -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
           cursor: pointer;
         }
-        .mnav__sheet{
-          position:absolute; inset: 10px 10px auto 10px;
+
+        .nav-sheet{
+          position:absolute; top: 10px; right: 10px; left: 10px;
           max-width: 560px; margin-left: auto;
           border-radius: 22px; border: 1px solid rgba(255,255,255,.10);
           overflow: hidden;
           transform: translateY(-10px) scale(.985);
           opacity: 0;
           transition: transform .16s ease, opacity .16s ease;
+          max-height: calc(100dvh - 20px);
+          display:flex;
+          flex-direction: column;
         }
-        .mnav__sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
-        .mnav__bg{
+        .nav-sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
+
+        .nav-sheet__bg{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 20% 0%, rgba(47,184,255,.18), transparent 55%),
-            radial-gradient(120% 90% at 90% 0%, rgba(47,184,255,.10), transparent 60%),
+            radial-gradient(120% 90% at 18% 0%, rgba(47,184,255,.16), transparent 58%),
+            radial-gradient(120% 90% at 82% 0%, rgba(63,227,196,.12), transparent 60%),
             rgba(10,12,18,.94);
-          -webkit-backdrop-filter: blur(18px) saturate(1.25);
-          backdrop-filter: blur(18px) saturate(1.25);
+          -webkit-backdrop-filter: blur(18px) saturate(1.20);
+          backdrop-filter: blur(18px) saturate(1.20);
         }
-        .mnav__head{
-          position: relative; z-index: 2;
-          display:flex; align-items:center; justify-content: space-between;
-          padding: calc(12px + env(safe-area-inset-top)) 12px 10px;
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.02);
+        .nav-sheet__noise{
+          position:absolute; inset:0;
+          opacity: .06;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+          background-size: 160px 160px;
+          pointer-events:none;
+          mix-blend-mode: overlay;
         }
-        .mnav__brand{
-          display:inline-flex; align-items:center; gap: 10px;
-          text-decoration:none; color: rgba(255,255,255,.92);
-          font-weight: 920; letter-spacing: .12em; font-size: 12px;
-        }
-        .mnav__brandDot{
+
+        .nav-sheet__head{ position: relative; z-index: 2; display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; }
+        .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
+        .nav-sheet__dot{
           width: 10px; height: 10px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
           box-shadow: 0 0 0 4px rgba(47,184,255,.10);
         }
-        .mnav__brandTxt{ opacity: .92; }
-        .mnav__close{
-          width: 42px; height: 40px; border-radius: 14px;
+        .nav-sheet__title{ font-weight: 950; letter-spacing: .18em; font-size: 11px; color: rgba(255,255,255,.72); }
+        .nav-sheet__close{
+          width: 40px; height: 38px; border-radius: 12px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
           color: rgba(255,255,255,.90);
           display:flex; align-items:center; justify-content:center;
           cursor: pointer;
-          transition: transform .14s ease, background-color .14s ease;
+          transition: transform .16s ease, background-color .16s ease;
         }
-        .mnav__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
-        .mnav__body{
-          position: relative; z-index: 2;
-          padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
-          display:grid; gap: 10px;
-          max-height: calc(100dvh - 24px - 70px);
+        .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
+
+        .nav-sheet__scroll{
+          position: relative;
+          z-index: 2;
           overflow: auto;
           -webkit-overflow-scrolling: touch;
+          padding: 0 0 12px;
         }
-        .mnavLink{
-          display:flex; align-items:center; justify-content: space-between;
-          padding: 12px 12px;
-          border-radius: 16px;
-          text-decoration:none;
-          border: 1px solid rgba(255,255,255,.08);
+
+        .nav-sheet__list{ padding: 8px 14px 0; display:grid; gap: 10px; }
+
+        .nav-stagger{ transform: translateY(6px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
+        @keyframes navIn{ to{ transform: translateY(0); opacity: 1; } }
+
+        .nav-sheetLink{
+          display:flex; align-items:center; justify-content: space-between; gap: 12px;
+          padding: 12px 12px; border-radius: 16px;
+          text-decoration:none; border: 1px solid rgba(255,255,255,.08);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.90);
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          color: rgba(255,255,255,.86);
+          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
         }
-        .mnavLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
-        .mnavLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-        .mnavLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
-        .mnavLink__ico{
-          width: 34px; height: 34px;
+        .nav-sheetLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
+        .nav-sheetLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
+        .nav-sheetLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
+        .nav-sheetLink__ico{
+          width: 32px; height: 32px;
           display:flex; align-items:center; justify-content:center;
-          border-radius: 14px;
+          border-radius: 12px;
           background: rgba(255,255,255,.05);
           border: 1px solid rgba(255,255,255,.07);
           flex: 0 0 auto;
         }
-        .mnavLink__label{ font-weight: 860; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .mnavLink--cta{
+        .nav-sheetLink__label{ font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .nav-sheetLink__chev{ opacity: .75; }
+
+        .nav-sheetLink--contact{
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.24), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
             rgba(255,255,255,.05);
           border-color: rgba(255,255,255,.12);
         }
-        .macc{
-          border-radius: 18px; overflow:hidden;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-        }
-        .macc__head{
+
+        .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
+        .nav-acc__head{
           width: 100%;
           border:0; background: transparent;
           display:flex; align-items:center; justify-content: space-between;
           padding: 12px 12px;
-          cursor:pointer; color: rgba(255,255,255,.92);
+          cursor:pointer; color: rgba(255,255,255,.88);
         }
-        .macc__chev{ opacity: .75; transition: transform .16s ease; }
-        .macc.is-open .macc__chev{ transform: rotate(180deg); }
-        .macc__panel{
+        .nav-acc__chev{ opacity: .80; transition: transform .16s ease; }
+        .nav-acc__head.is-open .nav-acc__chev{ transform: rotate(180deg); }
+        .nav-acc__panel{
           display:grid; gap: 8px;
           padding: 0 12px 12px;
           max-height: 0; overflow: hidden;
           transition: max-height .20s ease;
         }
-        .macc.is-open .macc__panel{ max-height: 820px; }
-        .macc__item{
-          display:flex; align-items:center; gap: 10px;
-          padding: 11px 10px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.06);
+        .nav-acc__panel.is-open{ max-height: 900px; }
+        .nav-acc__item{
+          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+          padding: 10px 10px; border-radius: 14px;
+          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.90);
-          text-decoration:none;
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          color: rgba(255,255,255,.84);
+          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
         }
-        .macc__item:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); }
-        .macc__item.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-        .macc__dot{
+        .nav-acc__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
+        .nav-acc__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.22); }
+        .nav-acc__bullet{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.10);
           flex: 0 0 auto;
+          margin-right: 8px;
         }
-        .macc__text{ font-weight: 840; }
+        .nav-acc__text{ font-weight: 850; }
+        .nav-acc__arrow{ opacity: .7; }
 
-        .mnavLangRow{ margin-top: 2px; display:flex; gap: 8px; flex-wrap: wrap; padding: 2px; }
-        .mnavLang{
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
-          border-radius: 999px;
-          padding: 9px 12px;
-          font-weight: 860;
-          letter-spacing: .08em;
-          font-size: 12px;
-          cursor: pointer;
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
-        }
-        .mnavLang:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
-        .mnavLang.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.24); }
-
+        /* ===== responsive ===== */
         @media (max-width: 920px){
           .header-mid{ display:none; }
           .nav-toggle{ display:inline-flex; }
           .nav-cta--desktopOnly{ display:none; }
           .langMenu__btn{ height: 40px; }
         }
-        @media (max-width: 920px){ .nav-dd__panel{ display:none; } }
+        @media (max-width: 920px){
+          .nav-dd__panel{ display:none; }
+        }
         @media (max-width: 520px){
           .container{ padding: 0 14px; }
           .header-right{ gap: 10px; }
@@ -1255,6 +1400,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       `}</style>
 
       <div className="container header-inner header-grid">
+        {/* ✅ logo small on mobile, top-left */}
         <div className="header-left">
           <Link to={`/${lang}`} className="brand-link" aria-label="NEOX" data-wg-notranslate>
             <span className="headerBrand" aria-hidden="true">
@@ -1275,8 +1421,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   objectFit: "contain",
                   display: "block",
                   userSelect: "none",
-                  filter:
-                    "drop-shadow(0 8px 18px rgba(0,0,0,.50)) drop-shadow(0 0 10px rgba(47,184,255,.08))",
+                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 12px rgba(47,184,255,.08))",
                   transform: "translateZ(0)",
                 }}
               />
@@ -1284,10 +1429,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </Link>
         </div>
 
-        {/* Desktop nav */}
+        {/* ===== Desktop Nav ===== */}
         <nav className="header-mid" aria-label="Əsas menyu">
-          <NavLink to={withLang("/")} end className={({ isActive }) => cx("nav-link", isActive && "is-active")}>
-            {t("nav.home")}
+          <NavLink to={withLang("/")} end className={navItem}>
+            <span className="nav-label nav-label--full">{t("nav.home")}</span>
           </NavLink>
 
           {/* ABOUT */}
@@ -1305,37 +1450,39 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "about" ? null : "about"))}
               onFocus={() => openDrop("about")}
             >
-              {t("nav.about")}
+              <span className="nav-label nav-label--full">{t("nav.about")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!aboutOpen}>
-              <div className="nav-dd__title">ABOUT</div>
-              <div className="ddGrid">
+              <DesktopDropShell title="ABOUT">
                 {ABOUT_LINKS.map((s) => (
                   <NavLink
                     key={s.to}
                     to={withLang(s.to)}
-                    className={({ isActive }) => cx("ddItem", isActive && "is-active")}
+                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddLabelWrap">
-                        <span className="ddLabel">{s.label}</span>
-                        <span className="ddHint">{s.hint ?? "About page"}</span>
+                    <span className="dropItem__left">
+                      <span className="dropDot" aria-hidden="true" />
+                      <span className="dropItem__labelWrap">
+                        <span className="dropItem__label">{s.label}</span>
+                        <span className="dropItem__hint">{s.hint ?? ""}</span>
                       </span>
+                    </span>
+                    <span className="dropItem__chev" aria-hidden="true">
+                      <ChevronDown size={16} />
                     </span>
                   </NavLink>
                 ))}
-              </div>
+              </DesktopDropShell>
             </div>
           </div>
 
-          {/* SERVICES (simple panel ONLY) */}
+          {/* SERVICES (only list, no scenarios stream) */}
           <div
             ref={svcRef}
             className={cx("nav-dd", svcOpen && "is-open")}
@@ -1350,44 +1497,43 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "services" ? null : "services"))}
               onFocus={() => openDrop("services")}
             >
-              {t("nav.services")}
+              <span className="nav-label nav-label--full">{t("nav.services")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
             </button>
 
-            <div className="nav-dd__panel" role="menu" aria-hidden={!svcOpen}>
-              <div className="nav-dd__title">SERVICES</div>
-              <div className="ddGrid">
+            <div className={cx("nav-dd__panel", "panel--services")} role="menu" aria-hidden={!svcOpen}>
+              <DesktopDropShell title="SERVICES">
                 {SERVICES.map((s) => (
                   <NavLink
                     key={s.id}
                     to={withLang(s.to)}
-                    className={({ isActive }) => cx("ddItem", isActive && "is-active")}
+                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddLabelWrap">
-                        <span className="ddLabel">{s.label}</span>
-                        <span className="ddHint">{s.hint}</span>
+                    <span className="dropItem__left">
+                      <span className="dropDot" aria-hidden="true" />
+                      <span className="dropItem__labelWrap">
+                        <span className="dropItem__label">{s.label}</span>
+                        <span className="dropItem__hint">{s.hint}</span>
                       </span>
+                    </span>
+                    <span className="dropItem__chev" aria-hidden="true">
+                      <ChevronDown size={16} />
                     </span>
                   </NavLink>
                 ))}
-              </div>
+              </DesktopDropShell>
             </div>
           </div>
 
-          {/* USE CASES (services list + hologram scenarios) */}
+          {/* USE CASES (services list + hologram scenarios stream on hover) */}
           <div
             ref={ucRef}
-            className={cx("nav-dd", "nav-dd--uc", ucOpen && "is-open")}
-            onMouseEnter={() => {
-              openDrop("usecases");
-              if (!ucSvcActive) setUcSvcActive("business-workflows");
-            }}
+            className={cx("nav-dd", "nav-dd--usecases", ucOpen && "is-open")}
+            onMouseEnter={() => openDrop("usecases")}
             onMouseLeave={() => scheduleCloseDrop("usecases")}
           >
             <button
@@ -1398,98 +1544,88 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "usecases" ? null : "usecases"))}
               onFocus={() => openDrop("usecases")}
             >
-              {t("nav.useCases")}
+              <span className="nav-label nav-label--full">{t("nav.useCases")}</span>
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!ucOpen}>
-              <div className="nav-dd__title">USE CASES</div>
-
-              <div className="ucWrap">
-                <div className="ucLeft">
-                  <div className="ucLeftHead">SELECT A SERVICE</div>
-                  <div className="ucList">
-                    {SERVICES.map((s) => {
-                      const active = s.id === ucSvcActive;
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          className={cx("ucSvc", active && "is-active")}
-                          onMouseEnter={() => {
-                            setUcSvcActive(s.id);
-                            bumpUcPhase();
-                          }}
-                          onFocus={() => {
-                            setUcSvcActive(s.id);
-                            bumpUcPhase();
-                          }}
-                          onClick={() => {
-                            // keep click on service simple: open /use-cases (as you said, we'll wire links later)
-                            setOpenMenu(null);
-                            navigate(withLang("/use-cases"));
-                            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-                          }}
-                        >
-                          <span className="ucSvc__label">{s.label}</span>
-                          <span className="ucSvc__hint">{s.hint}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div className="dropShell">
+                <div className="dropShell__bar">
+                  <div className="dropShell__title">USE CASES</div>
+                  <div className="dropShell__hint">hover service → hologram scenarios</div>
                 </div>
 
-                <div className="ucHolo">
-                  <div className="ucHoloTop">
-                    <div className="ucHoloTitle">SCENARIOS</div>
-                    <div className="ucHoloSub">hover → hologram stream</div>
+                <div className="ucWrap">
+                  {/* left: services list */}
+                  <div className="ucList">
+                    {SERVICES.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={cx("dropItem", s.id === ucActiveSvc && "is-active")}
+                        onMouseEnter={() => setUcActiveSvc(s.id)}
+                        onFocus={() => setUcActiveSvc(s.id)}
+                        onClick={() => {
+                          setOpenMenu(null);
+                          navigate(withLang(s.to));
+                          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                        }}
+                        style={{ textAlign: "left", cursor: "pointer" }}
+                      >
+                        <span className="dropItem__left">
+                          <span className="dropDot" aria-hidden="true" />
+                          <span className="dropItem__labelWrap">
+                            <span className="dropItem__label">{s.label}</span>
+                            <span className="dropItem__hint">{s.hint}</span>
+                          </span>
+                        </span>
+                        <span className="dropItem__chev" aria-hidden="true">
+                          <ChevronDown size={16} />
+                        </span>
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="ucHoloBody">
-                    <div className="holoStage">
-                      <div className="holoBeam" aria-hidden="true" />
-                      {/* very slow, soft “hologram” stream */}
-                      <div
-                        className={cx(
-                          "holoRow",
-                          prefersReduced && "is-static",
-                          // key-like phase class for subtle swap
-                          !prefersReduced && "holoFadeSwap"
-                        )}
-                        key={`${ucSvcActive}:${ucFlowPhase}`}
-                        aria-label="Scenario hologram"
-                      >
-                        {(prefersReduced ? activeFlows : [...activeFlows, ...activeFlows, ...activeFlows]).map(
-                          (f, idx) => (
-                            <NavLink
-                              key={`${f.id}-${idx}`}
-                              to={withLang(f.to)}
-                              className="holoPill"
-                              onClick={() => setOpenMenu(null)}
-                            >
-                              <span className="holoDot" aria-hidden="true" />
-                              {f.label}
-                            </NavLink>
-                          )
-                        )}
+                  {/* right: hologram stream */}
+                  <div className="ucHolo" aria-label="Scenarios">
+                    <div className="ucHoloTop">
+                      <div className="ucHoloTitle">SCENARIOS</div>
+                      <div className="ucHoloSub">{SERVICES.find((s) => s.id === ucActiveSvc)?.label ?? "Business Workflows"}</div>
+                    </div>
+
+                    <div className="ucStream">
+                      <div className="ucScan" aria-hidden="true" />
+                      <div className="ucFadeL" aria-hidden="true" />
+                      <div className="ucFadeR" aria-hidden="true" />
+
+                      {/* duplicate pills for seamless scroll */}
+                      <div className={cx("ucMarquee", prefersReduced && "is-reduced")}>
+                        {activeUsecasePills.concat(activeUsecasePills).map((p, idx) => (
+                          <NavLink
+                            key={`${p.id}-${idx}`}
+                            to={withLang(p.to)}
+                            className="ucPill"
+                            onClick={() => setOpenMenu(null)}
+                          >
+                            <span className="ucPillDot" aria-hidden="true" />
+                            <span>{p.label}</span>
+                          </NavLink>
+                        ))}
                       </div>
+                    </div>
+
+                    <div className="ucFoot">
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        Click a scenario → open page
+                      </span>
+                      <NavLink to={withLang("/use-cases")} className="ucOpenAll" onClick={() => setOpenMenu(null)}>
+                        Open {t("nav.useCases")}
+                      </NavLink>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* bottom mini link */}
-              <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-                <NavLink
-                  to={withLang("/use-cases")}
-                  className="nav-cta"
-                  onClick={() => setOpenMenu(null)}
-                  style={{ height: 36, fontSize: 12, padding: "0 12px" }}
-                >
-                  Open {t("nav.useCases")}
-                </NavLink>
               </div>
             </div>
           </div>
@@ -1509,42 +1645,45 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "resources" ? null : "resources"))}
               onFocus={() => openDrop("resources")}
             >
-              Resources
+              <span className="nav-label nav-label--full">Resources</span>
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!resOpen}>
-              <div className="nav-dd__title">RESOURCES</div>
-              <div className="ddGrid">
+              <DesktopDropShell title="RESOURCES">
                 {RES_LINKS.map((s) => (
                   <NavLink
                     key={s.to}
                     to={withLang(s.to)}
-                    className={({ isActive }) => cx("ddItem", isActive && "is-active")}
+                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddLabelWrap">
-                        <span className="ddLabel">{s.label}</span>
-                        <span className="ddHint">{s.hint ?? "Guides, docs, policy"}</span>
+                    <span className="dropItem__left">
+                      <span className="dropDot" aria-hidden="true" />
+                      <span className="dropItem__labelWrap">
+                        <span className="dropItem__label">{s.label}</span>
+                        <span className="dropItem__hint">{s.hint ?? ""}</span>
                       </span>
+                    </span>
+                    <span className="dropItem__chev" aria-hidden="true">
+                      <ChevronDown size={16} />
                     </span>
                   </NavLink>
                 ))}
-              </div>
+              </DesktopDropShell>
             </div>
           </div>
 
           {/* BLOG */}
-          <NavLink to={withLang("/blog")} className={({ isActive }) => cx("nav-link", isActive && "is-active")}>
-            {t("nav.blog")}
+          <NavLink to={withLang("/blog")} className={navItem}>
+            <span className="nav-label nav-label--full">{t("nav.blog")}</span>
           </NavLink>
         </nav>
 
+        {/* ===== Right ===== */}
         <div className="header-right">
           <LangMenu lang={lang} onPick={(c) => switchLang(c)} />
 
