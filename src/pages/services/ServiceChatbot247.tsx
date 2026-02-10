@@ -124,7 +124,7 @@ function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean })
     const step = () => {
       if (!alive) return;
 
-      // ✅ show word -> wait 1s -> animate out -> swap -> animate in
+      // show word -> wait 1s -> animate out -> swap -> animate in
       t1 = window.setTimeout(() => {
         if (!alive) return;
         const el = spanRef.current;
@@ -204,6 +204,7 @@ function ServicePage({
   const T = TINTS[tint];
 
   const vidRef = useRef<HTMLVideoElement | null>(null);
+
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
@@ -216,10 +217,11 @@ function ServicePage({
     };
     tryPlay();
 
-    // ✅ when finished: STAY on last frame (no loop)
+    // ✅ when finished: STAY on last frame (no loop, no rewind)
     const onEnded = () => {
       try {
-        v.pause();
+        v.pause(); // keeps the last rendered frame
+        // DO NOT reset currentTime
       } catch {}
     };
     v.addEventListener("ended", onEnded);
@@ -397,12 +399,10 @@ function ServicePage({
   }, []);
 
   useEffect(() => {
-    // close on route change
     setSvcOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
-    // re-measure when opening
     if (!svcOpen) return;
     requestAnimationFrame(() => {
       measureDD();
@@ -429,7 +429,6 @@ function ServicePage({
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
-        /* reveal */
         [data-reveal]{
           opacity: 0;
           transform: translate3d(0,14px,0);
@@ -441,7 +440,6 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* shimmer */
         :root{ --svcShineDur: 2.95s; }
         .svc-grad{
           background: linear-gradient(
@@ -537,32 +535,45 @@ function ServicePage({
           contain: layout paint style;
           height: 100%;
         }
+
+        /* ✅ video stays INSIDE its card and never “spills” over text */
         .svc-videoWrap{
           position: relative;
           width: 100%;
           height: 100%;
           min-height: 320px;
           border-radius: 22px;
-          overflow:hidden;
+          overflow: hidden;
           transform: translateZ(0);
           backface-visibility:hidden;
+          display: grid;
+          place-items: center;
+          isolation: isolate;
         }
         @media (max-width: 980px){
           .svc-videoWrap{ min-height: 260px; height: 260px; }
         }
+
+        /* ✅ contain: video scales to fit box (no overflow), keeps aspect ratio */
         .svc-video{
-          position:absolute; inset:0;
-          width: 100%; height: 100%;
-          object-fit: cover;
-          display:block;
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: contain;   /* <-- key fix */
+          object-position: center;
           transform: translateZ(0);
+          max-width: 100%;
+          max-height: 100%;
+          background: rgba(0,0,0,.18); /* subtle fill behind letterbox */
         }
+
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
             radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 58%),
-            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.52) 92%);
+            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.42) 92%);
           pointer-events:none;
+          z-index: 2;
         }
 
         .svc-kicker{
@@ -601,7 +612,6 @@ function ServicePage({
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
-        /* pill */
         .svc-pills{ margin-top: 14px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
         .svc-rotPill{
           position: relative;
@@ -639,7 +649,6 @@ function ServicePage({
         .svc-rotText.is-out{ opacity: 0; transform: translate3d(0,8px,0); filter: blur(1px); }
         .svc-rotText.is-in{ opacity: 1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-        /* CTAs */
         .svc-ctaRow{ margin-top: 18px; display:flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
         .svc-cta{
           position: relative;
@@ -698,11 +707,9 @@ function ServicePage({
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ animation:none; }
         }
-
         .svc-ctaBtn{ cursor:pointer; appearance:none; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); }
         .svc-ctaIcon{ opacity:.92; }
 
-        /* BELOW grid */
         .svc-below{
           margin-top: 18px;
           display:grid;
@@ -714,7 +721,6 @@ function ServicePage({
           .svc-below{ grid-template-columns: 1fr; }
         }
 
-        /* dropdown */
         .svc-ddSlot{ position: relative; width: 100%; height: auto; margin-top: 0; }
         .svc-ddFrame{
           position: relative;
@@ -773,7 +779,6 @@ function ServicePage({
         .svc-ddItem.is-on{ opacity: 1; transform: translate3d(0,0,0); }
         .svc-ddItem:hover{ border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.05); }
 
-        /* cards */
         .svc-card{
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.08);
@@ -817,11 +822,11 @@ function ServicePage({
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
-        /* badge */
         .svc-badge{
           position:absolute; top: 12px; left: 12px; right: 12px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
           pointer-events:none;
+          z-index: 3;
         }
         .svc-badgeLeft{
           display:inline-flex; align-items:center; gap: 10px;
@@ -906,7 +911,7 @@ function ServicePage({
                   muted
                   playsInline
                   preload="metadata"
-                  loop={false}
+                  loop={false} // ✅ no loop
                 />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
