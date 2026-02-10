@@ -65,108 +65,48 @@ function langFullName(c: Lang) {
   }
 }
 
-/** 🔥 Bura öz sosial media logo şəkillərini qoy (SVG/PNG). */
-const HOLO_LOGOS: Record<string, string[]> = {
-  // services
-  "chatbot-24-7": [
-    "/image/social/whatsapp.svg",
-    "/image/social/telegram.svg",
-    "/image/social/instagram.svg",
-    "/image/social/facebook.svg",
-    "/image/social/tiktok.svg",
-    "/image/social/youtube.svg",
-  ],
-  "business-workflows": [
-    "/image/social/google.svg",
-    "/image/social/slack.svg",
-    "/image/social/notion.svg",
-    "/image/social/zapier.svg",
-    "/image/social/hubspot.svg",
-    "/image/social/sheets.svg",
-  ],
-  websites: [
-    "/image/social/chrome.svg",
-    "/image/social/react.svg",
-    "/image/social/vercel.svg",
-    "/image/social/netlify.svg",
-    "/image/social/cloudflare.svg",
-    "/image/social/seo.svg",
-  ],
-  "mobile-apps": [
-    "/image/social/apple.svg",
-    "/image/social/android.svg",
-    "/image/social/firebase.svg",
-    "/image/social/stripe.svg",
-    "/image/social/push.svg",
-    "/image/social/api.svg",
-  ],
-  "smm-automation": [
-    "/image/social/instagram.svg",
-    "/image/social/tiktok.svg",
-    "/image/social/facebook.svg",
-    "/image/social/youtube.svg",
-    "/image/social/x.svg",
-    "/image/social/linkedin.svg",
-  ],
-  "technical-support": [
-    "/image/social/status.svg",
-    "/image/social/shield.svg",
-    "/image/social/uptime.svg",
-    "/image/social/logs.svg",
-    "/image/social/alerts.svg",
-    "/image/social/backup.svg",
-  ],
+/** ✅ Sənin əlavə etdiyin 5 ikon (public/social/*) — hələlik yalnız Chatbot 24/7 üçün */
+const CHATBOT_SOCIAL_LOGOS = [
+  "/social/whatsapp.svg",
+  "/social/telegram.svg",
+  "/social/messenger.svg",
+  "/social/instagram.svg",
+  "/social/linkedin.svg",
+];
 
-  // scenarios (use-cases)
-  finance: [
-    "/image/social/shield.svg",
-    "/image/social/kyc.svg",
-    "/image/social/stripe.svg",
-    "/image/social/bank.svg",
-    "/image/social/lock.svg",
-    "/image/social/chart.svg",
-  ],
-  healthcare: [
-    "/image/social/heart.svg",
-    "/image/social/calendar.svg",
-    "/image/social/clinic.svg",
-    "/image/social/phone.svg",
-    "/image/social/shield.svg",
-    "/image/social/chat.svg",
-  ],
-  retail: [
-    "/image/social/cart.svg",
-    "/image/social/box.svg",
-    "/image/social/truck.svg",
-    "/image/social/chat.svg",
-    "/image/social/tag.svg",
-    "/image/social/scan.svg",
-  ],
-  logistics: [
-    "/image/social/truck.svg",
-    "/image/social/map.svg",
-    "/image/social/eta.svg",
-    "/image/social/alert.svg",
-    "/image/social/ticket.svg",
-    "/image/social/route.svg",
-  ],
-  hotels: [
-    "/image/social/hotel.svg",
-    "/image/social/key.svg",
-    "/image/social/star.svg",
-    "/image/social/concierge.svg",
-    "/image/social/chat.svg",
-    "/image/social/calendar.svg",
-  ],
-};
-
-function HoloStrip({
+/** Row-level holo marquee: yalnız hover olunan sətirdə çalışır (FPS safe). */
+function RowHolo({
   logos,
+  active,
   reduced,
 }: {
   logos: string[];
+  active: boolean;
   reduced: boolean;
 }) {
+  const list = logos?.length ? logos : [];
+  const doubled = useMemo(() => (list.length ? [...list, ...list] : []), [list]);
+
+  if (!list.length) return null;
+
+  return (
+    <div className={cx("svcHolo", active && "is-on")} aria-hidden={!active}>
+      <div className={cx("svcHolo__track", reduced && "is-reduced", active && "is-run")}>
+        {doubled.map((src, i) => {
+          const isLinkedIn = src.includes("/linkedin.svg");
+          return (
+            <span className={cx("svcHolo__cell", isLinkedIn && "is-li")} key={`${src}-${i}`}>
+              <img className="svcHolo__img" src={src} alt="" loading="lazy" decoding="async" />
+            </span>
+          );
+        })}
+      </div>
+      <span className="svcHolo__glow" />
+    </div>
+  );
+}
+
+function HoloStrip({ logos, reduced }: { logos: string[]; reduced: boolean }) {
   const list = logos?.length ? logos : [];
   const doubled = useMemo(() => [...list, ...list], [list]);
 
@@ -212,7 +152,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
 
-  // active hovered item inside dropdowns (for hologram + text)
+  // active hovered item inside dropdowns
   const [svcActive, setSvcActive] = useState<ServiceId>("chatbot-24-7");
   const [ucActive, setUcActive] = useState<ScenarioId>("finance");
 
@@ -276,8 +216,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   );
 
   /**
-   * Use Cases: sən “ayrı scenario səhifəsi istəmirəm” dedin.
-   * Ona görə hamısı /use-cases səhifəsinə gedir və query ilə scenario seçilir:
+   * Use Cases: səndə hazırda query-lidir
    *   /:lang/use-cases?scenario=finance
    */
   const USECASES: ItemDef[] = useMemo(
@@ -431,54 +370,47 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const isActivePath = (needle: string) => location.pathname.toLowerCase().includes(needle);
 
+  /**
+   * ✅ SERVICES PANEL (YENİ):
+   * - Böyük sağ panel YOX
+   * - Dropdown list qalır
+   * - Yalnız Chatbot 24/7 hover olanda, həmin sətirdə sağda holo logo axını çıxır
+   */
   const ServicesPanel = (
-    <div className="hPanel" role="menu" aria-label="Services menu" aria-hidden={openMenu !== "services"}>
-      <div className="hPanel__grid">
-        <div className="hPanel__list" role="presentation">
-          {SERVICES.map((s) => {
-            const active = s.id === svcActive;
-            return (
-              <NavLink
-                key={s.id}
-                to={withLang(s.to)}
-                role="menuitem"
-                className={({ isActive }) => cx("hItem", (isActive || active) && "is-active")}
-                onMouseEnter={() => setSvcActive(s.id as ServiceId)}
-                onFocus={() => setSvcActive(s.id as ServiceId)}
-                onClick={() => setOpenMenu(null)}
-              >
-                <span className="hItem__top">
-                  <span className="hItem__label">{s.label}</span>
-                  <span className="hItem__arrow" aria-hidden="true">→</span>
+    <div className="hPanel hPanel--svcSimple" role="menu" aria-label="Services menu" aria-hidden={openMenu !== "services"}>
+      <div className="svcList" role="presentation">
+        {SERVICES.map((s) => {
+          const active = s.id === svcActive;
+          const showHolo = active && s.id === "chatbot-24-7";
+          return (
+            <NavLink
+              key={s.id}
+              to={withLang(s.to)}
+              role="menuitem"
+              className={({ isActive }) => cx("svcRow", (isActive || active) && "is-active")}
+              onMouseEnter={() => setSvcActive(s.id as ServiceId)}
+              onFocus={() => setSvcActive(s.id as ServiceId)}
+              onClick={() => setOpenMenu(null)}
+            >
+              <span className="svcRow__left">
+                <span className="svcRow__top">
+                  <span className="svcRow__label">{s.label}</span>
                 </span>
-                <span className="hItem__sub">{s.sub}</span>
-              </NavLink>
-            );
-          })}
-        </div>
+                <span className="svcRow__sub">{s.sub}</span>
+              </span>
 
-        <div className="hPanel__detail" role="presentation">
-          <div className="hDetailTop">
-            <div className="hDetailTop__kicker">SERVICES</div>
-            <div className="hDetailTop__title">{SERVICES.find((x) => x.id === svcActive)?.label}</div>
-            <div className="hDetailTop__desc">{SERVICES.find((x) => x.id === svcActive)?.sub}</div>
-          </div>
-
-          <HoloStrip logos={HOLO_LOGOS[svcActive] || []} reduced={prefersReduced} />
-
-          <div className="hDetailCTA">
-            <NavLink to={withLang(`/services/${svcActive}`)} className="hBtn" onClick={() => setOpenMenu(null)}>
-              Open service <span className="hBtn__arr">→</span>
+              <span className="svcRow__right" aria-hidden="true">
+                <RowHolo logos={CHATBOT_SOCIAL_LOGOS} active={showHolo} reduced={prefersReduced} />
+                <span className="svcRow__arrow">→</span>
+              </span>
             </NavLink>
-            <NavLink to={withLang("/contact")} className="hBtn hBtn--ghost" onClick={() => setOpenMenu(null)}>
-              Contact <span className="hBtn__arr">→</span>
-            </NavLink>
-          </div>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
 
+  // ✅ Hələlik toxunmuruq (sonra istəyə görə eyni sistemə salarıq)
   const UseCasesPanel = (
     <div className="hPanel" role="menu" aria-label="Use cases menu" aria-hidden={openMenu !== "usecases"}>
       <div className="hPanel__grid">
@@ -497,7 +429,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
               >
                 <span className="hItem__top">
                   <span className="hItem__label">{u.label}</span>
-                  <span className="hItem__arrow" aria-hidden="true">→</span>
+                  <span className="hItem__arrow" aria-hidden="true">
+                    →
+                  </span>
                 </span>
                 <span className="hItem__sub">{u.sub}</span>
               </NavLink>
@@ -512,7 +446,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             <div className="hDetailTop__desc">{USECASES.find((x) => x.id === ucActive)?.sub}</div>
           </div>
 
-          {/* “Terminal kimi sağdan sola axan” hissiyat: büyük blok yox */}
           <div className="hTermLite" aria-hidden={prefersReduced ? "true" : "false"}>
             <div className={cx("hTermLite__track", prefersReduced && "is-reduced")}>
               {[
@@ -533,7 +466,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          <HoloStrip logos={HOLO_LOGOS[ucActive] || []} reduced={prefersReduced} />
+          {/* əvvəlki kimi qalır (sonra istəsən HOLO_LOGOS-ları da düzəldərik) */}
+          <HoloStrip logos={[]} reduced={prefersReduced} />
 
           <div className="hDetailCTA">
             <NavLink to={withLang(`/use-cases?scenario=${ucActive}`)} className="hBtn" onClick={() => setOpenMenu(null)}>
@@ -562,7 +496,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
             >
               <span className="hItem__top">
                 <span className="hItem__label">{r.label}</span>
-                <span className="hItem__arrow" aria-hidden="true">→</span>
+                <span className="hItem__arrow" aria-hidden="true">
+                  →
+                </span>
               </span>
               <span className="hItem__sub">{r.sub}</span>
             </NavLink>
@@ -726,7 +662,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateX(-50%) translateY(0) scale(1);
         }
 
-        /* panel layout */
+        /* ✅ Services dropdown: daha dar, “mega panel” hissi yox */
+        .hDD__panelWrap--svc{ width: 520px; }
+
+        /* panel layout (default) */
         .hPanel{ width: 100%; }
         .hPanel__grid{ display:grid; grid-template-columns: 360px 1fr; min-height: 360px; }
         .hPanel__list{
@@ -740,6 +679,113 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hPanel__grid--small{ grid-template-columns: 380px 1fr; }
         .hPanel__list--small{ padding: 14px 12px; }
         .hPanel__detail--small{ padding: 16px 16px 14px; }
+
+        /* ✅ Services simple list */
+        .hPanel--svcSimple{ padding: 12px; }
+        .svcList{ display:flex; flex-direction:column; gap: 10px; }
+
+        .svcRow{
+          display:flex;
+          align-items:stretch;
+          justify-content:space-between;
+          gap: 12px;
+          padding: 12px 12px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.025);
+          color: rgba(255,255,255,.92);
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          will-change: transform;
+        }
+        .svcRow:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
+        .svcRow.is-active{
+          background:
+            radial-gradient(120% 120% at 12% 20%, rgba(120,170,255,.12), transparent 55%),
+            rgba(255,255,255,.04);
+          border-color: rgba(120,170,255,.24);
+        }
+
+        .svcRow__left{ min-width: 0; display:flex; flex-direction:column; }
+        .svcRow__top{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+        .svcRow__label{ font-weight: 950; font-size: 13px; color: rgba(255,255,255,.95); }
+        .svcRow__sub{ display:block; margin-top: 6px; font-size: 12px; line-height: 1.25; color: rgba(255,255,255,.62); }
+
+        .svcRow__right{
+          flex: 0 0 auto;
+          display:flex;
+          align-items:center;
+          gap: 10px;
+          min-width: 0;
+        }
+        .svcRow__arrow{
+          opacity:.78;
+          font-weight: 950;
+          padding: 8px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(0,0,0,.18);
+        }
+
+        /* Row holo marquee (only on active row => FPS) */
+        .svcHolo{
+          width: 180px;
+          height: 36px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(0,0,0,.16);
+          overflow:hidden;
+          position:relative;
+          opacity: 0;
+          transform: translateX(6px);
+          transition: opacity .14s ease, transform .14s ease;
+          pointer-events:none;
+        }
+        .svcHolo.is-on{ opacity: 1; transform: translateX(0); }
+        .svcHolo__glow{
+          position:absolute; inset:-40px -70px;
+          background:
+            radial-gradient(220px 80px at 20% 30%, rgba(120,170,255,.18), transparent 60%),
+            radial-gradient(220px 80px at 78% 60%, rgba(63,227,196,.12), transparent 65%);
+          filter: blur(12px);
+          opacity: .75;
+          pointer-events:none;
+        }
+
+        .svcHolo__track{
+          position:absolute; inset:0;
+          display:flex;
+          gap: 10px;
+          padding: 8px 10px;
+          align-items:center;
+          will-change: transform;
+          transform: translate3d(0,0,0);
+        }
+        /* default: no animation unless active */
+        .svcHolo__track{ animation: none; }
+        .svcHolo__track.is-run{ animation: svcMove 6.5s linear infinite; }
+        .svcHolo__track.is-reduced{ animation: none !important; }
+
+        @keyframes svcMove{
+          from{ transform: translate3d(0,0,0); }
+          to{ transform: translate3d(-50%,0,0); }
+        }
+
+        .svcHolo__cell{
+          width: 22px; height: 22px;
+          display:flex; align-items:center; justify-content:center;
+          border-radius: 10px;
+        }
+        /* hamısı eyni ölçü */
+        .svcHolo__img{
+          width: 22px;
+          height: 22px;
+          display:block;
+          object-fit: contain;
+          opacity: .98;
+          filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
+        }
+        /* LinkedIn optik kompensasiya */
+        .svcHolo__cell.is-li .svcHolo__img{ transform: scale(1.08); transform-origin:center; }
 
         .hItem{
           display:block;
@@ -800,10 +846,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hBtn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .hBtn--ghost{ background: rgba(255,255,255,.03); }
         .hBtn__arr{ margin-left: 8px; opacity: .85; }
-
         .hDetailCTA{ margin-top: 14px; display:flex; gap: 10px; flex-wrap: wrap; }
 
-        /* hologram logo marquee */
+        /* hologram logo marquee (existing) */
         .hHolo{
           position: relative;
           margin-top: 12px;
@@ -850,7 +895,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           filter: blur(10px);
         }
 
-        /* Usecases “terminal strip” (not big block) */
+        /* Usecases “terminal strip” */
         .hTermLite{
           margin-top: 12px;
           border-radius: 16px;
@@ -1083,6 +1128,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
         @media (max-width: 1060px){
           .hDD__panelWrap{ width: 780px; }
+          .hDD__panelWrap--svc{ width: 500px; }
           .hPanel__grid{ grid-template-columns: 340px 1fr; }
         }
         @media (max-width: 920px){
@@ -1150,7 +1196,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 </span>
               </button>
 
-              <div className="hDD__panelWrap">{ServicesPanel}</div>
+              {/* ✅ Services: small panel (no big detail) */}
+              <div className="hDD__panelWrap hDD__panelWrap--svc">{ServicesPanel}</div>
             </div>
 
             <div
@@ -1322,7 +1369,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 {t("nav.contact")} <span aria-hidden="true">→</span>
               </NavLink>
 
-              {/* Lang quick row (still hover on desktop; on mobile click) */}
+              {/* Lang quick row (desktop hover; mobile click) */}
               <div className="hAcc">
                 <button className="hAcc__head" type="button" onClick={() => setOpenMenu((v) => (v === "lang" ? null : "lang"))}>
                   Language ({lang.toUpperCase()}) <span aria-hidden="true">+</span>
