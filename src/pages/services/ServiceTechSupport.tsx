@@ -2,7 +2,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Headset, ShieldCheck, Clock, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Headset, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -189,9 +189,15 @@ function ServicePage({
   const T = TINTS[tint];
 
   const vidRef = useRef<HTMLVideoElement | null>(null);
+
+  // ✅ play once, no loop, keep last frame visible
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
+
+    v.loop = false;
+    v.muted = true;
+
     const tryPlay = async () => {
       try {
         await v.play();
@@ -199,7 +205,21 @@ function ServicePage({
         // ignore
       }
     };
+
+    const onEnded = () => {
+      // keep the last frame visible
+      try {
+        v.pause();
+        v.currentTime = Math.max(0, (v.duration || 0) - 0.03);
+      } catch {}
+    };
+
+    v.addEventListener("ended", onEnded);
     tryPlay();
+
+    return () => {
+      v.removeEventListener("ended", onEnded);
+    };
   }, []);
 
   const contact =
@@ -249,6 +269,10 @@ function ServicePage({
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
+        /* ✅ kill any underlines anywhere */
+        .svc a{ text-decoration: none !important; }
+        .svc a:hover{ text-decoration: none !important; }
+
         /* reveal */
         [data-reveal]{
           opacity: 0;
@@ -261,12 +285,7 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* =========================
-           ✅ STRONG TEXT SWEEP (LEFT -> RIGHT)
-           - much brighter
-           - visible band
-           - ONLY inside text
-        ========================= */
+        /* ===== For general sweep usage (pills + section headings) stays same ===== */
         .svc-sweepText{
           display:inline-block;
           background-image:
@@ -289,7 +308,7 @@ function ServicePage({
               transparent 100%
             );
           background-size: 100% 100%, 360% 100%;
-          background-position: 0 0, -220% 0; /* START LEFT */
+          background-position: 0 0, -220% 0;
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -298,10 +317,59 @@ function ServicePage({
         }
         @keyframes svcTextSweep{
           0%   { background-position: 0 0, -220% 0; }
-          100% { background-position: 0 0,  220% 0; } /* GO RIGHT */
+          100% { background-position: 0 0,  220% 0; }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-sweepText{ animation:none !important; }
+        }
+
+        /* =========================
+           ✅ SMM-LIKE TITLE LENTA (ONLY TITLE)
+        ========================= */
+        .svc-grad{
+          background: linear-gradient(
+            90deg,
+            #ffffff 0%,
+            rgba(170,225,255,.96) 34%,
+            rgba(47,184,255,.95) 68%,
+            rgba(42,125,255,.95) 100%
+          );
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+        }
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
+        .svc-shimmer::after{
+          content:"";
+          position:absolute;
+          inset: -12% -60%;
+          pointer-events:none;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.30) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          mix-blend-mode: screen;
+          opacity: .92;
+          transform: translate3d(-55%,0,0);
+          will-change: transform;
+          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+        }
+        @keyframes svcShine{
+          0%{ transform: translate3d(-55%,0,0); }
+          100%{ transform: translate3d(55%,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
         .svc-hero{
@@ -340,6 +408,7 @@ function ServicePage({
         }
 
         .svc-left{ min-width:0; }
+
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
           font-weight: 900;
@@ -348,25 +417,24 @@ function ServicePage({
           color: rgba(255,255,255,.70);
           text-transform:uppercase;
         }
+        /* ✅ move dot slightly UP so it doesn't touch title shimmer */
         .svc-kdot{
           width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
+          transform: translateY(-2px);
         }
 
-        /* ✅ BusinessWorkflows title sizing + weight */
         .svc-title{
           margin-top: 14px;
           font-size: 40px;
           line-height: 1.05;
           font-weight: 600;
           letter-spacing: -0.02em;
+          color: rgba(255,255,255,.94);
         }
-        @media (min-width: 640px){
-          .svc-title{ font-size: 60px; }
-        }
+        @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
-        /* ✅ BusinessWorkflows subtitle sizing */
         .svc-sub{
           margin-top: 14px;
           color: rgba(255,255,255,.70);
@@ -374,9 +442,7 @@ function ServicePage({
           line-height: 1.7;
           max-width: 68ch;
         }
-        @media (min-width: 640px){
-          .svc-sub{ font-size: 18px; }
-        }
+        @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
         .svc-pills{
           margin-top: 14px;
@@ -397,10 +463,7 @@ function ServicePage({
           font-size: 12px;
           white-space: nowrap;
         }
-        .svc-pill--rot{
-          min-width: 170px;
-          padding: 0 14px;
-        }
+        .svc-pill--rot{ min-width: 170px; padding: 0 14px; }
         .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; }
         .svc-pillRot-track{ display:block; will-change: transform; }
         .svc-pillRot-item{
@@ -416,7 +479,9 @@ function ServicePage({
           ${reduced ? "" : "animation-duration: 2.0s;"}
         }
 
-        /* CTA */
+        /* =========================
+           ✅ CTA (premium text, no arrow, no underline)
+        ========================= */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -430,18 +495,28 @@ function ServicePage({
           align-items:center;
           justify-content:center;
           gap: 10px;
-          height: 44px;
-          padding: 0 16px;
+          height: 46px;
+          padding: 0 18px;
           border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
+          border: 1px solid rgba(255,255,255,.12);
           background:
             radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
-          font-weight: 900;
-          text-decoration:none;
+          font-weight: 700;
+          letter-spacing: .02em;
+          text-decoration:none !important;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
           transform: translateZ(0);
+        }
+        .svc-ctaText{
+          display:inline-flex;
+          align-items:center;
+          gap: 8px;
+          font-size: 13px;
+          letter-spacing: .14em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,.92);
         }
         .svc-cta::before{
           content:"";
@@ -451,38 +526,41 @@ function ServicePage({
             110deg,
             transparent 0%,
             transparent 34%,
-            rgba(255,255,255,.30) 44%,
-            rgba(255,255,255,.95) 50%,
-            rgba(170,225,255,.72) 54%,
-            rgba(47,184,255,.45) 58%,
+            rgba(255,255,255,.28) 44%,
+            rgba(255,255,255,.92) 50%,
+            rgba(170,225,255,.66) 54%,
+            rgba(47,184,255,.42) 58%,
             transparent 68%,
             transparent 100%
           );
-          transform: translate3d(-70%,0,0); /* START LEFT */
+          transform: translate3d(-70%,0,0);
           opacity: 0;
           will-change: transform, opacity;
           pointer-events:none;
         }
         .svc-cta:hover{
           transform: translate3d(0,-1px,0);
-          border-color: rgba(47,184,255,.24);
+          border-color: rgba(47,184,255,.26);
           background: rgba(255,255,255,.08);
         }
         .svc-cta:hover::before{
-          opacity: .98;
+          opacity: .96;
           ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
         }
         @keyframes svcBtnSweep{
           0%{ transform: translate3d(-70%,0,0); }
-          100%{ transform: translate3d(70%,0,0); } /* GO RIGHT */
+          100%{ transform: translate3d(70%,0,0); }
         }
-        @media (hover: none){
+        @media (hover:none){
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ opacity:0; animation:none; }
         }
-        .svc-cta--ghost{ background: rgba(255,255,255,.04); }
+        .svc-cta--ghost{
+          background: rgba(255,255,255,.04);
+          border-color: rgba(255,255,255,.10);
+        }
 
-        /* VIDEO fully inside frame */
+        /* VIDEO */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -576,7 +654,6 @@ function ServicePage({
           contain: layout paint style;
         }
 
-        /* ✅ section heading like BusinessWorkflows: 22/26 + fw 600 */
         .svc-card__title{
           display:flex; align-items:center; gap:10px;
           font-weight: 600;
@@ -585,9 +662,7 @@ function ServicePage({
           font-size: 22px;
           line-height: 1.2;
         }
-        @media (min-width: 640px){
-          .svc-card__title{ font-size: 26px; }
-        }
+        @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
 
         .svc-card__desc{
           margin-top: 10px;
@@ -604,8 +679,6 @@ function ServicePage({
           background: rgba(0,0,0,.18);
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
-
-        /* ✅ check = thicker + breathing */
         .svc-feat__tick{
           width:30px; height:30px; border-radius:12px;
           display:flex; align-items:center; justify-content:center;
@@ -614,18 +687,14 @@ function ServicePage({
           color: rgba(170,225,255,.98);
           flex: 0 0 auto;
           ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
-          will-change: transform, filter;
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
           50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
-
-        /* ✅ feature title weight like BW (600) */
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
-        /* safety */
         .svc, .svc .container, .svc-hero, .svc-card { overflow-wrap:anywhere; }
       `}</style>
 
@@ -638,8 +707,9 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
+              {/* ✅ ONLY title uses SMM-like shimmer ribbon */}
               <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-sweepText">{title}</span>
+                <span className="svc-grad svc-shimmer">{title}</span>
               </h1>
 
               <p className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
@@ -652,10 +722,10 @@ function ServicePage({
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
                 <Link to={withLang("/contact", lang)} className="svc-cta">
-                  {contact} <ArrowRight size={16} />
+                  <span className="svc-ctaText">{contact}</span>
                 </Link>
                 <Link to={withLang("/pricing", lang)} className="svc-cta svc-cta--ghost">
-                  {pricing}
+                  <span className="svc-ctaText">{pricing}</span>
                 </Link>
               </div>
             </div>
@@ -668,7 +738,6 @@ function ServicePage({
                   src={videoUrl}
                   autoPlay
                   muted
-                  loop
                   playsInline
                   preload="metadata"
                 />
