@@ -126,111 +126,6 @@ function useRevealWithinBatched(
   }, [containerRef, rootMargin, ...deps]);
 }
 
-/**
- * Live “workflow electricity” lines between hero chips.
- * - Measures chip centers inside wrapper and draws SVG paths.
- * - Updates on resize + scroll (throttled via rAF).
- */
-function useChipFlowLines(
-  wrapRef: React.RefObject<HTMLElement>,
-  count: number,
-  disabled: boolean
-) {
-  const [paths, setPaths] = useState<string[]>([]);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap || disabled) {
-      setPaths([]);
-      return;
-    }
-
-    const nodes = () =>
-      Array.from(wrap.querySelectorAll<HTMLElement>("[data-flow-node]")).slice(0, count);
-
-    const compute = () => {
-      const w = wrapRef.current;
-      if (!w) return;
-      const items = nodes();
-      if (items.length < 2) return;
-
-      const wRect = w.getBoundingClientRect();
-      const pts = items.map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: r.left - wRect.left + r.width / 2,
-          y: r.top - wRect.top + r.height / 2,
-        };
-      });
-
-      // Build “alive” curved connections i -> i+1
-      const ds: string[] = [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-
-        // Curvature: slight S-curve that feels like signal flow
-        const c1 = { x: a.x + dx * 0.35, y: a.y + dy * 0.05 - 10 };
-        const c2 = { x: a.x + dx * 0.65, y: a.y + dy * 0.95 + 10 };
-
-        ds.push(`M ${a.x.toFixed(1)} ${a.y.toFixed(1)} C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)}, ${c2.x.toFixed(
-          1
-        )} ${c2.y.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`);
-      }
-
-      // Optional: close loop (last -> first) when layout is wide (gives “circuit” vibe)
-      const wide = wrap.clientWidth > 640;
-      if (wide && pts.length >= 3) {
-        const a = pts[pts.length - 1];
-        const b = pts[0];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const c1 = { x: a.x + dx * 0.35, y: a.y + dy * 0.05 - 14 };
-        const c2 = { x: a.x + dx * 0.65, y: a.y + dy * 0.95 + 14 };
-        ds.push(`M ${a.x.toFixed(1)} ${a.y.toFixed(1)} C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)}, ${c2.x.toFixed(
-          1
-        )} ${c2.y.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`);
-      }
-
-      setPaths(ds);
-    };
-
-    const schedule = () => {
-      if (rafRef.current) return;
-      rafRef.current = window.requestAnimationFrame(() => {
-        rafRef.current = null;
-        compute();
-      });
-    };
-
-    schedule();
-
-    const ro = new ResizeObserver(schedule);
-    ro.observe(wrap);
-
-    const onScroll = () => schedule();
-    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
-    window.addEventListener("resize", schedule, { passive: true });
-
-    // fonts/layout settle
-    const t = window.setTimeout(schedule, 220);
-
-    return () => {
-      window.clearTimeout(t);
-      ro.disconnect();
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", schedule);
-      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-  }, [wrapRef, count, disabled]);
-
-  return paths;
-}
-
 type Pill = { icon: any; title: string; desc: string; bullets: string[] };
 type Step = { n: string; title: string; desc: string; points: string[] };
 
@@ -358,10 +253,6 @@ export default function About() {
     ],
     [t]
   );
-
-  // HERO chips (5) + live connections
-  const chipsWrapRef = useRef<HTMLDivElement | null>(null);
-  const chipPaths = useChipFlowLines(chipsWrapRef as any, 5, reduced);
 
   return (
     <main ref={pageRef} className="ab-page" style={{ background: "#000", minHeight: "100vh" }}>
@@ -580,23 +471,18 @@ export default function About() {
           z-index: 2;
         }
 
-        /* ✅ title — requested copy + “top-to-bottom” feel */
+        /* ✅ title — NO forced line breaks, wraps naturally */
         .ab-title{
           margin-top: 12px;
           font-size: clamp(30px, 7.2vw, 72px);
           line-height: 1.06;
           letter-spacing: -.02em;
-          font-weight: 680;
+          font-weight: 660;
           text-align:center;
           text-wrap: balance;
           max-width: 980px;
           margin-left: auto;
           margin-right: auto;
-        }
-        .ab-titleLine2{
-          display:block;
-          margin-top: 10px;
-          font-weight: 720;
         }
         @media (max-width: 560px){
           .ab-title{
@@ -604,7 +490,6 @@ export default function About() {
             font-size: clamp(28px, 7.1vw, 44px);
             line-height: 1.06;
           }
-          .ab-titleLine2{ margin-top: 10px; }
         }
         @media (max-width: 420px){
           .ab-title{ font-size: 30px; line-height: 1.06; }
@@ -715,70 +600,14 @@ export default function About() {
         }
         .ab-btn--primary:hover{ border-color: rgba(47,184,255,.42); }
 
-        /* HERO “workflow chips” + electric connections */
-        .ab-chipsWrap{
-          margin-top: 14px;
-          position: relative;
-          isolation: isolate;
-          display:flex;
-          justify-content:center;
-        }
-        .ab-flowSvg{
-          position:absolute;
-          inset: -12px;
-          width: calc(100% + 24px);
-          height: calc(100% + 24px);
-          pointer-events:none;
-          z-index: 1;
-          overflow: visible;
-          opacity: .96;
-        }
-
-        .ab-flowPath{
-          fill: none;
-          stroke: rgba(47,184,255,.48);
-          stroke-width: 1.8;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          filter: drop-shadow(0 0 10px rgba(47,184,255,.20)) drop-shadow(0 0 18px rgba(170,225,255,.12));
-          opacity: .9;
-        }
-        .ab-flowPath--glow{
-          stroke-width: 5.6;
-          opacity: .20;
-          filter: blur(1px) drop-shadow(0 0 18px rgba(47,184,255,.24));
-        }
-        .ab-flowDash{
-          stroke-dasharray: 8 12;
-          animation: abDash 1.45s linear infinite;
-        }
-        @keyframes abDash{
-          from{ stroke-dashoffset: 0; }
-          to{ stroke-dashoffset: -40; }
-        }
-
-        .ab-flowPulse{
-          stroke-dasharray: 1 80;
-          stroke-linecap: round;
-          animation: abPulse 1.9s ease-in-out infinite;
-          opacity: .78;
-        }
-        @keyframes abPulse{
-          0%{ stroke-dashoffset: 0; opacity: .35; }
-          45%{ opacity: .95; }
-          100%{ stroke-dashoffset: -80; opacity: .35; }
-        }
-
         .ab-chips{
+          margin-top: 14px;
           display:flex;
           gap: 10px;
           justify-content:center;
           flex-wrap:wrap;
-          opacity:.98;
-          position: relative;
-          z-index: 2; /* above lines */
+          opacity:.95;
         }
-
         .ab-chip{
           display:inline-flex;
           align-items:center;
@@ -792,28 +621,10 @@ export default function About() {
           font-weight: 650;
           white-space: nowrap;
           box-shadow: 0 10px 28px rgba(0,0,0,.48);
-          position: relative;
         }
-        .ab-chip::after{
-          content:"";
-          position:absolute;
-          inset:-1px;
-          border-radius: 999px;
-          pointer-events:none;
-          opacity: .0;
-          transition: opacity .18s ease;
-          background: radial-gradient(220px 90px at 50% 50%, rgba(47,184,255,.12), transparent 70%);
-        }
-        .ab-chip:hover::after{ opacity: 1; }
-
         .ab-chip--soft{
           border-color: rgba(47,184,255,.22);
           background: rgba(47,184,255,.10);
-        }
-
-        @media (prefers-reduced-motion: reduce){
-          .ab-flowSvg{ display:none !important; }
-          .ab-flowDash, .ab-flowPulse{ animation:none !important; }
         }
 
         /* strip */
@@ -1262,7 +1073,7 @@ export default function About() {
         <div className="ab-heroFade" aria-hidden="true" />
 
         <div className="ab-container">
-          {/* Kicker pill */}
+          {/* Kicker pill (✅ bir az aşağı, daha balanslı) */}
           <div
             style={{
               display: "flex",
@@ -1278,25 +1089,23 @@ export default function About() {
             </div>
           </div>
 
-          {/* ✅ Title (requested exact copy + vertical spacing) */}
+          {/* Title (✅ forced break yoxdur, normal axır) */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            {"AI-nı sadəcə "}
+            {t("about.hero.title.0")}{" "}
             <span className="ab-quoteWrap" aria-label="gözəl görünsün">
               <span className="ab-quote" aria-hidden="true">
                 “
               </span>
-              <span className="ab-glowWord ab-gradient">gözəl görünsün</span>
+              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
               <span className="ab-quote" aria-hidden="true">
                 ”
               </span>
-            </span>
-            {" deyə qurmuruq"}
-            <span className="ab-titleLine2">
-              {"Biz "}
-              <span className="ab-glowWord ab-gradient">işləyən</span>,{" "}
-              <span className="ab-glowWord ab-gradient">ölçülən</span>,{" "}
-              <span className="ab-glowWord ab-gradient">nəzarətli</span> sistem qururuq.
-            </span>
+            </span>{" "}
+            {t("about.hero.title.1")} {t("about.hero.title.2")}{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
+            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
+            {t("about.hero.title.3")}
           </h1>
 
           {/* Sub */}
@@ -1314,57 +1123,15 @@ export default function About() {
             </Link>
           </div>
 
-          {/* ✅ 5 chips + LIVE workflow electricity */}
-          <div
-            ref={chipsWrapRef}
-            style={d(350)}
-            className={cx("ab-chipsWrap", "ab-enter", enter && "ab-in")}
-            aria-hidden="true"
-          >
-            {!reduced && chipPaths.length > 0 && (
-              <svg className="ab-flowSvg" viewBox={`0 0 ${Math.max(1, chipsWrapRef.current?.clientWidth || 1)} ${Math.max(
-                1,
-                chipsWrapRef.current?.clientHeight || 1
-              )}`}
-              preserveAspectRatio="none"
-              >
-                <defs>
-                  <linearGradient id="abFlowGrad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="rgba(170,225,255,0.0)" />
-                    <stop offset="20%" stopColor="rgba(170,225,255,0.75)" />
-                    <stop offset="55%" stopColor="rgba(47,184,255,0.85)" />
-                    <stop offset="85%" stopColor="rgba(42,125,255,0.65)" />
-                    <stop offset="100%" stopColor="rgba(42,125,255,0.0)" />
-                  </linearGradient>
-                </defs>
-
-                {chipPaths.map((d, i) => (
-                  <g key={i}>
-                    <path className="ab-flowPath ab-flowPath--glow" d={d} stroke="rgba(47,184,255,.22)" />
-                    <path className="ab-flowPath ab-flowDash" d={d} stroke="url(#abFlowGrad)" />
-                    <path className="ab-flowPath ab-flowPulse" d={d} stroke="rgba(255,255,255,.65)" />
-                  </g>
-                ))}
-              </svg>
-            )}
-
-            <div className="ab-chips">
-              <span className="ab-chip ab-chip--soft" data-flow-node="0">
-                <Cpu size={14} /> {t("about.hero.chips.0")}
-              </span>
-              <span className="ab-chip" data-flow-node="1">
-                {t("about.hero.chips.1")}
-              </span>
-              <span className="ab-chip" data-flow-node="2">
-                {t("about.hero.chips.2")}
-              </span>
-              <span className="ab-chip" data-flow-node="3">
-                {t("about.hero.chips.3")}
-              </span>
-              <span className="ab-chip" data-flow-node="4">
-                {t("about.hero.chips.4")}
-              </span>
-            </div>
+          {/* Chips */}
+          <div style={d(350)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
+            <span className="ab-chip ab-chip--soft">
+              <Cpu size={14} /> {t("about.hero.chips.0")}
+            </span>
+            <span className="ab-chip">{t("about.hero.chips.1")}</span>
+            <span className="ab-chip">{t("about.hero.chips.2")}</span>
+            <span className="ab-chip">{t("about.hero.chips.3")}</span>
+            <span className="ab-chip">{t("about.hero.chips.4")}</span>
           </div>
         </div>
       </section>
