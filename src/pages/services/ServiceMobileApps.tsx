@@ -1,21 +1,8 @@
 // src/pages/services/ServiceMobileApps.tsx
-import React, {
-  memo,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Smartphone,
-  ShieldCheck,
-  ArrowRight,
-  CheckCircle2,
-  ChevronDown,
-} from "lucide-react";
+import { Smartphone, ShieldCheck, CheckCircle2, ChevronDown } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -95,13 +82,7 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/**
- * ✅ Rotating pill (fixes):
- * - pill never cuts text (uses measured width + clamps + viewport auto height)
- * - uses scrollWidth of the ACTIVE line (not container)
- * - adds safe padding + min width + max width
- * - keeps text centered + no overflow cut
- */
+/* ✅ Single pill swaps texts, resizes perfectly */
 function RotatingPill({
   items,
   reduced,
@@ -124,32 +105,25 @@ function RotatingPill({
     const measure = () => {
       const el = activeRef.current;
       if (!el) return;
-
-      // exact text width (no clamp)
       const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
       if (!raw) return;
 
-      // padding left+right (we control with CSS var too)
-      const pad = 28; // a bit larger so never clips
-      // clamp to keep UX clean on very long labels
-      const max = Math.min(window.innerWidth * 0.82, 520);
-      const min = 84;
+      const pad = 34; // safer padding so it NEVER clips
+      const max = Math.min(window.innerWidth * 0.84, 560);
+      const min = 92;
       const nextW = Math.max(min, Math.min(max, raw + pad));
-
       setW(nextW);
     };
 
-    // measure after paint and after fonts swap
     const r1 = requestAnimationFrame(() => {
       measure();
       requestAnimationFrame(measure);
-      const t = window.setTimeout(measure, 80);
+      const t = window.setTimeout(measure, 90);
       (measure as any)._t = t;
     });
 
     const onResize = () => measure();
     window.addEventListener("resize", onResize);
-
     return () => {
       cancelAnimationFrame(r1);
       window.removeEventListener("resize", onResize);
@@ -175,10 +149,9 @@ function RotatingPill({
   }, [items.length, intervalMs, reduced]);
 
   if (reduced) {
-    const first = items[0] || "";
     return (
       <span className="svc-rotPill">
-        <span className="svc-rotText">{first}</span>
+        <span className="svc-rotText">{items[0] || ""}</span>
       </span>
     );
   }
@@ -282,16 +255,6 @@ function ServicePage({
         id: "chatbot-24-7",
         path: "/services/chatbot-24-7",
         title: (l) => (l === "az" ? "Chatbot 24/7" : "Chatbot 24/7"),
-        desc: (l) =>
-          l === "az"
-            ? "Always-on satış chat"
-            : l === "ru"
-            ? "Постоянный чат продаж"
-            : l === "tr"
-            ? "7/24 satış sohbeti"
-            : l === "es"
-            ? "Chat de ventas 24/7"
-            : "Always-on sales chat",
       },
       {
         id: "business-workflows",
@@ -306,80 +269,30 @@ function ServicePage({
             : l === "es"
             ? "Workflows"
             : "Business Workflows",
-        desc: (l) =>
-          l === "az"
-            ? "Trigger → route → act"
-            : l === "ru"
-            ? "Триггер → маршрут → действие"
-            : l === "tr"
-            ? "Tetikle → yönlendir → çalıştır"
-            : l === "es"
-            ? "Dispara → enruta → ejecuta"
-            : "Trigger → route → act",
       },
       {
         id: "websites",
         path: "/services/websites",
         title: (l) =>
           l === "az" ? "Websaytlar" : l === "ru" ? "Сайты" : l === "tr" ? "Web Siteleri" : l === "es" ? "Websites" : "Websites",
-        desc: (l) =>
-          l === "az"
-            ? "Premium UX & sürət"
-            : l === "ru"
-            ? "Премиум UX и скорость"
-            : l === "tr"
-            ? "Premium UX & hız"
-            : l === "es"
-            ? "UX premium y velocidad"
-            : "Premium UX & speed",
       },
       {
         id: "mobile-apps",
         path: "/services/mobile-apps",
         title: (l) =>
           l === "az" ? "Mobil tətbiqlər" : l === "ru" ? "Мобильные приложения" : l === "tr" ? "Mobil Uygulamalar" : l === "es" ? "Apps móviles" : "Mobile Apps",
-        desc: (l) =>
-          l === "az"
-            ? "iOS/Android — clean UI"
-            : l === "ru"
-            ? "iOS/Android — чистый UI"
-            : l === "tr"
-            ? "iOS/Android — temiz UI"
-            : l === "es"
-            ? "iOS/Android — UI limpio"
-            : "iOS/Android — clean UI",
       },
       {
         id: "smm-automation",
         path: "/services/smm-automation",
         title: (l) =>
           l === "az" ? "SMM Automation" : l === "ru" ? "SMM Автоматизация" : l === "tr" ? "SMM Otomasyon" : l === "es" ? "Automatización SMM" : "SMM Automation",
-        desc: (l) =>
-          l === "az"
-            ? "Kontent, funnel, schedule"
-            : l === "ru"
-            ? "Контент, воронки, расписание"
-            : l === "tr"
-            ? "İçerik, funnel, plan"
-            : l === "es"
-            ? "Contenido, funnel, agenda"
-            : "Content, funnel, scheduling",
       },
       {
         id: "technical-support",
         path: "/services/technical-support",
         title: (l) =>
           l === "az" ? "Technical Support" : l === "ru" ? "Техподдержка" : l === "tr" ? "Teknik Destek" : l === "es" ? "Soporte técnico" : "Technical Support",
-        desc: (l) =>
-          l === "az"
-            ? "Monitoring, fixes, deploy"
-            : l === "ru"
-            ? "Мониторинг, исправления, деплой"
-            : l === "tr"
-            ? "İzleme, düzeltme, deploy"
-            : l === "es"
-            ? "Monitoreo, arreglos, deploy"
-            : "Monitoring, fixes, deploy",
       },
     ],
     []
@@ -390,8 +303,59 @@ function ServicePage({
     [services, location.pathname]
   );
 
-  // ✅ Make dropdown push content down (NOT absolute)
   const [svcOpen, setSvcOpen] = useState(false);
+
+  // ✅ Keep the video panel size fixed when dropdown opens
+  // We do this by reserving consistent min-height for left column block area.
+  const LEFT_MIN = svcOpen ? 0 : 0; // (we keep fixed via CSS min-height below)
+
+  // ✅ Smooth in/out animation (height + opacity) for dropdown
+  const ddInnerRef = useRef<HTMLDivElement | null>(null);
+  const [ddH, setDdH] = useState<number>(0);
+
+  useLayoutEffect(() => {
+    const el = ddInnerRef.current;
+    if (!el) return;
+    const h = Math.ceil(el.scrollHeight || 0);
+    setDdH(h);
+  }, [svcOpen, dropdownItems.length]);
+
+  // ✅ “short, text-sized” panel: width fits content
+  const panelWrapRef = useRef<HTMLDivElement | null>(null);
+  const [panelW, setPanelW] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (!svcOpen) return;
+    const wrap = panelWrapRef.current;
+    if (!wrap) return;
+
+    const compute = () => {
+      // measure inner content width and clamp
+      const inner = wrap.querySelector<HTMLElement>(".svc-ddInner");
+      if (!inner) return;
+      const raw = Math.ceil(inner.scrollWidth || inner.getBoundingClientRect().width || 0);
+      const max = Math.min(window.innerWidth * 0.92, 520);
+      const min = 220;
+      setPanelW(Math.max(min, Math.min(max, raw)));
+    };
+
+    const r1 = requestAnimationFrame(() => {
+      compute();
+      requestAnimationFrame(compute);
+    });
+
+    const onResize = () => compute();
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(r1);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [svcOpen, dropdownItems.length]);
+
+  // ✅ close dropdown when route changes
+  useEffect(() => {
+    setSvcOpen(false);
+  }, [location.pathname]);
 
   return (
     <section className="svc">
@@ -428,10 +392,7 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer: MUST go full width and “enter” at the end =====
-           Fix: keep the band moving across, but the mask fades ONLY at edges,
-           so it looks like it goes *into* the block instead of disappearing early.
-        */
+        /* ===== Shimmer (make ALL titles identical behavior) ===== */
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -457,18 +418,18 @@ function ServicePage({
           mix-blend-mode: screen;
           opacity: .92;
 
-          transform: translate3d(-70%,0,0);
+          transform: translate3d(-78%,0,0);
           will-change: transform;
 
-          /* fade-in/out ONLY at edges (so it “enters” the end) */
-          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+          /* IMPORTANT: fade only on extreme edges so it “enters” the end */
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
 
           ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
         }
         @keyframes svcShine{
-          0%{ transform: translate3d(-78%,0,0); }
-          100%{ transform: translate3d(78%,0,0); }
+          0%{ transform: translate3d(-86%,0,0); }
+          100%{ transform: translate3d(86%,0,0); }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-shimmer::after{ animation:none !important; display:none; }
@@ -479,8 +440,8 @@ function ServicePage({
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.22), transparent 55%),
-            radial-gradient(120% 90% at 86% 10%, rgba(255,184,47,.12), transparent 60%),
+            radial-gradient(120% 90% at 18% 10%, ${T.a}, transparent 55%),
+            radial-gradient(120% 90% at 86% 10%, rgba(47,184,255,.08), transparent 60%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
@@ -489,7 +450,7 @@ function ServicePage({
         .svc-hero::before{
           content:"";
           position:absolute; inset:-2px;
-          background: radial-gradient(600px 260px at 22% 18%, rgba(47,184,255,.10), transparent 60%);
+          background: radial-gradient(600px 260px at 22% 18%, ${T.b}, transparent 60%);
           opacity:.85;
           filter: blur(14px);
           pointer-events:none;
@@ -508,7 +469,55 @@ function ServicePage({
           .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
         }
 
-        .svc-left{ min-width:0; }
+        /* ✅ make right panel stable */
+        .svc-right{
+          min-width:0;
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.08);
+          overflow:hidden;
+          position:relative;
+          background: rgba(0,0,0,.22);
+          contain: layout paint style;
+          align-self: stretch;
+        }
+        .svc-videoWrap{
+          position: relative;
+          width: 100%;
+          height: 100%;
+          min-height: 320px;
+          border-radius: 22px;
+          overflow:hidden;
+          transform: translateZ(0);
+          backface-visibility:hidden;
+        }
+        @media (max-width: 980px){
+          .svc-videoWrap{ min-height: 260px; }
+        }
+        .svc-video{
+          position:absolute; inset:0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          display:block;
+          transform: translateZ(0);
+        }
+        /* ✅ remove yellow-ish tint behind video */
+        .svc-videoScrim{
+          position:absolute; inset:0;
+          background:
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 58%),
+            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.52) 92%);
+          pointer-events:none;
+        }
+
+        .svc-left{
+          min-width:0;
+          /* ✅ reserve stable height so opening dropdown doesn't resize video column */
+          min-height: 340px;
+        }
+        @media (max-width: 980px){
+          .svc-left{ min-height: 0; }
+        }
+
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
           border: 1px solid rgba(255,255,255,.10);
@@ -566,7 +575,7 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid rgba(47,184,255,.22);
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
             rgba(255,255,255,.04);
           box-shadow: 0 10px 40px rgba(0,0,0,.35);
           font-weight: 900;
@@ -574,9 +583,9 @@ function ServicePage({
           white-space: nowrap;
           transition: width .26s ease;
           transform: translateZ(0);
-          overflow: visible; /* ✅ never cut text */
-          padding: 0 14px;   /* ✅ real padding */
-          min-width: 84px;
+          overflow: hidden;
+          padding: 0 16px;
+          min-width: 92px;
         }
         .svc-rotViewport{
           position: relative;
@@ -603,18 +612,10 @@ function ServicePage({
           font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
-          padding: 0 2px; /* ✅ tiny safety */
+          padding: 0 4px; /* ✅ extra safety so it never touches edges */
         }
-        .svc-rotViewport.is-out .svc-rotStack{
-          transform: translate3d(0,-18px,0);
-          opacity: .92;
-          filter: blur(.2px);
-        }
-        .svc-rotViewport.is-in .svc-rotStack{
-          transform: translate3d(0,-18px,0);
-          opacity: 1;
-          filter: none;
-        }
+        .svc-rotViewport.is-out .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: .92; filter: blur(.2px); }
+        .svc-rotViewport.is-in .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: 1; filter: none; }
 
         /* CTAs */
         .svc-ctaRow{
@@ -625,7 +626,6 @@ function ServicePage({
           align-items: flex-start;
         }
 
-        /* ✅ Buttons: remove underline & remove arrow-only styling from Link */
         .svc-cta{
           position: relative;
           display:inline-flex;
@@ -637,7 +637,7 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 900;
@@ -648,16 +648,14 @@ function ServicePage({
           overflow: hidden;
         }
         .svc-cta:visited{ color: rgba(255,255,255,.92); }
-        .svc-cta *{ text-decoration: none !important; }
-
-        /* Remove any external underline effects */
+        .svc-cta *{ text-decoration:none !important; }
         .svc a, .svc a:hover{ text-decoration:none !important; }
         .svc a::after{ display:none !important; }
 
         .svc-cta::before{
           content:"";
           position:absolute;
-          inset: -2px -40%;
+          inset: -2px -45%;
           background: linear-gradient(
             110deg,
             transparent 0%,
@@ -668,36 +666,27 @@ function ServicePage({
             transparent 70%,
             transparent 100%
           );
-          transform: translate3d(-55%,0,0);
+          transform: translate3d(-60%,0,0);
           opacity: 0;
           transition: opacity .18s ease;
           pointer-events:none;
           mix-blend-mode: screen;
           will-change: transform, opacity;
         }
-        .svc-cta:hover{
-          transform: translate3d(0,-1px,0);
-          border-color: rgba(47,184,255,.22);
-          background: rgba(255,255,255,.08);
-        }
+        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.08); }
         .svc-cta:hover::before{
           opacity: .95;
           ${reduced ? "" : "animation: svcBtnSweep .85s ease-out 1;"}
         }
-        @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-60%,0,0); }
-          100%{ transform: translate3d(60%,0,0); }
-        }
+        @keyframes svcBtnSweep{ 0%{ transform: translate3d(-70%,0,0);} 100%{ transform: translate3d(70%,0,0);} }
         @media (hover:none){
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ animation:none; }
         }
 
-        /* ✅ Remove arrow icon next to “Əlaqə saxla” (you asked to remove it) */
-        .svc-cta--contact .svc-ctaIcon{ display:none !important; }
-
         .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
 
+        /* ✅ “Other services” as compact button; dropdown is compact too */
         .svc-ctaBtn{
           cursor:pointer;
           appearance:none;
@@ -705,32 +694,38 @@ function ServicePage({
           background: rgba(255,255,255,.04);
         }
 
-        /* ✅ Dropdown is now in-flow: pushes content down */
+        /* ✅ In-flow dropdown with smooth open (no arrow icons, no long width) */
         .svc-ddFlow{
-          width: 100%;
-          max-width: 520px;
           margin-top: 10px;
-          border-radius: 18px;
+          /* keeps it text-sized */
+          width: fit-content;
+          max-width: min(92vw, 520px);
+        }
+        .svc-ddFrame{
+          border-radius: 16px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(10,12,18,.72);
           box-shadow: 0 26px 120px rgba(0,0,0,.65);
-          overflow:hidden;
+          overflow: hidden;
           backdrop-filter: blur(10px);
+
+          /* animation container */
+          max-height: 0;
+          opacity: 0;
+          transform: translate3d(0,-6px,0);
+          transition: max-height .32s ease, opacity .22s ease, transform .22s ease;
+          will-change: max-height, opacity, transform;
         }
-        .svc-ddHead{
-          padding: 12px 14px;
-          color: rgba(255,255,255,.72);
-          font-size: 12px;
-          letter-spacing: .14em;
-          text-transform: uppercase;
-          border-bottom: 1px solid rgba(255,255,255,.08);
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          gap: 10px;
+        .svc-ddFlow.is-open .svc-ddFrame{
+          opacity: 1;
+          transform: translate3d(0,0,0);
+          max-height: var(--ddh, 360px);
         }
-        .svc-ddList{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+
+        .svc-ddInner{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+
         .svc-ddItem{
+          position: relative;
           display:flex;
           align-items:center;
           justify-content: space-between;
@@ -744,72 +739,59 @@ function ServicePage({
           text-decoration:none !important;
           color: rgba(255,255,255,.90);
           transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        /* ✅ shine sweep on hover for each item (left->right) */
+        .svc-ddItem::before{
+          content:"";
+          position:absolute;
+          inset: -2px -55%;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            rgba(255,255,255,0) 35%,
+            rgba(170,225,255,.18) 46%,
+            rgba(47,184,255,.30) 50%,
+            rgba(170,225,255,.18) 54%,
+            transparent 70%,
+            transparent 100%
+          );
+          transform: translate3d(-60%,0,0);
+          opacity: 0;
+          pointer-events:none;
+          mix-blend-mode: screen;
+          will-change: transform, opacity;
         }
         .svc-ddItem:hover{
           transform: translate3d(0,-1px,0);
           border-color: rgba(47,184,255,.22);
           background: rgba(255,255,255,.05);
         }
+        .svc-ddItem:hover::before{
+          opacity: .95;
+          ${reduced ? "" : "animation: svcItemSweep .85s ease-out 1;"}
+        }
+        @keyframes svcItemSweep{
+          0%{ transform: translate3d(-70%,0,0); }
+          100%{ transform: translate3d(70%,0,0); }
+        }
         @media (hover:none){
           .svc-ddItem:hover{ transform:none; }
+          .svc-ddItem:hover::before{ animation:none; }
         }
-        .svc-ddLeft{
-          display:flex; flex-direction:column; gap: 4px;
-          min-width: 0;
-        }
+
         .svc-ddTitle{
           font-weight: 900;
           font-size: 14px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .svc-ddDesc{
-          font-size: 12px;
-          color: rgba(255,255,255,.66);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          color: rgba(255,255,255,.92);
+          padding-right: 4px;
         }
 
-        /* RIGHT = CLEAN VIDEO */
-        .svc-right{
-          min-width:0;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.08);
-          overflow:hidden;
-          position:relative;
-          background: rgba(0,0,0,.22);
-          contain: layout paint style;
-        }
-        .svc-videoWrap{
-          position: relative;
-          width: 100%;
-          height: 100%;
-          min-height: 320px;
-          border-radius: 22px;
-          overflow:hidden;
-          transform: translateZ(0);
-          backface-visibility:hidden;
-        }
-        @media (max-width: 980px){
-          .svc-videoWrap{ min-height: 260px; }
-        }
-        .svc-video{
-          position:absolute; inset:0;
-          width: 100%; height: 100%;
-          object-fit: cover;
-          display:block;
-          transform: translateZ(0);
-        }
-        .svc-videoScrim{
-          position:absolute; inset:0;
-          background:
-            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.14), transparent 55%),
-            linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.46) 92%);
-          pointer-events:none;
-        }
+        /* remove any arrow icon (none rendered now) */
 
+        /* badge */
         .svc-badge{
           position:absolute; top: 12px; left: 12px; right: 12px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
@@ -838,8 +820,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.28));
-          box-shadow: 0 0 0 4px rgba(47,184,255,.06);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
+          box-shadow: 0 0 0 4px ${T.c};
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -896,7 +878,7 @@ function ServicePage({
           width: 30px; height: 30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.10);
-          background: rgba(47,184,255,.06);
+          background: ${T.c};
           color: rgba(170,225,255,.95);
           flex: 0 0 auto;
           transform: translateZ(0);
@@ -936,9 +918,9 @@ function ServicePage({
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
-                <Link to={withLang("/contact", lang)} className="svc-cta svc-cta--contact">
+                <Link to={withLang("/contact", lang)} className="svc-cta">
                   {contact}
-                  <ArrowRight className="svc-ctaIcon" size={16} />
+                  {/* (no arrow icon) */}
                 </Link>
 
                 <button
@@ -953,16 +935,18 @@ function ServicePage({
                 </button>
               </div>
 
-              {/* ✅ In-flow dropdown that pushes blocks down */}
-              {svcOpen && (
-                <div className="svc-ddFlow" role="menu" aria-label="Services">
-                  <div className="svc-ddHead">
-                    <span>SERVICES</span>
-                    <span style={{ opacity: 0.75 }}>
-                      {lang === "az" ? "Seç və keçid et" : "Select & switch"}
-                    </span>
-                  </div>
-                  <div className="svc-ddList">
+              {/* ✅ compact, animated, text-sized dropdown */}
+              <div
+                ref={panelWrapRef}
+                className={cx("svc-ddFlow", svcOpen && "is-open")}
+                style={
+                  svcOpen
+                    ? ({ ["--ddh" as any]: `${Math.max(120, ddH + 2)}px`, width: panelW ?? undefined } as any)
+                    : undefined
+                }
+              >
+                <div className="svc-ddFrame" aria-hidden={svcOpen ? "false" : "true"}>
+                  <div ref={ddInnerRef} className="svc-ddInner" role="menu" aria-label="Services">
                     {dropdownItems.map((s) => (
                       <Link
                         key={s.id}
@@ -970,16 +954,12 @@ function ServicePage({
                         className="svc-ddItem"
                         onClick={() => setSvcOpen(false)}
                       >
-                        <div className="svc-ddLeft">
-                          <div className="svc-ddTitle">{s.title(lang)}</div>
-                          <div className="svc-ddDesc">{s.desc ? s.desc(lang) : ""}</div>
-                        </div>
-                        <ArrowRight size={16} style={{ opacity: 0.8, flex: "0 0 auto" }} />
+                        <span className="svc-ddTitle">{s.title(lang)}</span>
                       </Link>
                     ))}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
