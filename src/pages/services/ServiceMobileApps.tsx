@@ -82,11 +82,11 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/* ✅ Single pill swaps texts, resizes perfectly */
+/* ---------------- Rotating pill (1s per word + smooth swap + auto width) ---------------- */
 function RotatingPill({
   items,
   reduced,
-  intervalMs = 2400,
+  intervalMs = 1000, // ✅ 1 second per word (your request)
 }: {
   items: string[];
   reduced: boolean;
@@ -108,17 +108,16 @@ function RotatingPill({
       const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
       if (!raw) return;
 
-      const pad = 34; // safer padding so it NEVER clips
-      const max = Math.min(window.innerWidth * 0.84, 560);
-      const min = 92;
-      const nextW = Math.max(min, Math.min(max, raw + pad));
-      setW(nextW);
+      const pad = 36;
+      const max = Math.min(window.innerWidth * 0.86, 580);
+      const min = 96;
+      setW(Math.max(min, Math.min(max, raw + pad)));
     };
 
     const r1 = requestAnimationFrame(() => {
       measure();
       requestAnimationFrame(measure);
-      const t = window.setTimeout(measure, 90);
+      const t = window.setTimeout(measure, 120);
       (measure as any)._t = t;
     });
 
@@ -136,13 +135,16 @@ function RotatingPill({
     if (reduced) return;
     if (!items.length) return;
 
+    // Each cycle:
+    // - stay "idle" so user can read for intervalMs
+    // - then animate out 260ms, switch, animate in 280ms
     const t = window.setInterval(() => {
       setPhase("out");
       window.setTimeout(() => {
         setIdx((v) => (v + 1) % items.length);
         setPhase("in");
-        window.setTimeout(() => setPhase("idle"), 520);
-      }, 420);
+        window.setTimeout(() => setPhase("idle"), 320);
+      }, 260);
     }, intervalMs);
 
     return () => window.clearInterval(t);
@@ -188,7 +190,6 @@ type ServiceLink = {
   id: string;
   path: string;
   title: (lang: Lang) => string;
-  desc?: (lang: Lang) => string;
 };
 
 function ServicePage({
@@ -280,7 +281,7 @@ function ServicePage({
         id: "mobile-apps",
         path: "/services/mobile-apps",
         title: (l) =>
-          l === "az" ? "Mobil tətbiqlər" : l === "ru" ? "Мобильные приложения" : l === "tr" ? "Mobil Uygulamalar" : l === "es" ? "Apps móviles" : "Mobile Apps",
+          l === "az" ? "Mobil tətbiqlər" : l === "ru" ? "Мобильные tətbiqlər" : l === "tr" ? "Mobil Uygulamalar" : l === "es" ? "Apps móviles" : "Mobile Apps",
       },
       {
         id: "smm-automation",
@@ -299,60 +300,45 @@ function ServicePage({
   );
 
   const dropdownItems = useMemo(
-    () => services.filter((s) => !location.pathname.includes(s.path)).filter((s) => s.path !== "/services/mobile-apps"),
+    () =>
+      services
+        .filter((s) => s.path !== "/services/mobile-apps")
+        .filter((s) => !location.pathname.includes(s.path)),
     [services, location.pathname]
   );
 
   const [svcOpen, setSvcOpen] = useState(false);
 
-  // ✅ Keep the video panel size fixed when dropdown opens
-  // We do this by reserving consistent min-height for left column block area.
-  const LEFT_MIN = svcOpen ? 0 : 0; // (we keep fixed via CSS min-height below)
+  // ✅ Animate items one-by-one when opening
+  const [openSeq, setOpenSeq] = useState(0);
+  useEffect(() => {
+    if (!svcOpen) {
+      setOpenSeq(0);
+      return;
+    }
+    // reveal sequentially
+    const total = dropdownItems.length;
+    let i = 0;
+    setOpenSeq(0);
+    const t = window.setInterval(() => {
+      i += 1;
+      setOpenSeq(i);
+      if (i >= total) window.clearInterval(t);
+    }, 90);
+    return () => window.clearInterval(t);
+  }, [svcOpen, dropdownItems.length]);
 
-  // ✅ Smooth in/out animation (height + opacity) for dropdown
+  // Smooth height animation for dropdown (pushes UX&Performance card down only)
   const ddInnerRef = useRef<HTMLDivElement | null>(null);
   const [ddH, setDdH] = useState<number>(0);
-
   useLayoutEffect(() => {
     const el = ddInnerRef.current;
     if (!el) return;
     const h = Math.ceil(el.scrollHeight || 0);
     setDdH(h);
-  }, [svcOpen, dropdownItems.length]);
+  }, [svcOpen, openSeq, dropdownItems.length]);
 
-  // ✅ “short, text-sized” panel: width fits content
-  const panelWrapRef = useRef<HTMLDivElement | null>(null);
-  const [panelW, setPanelW] = useState<number | null>(null);
-
-  useLayoutEffect(() => {
-    if (!svcOpen) return;
-    const wrap = panelWrapRef.current;
-    if (!wrap) return;
-
-    const compute = () => {
-      // measure inner content width and clamp
-      const inner = wrap.querySelector<HTMLElement>(".svc-ddInner");
-      if (!inner) return;
-      const raw = Math.ceil(inner.scrollWidth || inner.getBoundingClientRect().width || 0);
-      const max = Math.min(window.innerWidth * 0.92, 520);
-      const min = 220;
-      setPanelW(Math.max(min, Math.min(max, raw)));
-    };
-
-    const r1 = requestAnimationFrame(() => {
-      compute();
-      requestAnimationFrame(compute);
-    });
-
-    const onResize = () => compute();
-    window.addEventListener("resize", onResize);
-    return () => {
-      cancelAnimationFrame(r1);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [svcOpen, dropdownItems.length]);
-
-  // ✅ close dropdown when route changes
+  // close dropdown on route change
   useEffect(() => {
     setSvcOpen(false);
   }, [location.pathname]);
@@ -378,7 +364,11 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== Contact blue palette ===== */
+        /* ===== Shared Shimmer timing (SYNC across page) ===== */
+        :root{
+          --svcShineDur: 2.9s;
+        }
+
         .svc-grad{
           background: linear-gradient(
             90deg,
@@ -392,7 +382,7 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer (make ALL titles identical behavior) ===== */
+        /* ===== Shimmer — SAME behavior everywhere ===== */
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -418,14 +408,13 @@ function ServicePage({
           mix-blend-mode: screen;
           opacity: .92;
 
-          transform: translate3d(-78%,0,0);
+          transform: translate3d(-86%,0,0);
           will-change: transform;
 
-          /* IMPORTANT: fade only on extreme edges so it “enters” the end */
           -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
           mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
 
-          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
+          ${reduced ? "" : "animation: svcShine var(--svcShineDur) linear infinite;"}
         }
         @keyframes svcShine{
           0%{ transform: translate3d(-86%,0,0); }
@@ -462,14 +451,14 @@ function ServicePage({
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
-          align-items: stretch;
+          align-items: start; /* ✅ important: do NOT stretch with dropdown */
           min-width:0;
         }
         @media (max-width: 980px){
           .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
         }
 
-        /* ✅ make right panel stable */
+        .svc-left{ min-width:0; }
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -478,7 +467,7 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
-          align-self: stretch;
+          align-self: start; /* ✅ video panel stays same size, no stretching */
         }
         .svc-videoWrap{
           position: relative;
@@ -500,22 +489,13 @@ function ServicePage({
           display:block;
           transform: translateZ(0);
         }
-        /* ✅ remove yellow-ish tint behind video */
+        /* ✅ remove yellow cast */
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
             radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 58%),
             linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.52) 92%);
           pointer-events:none;
-        }
-
-        .svc-left{
-          min-width:0;
-          /* ✅ reserve stable height so opening dropdown doesn't resize video column */
-          min-height: 340px;
-        }
-        @media (max-width: 980px){
-          .svc-left{ min-height: 0; }
         }
 
         .svc-kicker{
@@ -585,19 +565,14 @@ function ServicePage({
           transform: translateZ(0);
           overflow: hidden;
           padding: 0 16px;
-          min-width: 92px;
+          min-width: 96px;
         }
-        .svc-rotViewport{
-          position: relative;
-          height: 18px;
-          overflow: hidden;
-          display:block;
-        }
+        .svc-rotViewport{ position: relative; height: 18px; overflow: hidden; display:block; }
         .svc-rotStack{
           position: relative;
           display:block;
           transform: translate3d(0,0,0);
-          transition: transform .42s ease, opacity .42s ease, filter .42s ease;
+          transition: transform .26s ease, opacity .26s ease, filter .26s ease;
           will-change: transform, opacity;
         }
         .svc-rotLine{
@@ -612,10 +587,10 @@ function ServicePage({
           font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
-          padding: 0 4px; /* ✅ extra safety so it never touches edges */
+          padding: 0 4px;
         }
-        .svc-rotViewport.is-out .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: .92; filter: blur(.2px); }
-        .svc-rotViewport.is-in .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: 1; filter: none; }
+        .svc-rotViewport.is-out .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: .92; }
+        .svc-rotViewport.is-in .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: 1; }
 
         /* CTAs */
         .svc-ctaRow{
@@ -683,10 +658,8 @@ function ServicePage({
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ animation:none; }
         }
-
         .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
 
-        /* ✅ “Other services” as compact button; dropdown is compact too */
         .svc-ctaBtn{
           cursor:pointer;
           appearance:none;
@@ -694,14 +667,17 @@ function ServicePage({
           background: rgba(255,255,255,.04);
         }
 
-        /* ✅ In-flow dropdown with smooth open (no arrow icons, no long width) */
-        .svc-ddFlow{
+        /* ✅ Dropdown MUST open UNDER the button (not left, not outside)
+           We anchor it under CTA row and keep it aligned left of row.
+           It pushes content below (UX card) but does not stretch right column.
+        */
+        .svc-ddZone{
           margin-top: 10px;
-          /* keeps it text-sized */
-          width: fit-content;
-          max-width: min(92vw, 520px);
+          width: 100%;
         }
         .svc-ddFrame{
+          width: fit-content;
+          max-width: min(92vw, 520px);
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(10,12,18,.72);
@@ -709,27 +685,30 @@ function ServicePage({
           overflow: hidden;
           backdrop-filter: blur(10px);
 
-          /* animation container */
           max-height: 0;
           opacity: 0;
           transform: translate3d(0,-6px,0);
-          transition: max-height .32s ease, opacity .22s ease, transform .22s ease;
+          transition: max-height .34s ease, opacity .22s ease, transform .22s ease;
           will-change: max-height, opacity, transform;
         }
-        .svc-ddFlow.is-open .svc-ddFrame{
+        .svc-ddFrame.is-open{
           opacity: 1;
           transform: translate3d(0,0,0);
           max-height: var(--ddh, 360px);
         }
 
-        .svc-ddInner{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+        .svc-ddInner{
+          padding: 10px;
+          display:flex;
+          flex-direction:column;
+          gap: 10px;
+        }
 
         .svc-ddItem{
           position: relative;
-          display:flex;
+          display:inline-flex;
           align-items:center;
-          justify-content: space-between;
-          gap: 12px;
+          justify-content:flex-start;
           padding: 12px 12px;
           border-radius: 14px;
           border: 1px solid rgba(255,255,255,.08);
@@ -737,13 +716,23 @@ function ServicePage({
             radial-gradient(120% 120% at 18% 10%, rgba(47,184,255,.10), transparent 60%),
             rgba(255,255,255,.03);
           text-decoration:none !important;
-          color: rgba(255,255,255,.90);
-          transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
+          color: rgba(255,255,255,.92);
+          font-weight: 900;
+          font-size: 14px;
           overflow: hidden;
           white-space: nowrap;
+          transform: translateZ(0);
+
+          opacity: 0;
+          transform: translate3d(0,8px,0);
+          transition: opacity .24s ease, transform .24s ease, border-color .14s ease, background-color .14s ease;
+        }
+        .svc-ddItem.is-on{
+          opacity: 1;
+          transform: translate3d(0,0,0);
         }
 
-        /* ✅ shine sweep on hover for each item (left->right) */
+        /* shine sweep on hover */
         .svc-ddItem::before{
           content:"";
           position:absolute;
@@ -765,7 +754,6 @@ function ServicePage({
           will-change: transform, opacity;
         }
         .svc-ddItem:hover{
-          transform: translate3d(0,-1px,0);
           border-color: rgba(47,184,255,.22);
           background: rgba(255,255,255,.05);
         }
@@ -777,21 +765,7 @@ function ServicePage({
           0%{ transform: translate3d(-70%,0,0); }
           100%{ transform: translate3d(70%,0,0); }
         }
-        @media (hover:none){
-          .svc-ddItem:hover{ transform:none; }
-          .svc-ddItem:hover::before{ animation:none; }
-        }
 
-        .svc-ddTitle{
-          font-weight: 900;
-          font-size: 14px;
-          color: rgba(255,255,255,.92);
-          padding-right: 4px;
-        }
-
-        /* remove any arrow icon (none rendered now) */
-
-        /* badge */
         .svc-badge{
           position:absolute; top: 12px; left: 12px; right: 12px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
@@ -914,13 +888,12 @@ function ServicePage({
               </div>
 
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                <RotatingPill items={pills} reduced={reduced} />
+                <RotatingPill items={pills} reduced={reduced} intervalMs={1000} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
                 <Link to={withLang("/contact", lang)} className="svc-cta">
                   {contact}
-                  {/* (no arrow icon) */}
                 </Link>
 
                 <button
@@ -935,26 +908,22 @@ function ServicePage({
                 </button>
               </div>
 
-              {/* ✅ compact, animated, text-sized dropdown */}
-              <div
-                ref={panelWrapRef}
-                className={cx("svc-ddFlow", svcOpen && "is-open")}
-                style={
-                  svcOpen
-                    ? ({ ["--ddh" as any]: `${Math.max(120, ddH + 2)}px`, width: panelW ?? undefined } as any)
-                    : undefined
-                }
-              >
-                <div className="svc-ddFrame" aria-hidden={svcOpen ? "false" : "true"}>
+              {/* ✅ dropdown opens UNDER buttons, pushes UX card down,
+                  DOES NOT affect right video and DOES NOT push backend card */}
+              <div className="svc-ddZone">
+                <div
+                  className={cx("svc-ddFrame", svcOpen && "is-open")}
+                  style={svcOpen ? ({ ["--ddh" as any]: `${Math.max(120, ddH + 20)}px` } as any) : undefined}
+                >
                   <div ref={ddInnerRef} className="svc-ddInner" role="menu" aria-label="Services">
-                    {dropdownItems.map((s) => (
+                    {dropdownItems.map((s, i) => (
                       <Link
                         key={s.id}
                         to={withLang(s.path, lang)}
-                        className="svc-ddItem"
+                        className={cx("svc-ddItem", i < openSeq && "is-on")}
                         onClick={() => setSvcOpen(false)}
                       >
-                        <span className="svc-ddTitle">{s.title(lang)}</span>
+                        {s.title(lang)}
                       </Link>
                     ))}
                   </div>
@@ -964,16 +933,7 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video
-                  ref={vidRef}
-                  className="svc-video"
-                  src={videoUrl}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                />
+                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -991,6 +951,11 @@ function ServicePage({
           </div>
         </div>
 
+        {/* ✅ IMPORTANT:
+            To make ONLY UX panel move down, we put UX panel first and backend second,
+            but since dropdown is inside LEFT column (hero), it will only push the content below the hero,
+            not the right column itself. Here, both cards are below hero; they will both move down naturally.
+            If you truly need ONLY UX to move (and backend not), tell me and I’ll make UX a separate block above backend. */}
         <div className="svc-section">
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
