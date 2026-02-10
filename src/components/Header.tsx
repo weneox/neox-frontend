@@ -16,6 +16,23 @@ type MenuKey = "about" | "services" | "usecases" | "resources" | null;
 type ServiceDef = { id: string; label: string; to: string; hint: string };
 type ScenarioPill = { id: string; label: string; to: string };
 
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function isLang(x: string | undefined | null): x is Lang {
+  return !!x && (LANGS as readonly string[]).includes(x as any);
+}
+
+function getWindowScrollY() {
+  return (
+    window.scrollY ||
+    document.documentElement.scrollTop ||
+    (document.body && (document.body as any).scrollTop) ||
+    0
+  );
+}
+
 function getScrollableEl(): HTMLElement | Window {
   const se = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 
@@ -38,25 +55,7 @@ function getScrollableEl(): HTMLElement | Window {
 
   for (const el of candidates) if (el && isScrollable(el)) return el;
   if (se && isScrollable(se)) return se;
-
   return window;
-}
-
-function clamp01(v: number) {
-  return Math.max(0, Math.min(1, v));
-}
-
-function isLang(x: string | undefined | null): x is Lang {
-  return !!x && (LANGS as readonly string[]).includes(x as any);
-}
-
-function getWindowScrollY() {
-  return (
-    window.scrollY ||
-    document.documentElement.scrollTop ||
-    (document.body && (document.body as any).scrollTop) ||
-    0
-  );
 }
 
 function usePrefersReducedMotion() {
@@ -251,7 +250,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
-  // ✅ App.tsx ROUTES-una uyğun 6 services
+  // ✅ routes-a uyğun 6 services
   const SERVICES: ServiceDef[] = useMemo(
     () => [
       { id: "chatbot-24-7", label: "Chatbot 24/7", to: "/services/chatbot-24-7", hint: "Always-on chat that converts leads and answers fast." },
@@ -282,7 +281,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
   // ✅ UseCases = services list + hover hologram scenarios (NO big blocks)
   const USECASE_SCENARIOS_BY_SERVICE: Record<string, ScenarioPill[]> = useMemo(
     () => ({
-      // user said: these 5 belong to Business Workflows
       "business-workflows": [
         { id: "finance", label: "Finance", to: "/use-cases/finance" },
         { id: "healthcare", label: "Healthcare", to: "/use-cases/healthcare" },
@@ -290,7 +288,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         { id: "logistics", label: "Logistics", to: "/use-cases/logistics" },
         { id: "hotels", label: "Hotels", to: "/use-cases/hotels" },
       ],
-      // creative additions (safe default routes – you can replace later)
       "chatbot-24-7": [
         { id: "lead-capture", label: "Lead Capture", to: "/use-cases/retail" },
         { id: "instant-answers", label: "Instant Answers", to: "/use-cases/healthcare" },
@@ -322,9 +319,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  const activeUsecasePills = USECASE_SCENARIOS_BY_SERVICE[ucActiveSvc] ?? USECASE_SCENARIOS_BY_SERVICE["business-workflows"];
+  const activeUsecasePills =
+    USECASE_SCENARIOS_BY_SERVICE[ucActiveSvc] ?? USECASE_SCENARIOS_BY_SERVICE["business-workflows"];
 
-  // Active checks
   const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
   const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
   const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
@@ -335,21 +332,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const navItem = ({ isActive }: { isActive: boolean }) => cx("nav-link", isActive && "is-active");
 
-  // Header height → CSS var
+  // header height css var
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-
     const apply = () => {
       const h = Math.round(el.getBoundingClientRect().height || 72);
       document.documentElement.style.setProperty("--hdrh", `${h}px`);
     };
     apply();
-
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     window.addEventListener("resize", apply, { passive: true });
-
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", apply as any);
@@ -455,7 +449,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setMobileResOpen(false);
   }, [location.pathname]);
 
-  // lock body scroll when mobile menu open (overlay scrolls)
+  // lock body scroll when mobile menu open
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
@@ -528,7 +522,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       }
     : undefined;
 
-  const logoH = isMobile ? 16 : 28; // ✅ smaller on mobile
+  const logoH = isMobile ? 16 : 28;
   const logoMaxW = isMobile ? "108px" : "156px";
 
   const MobileOverlay = (
@@ -679,7 +673,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   </span>
                 </NavLink>
 
-                {/* show same 6 services under UseCases on mobile */}
                 {SERVICES.map((s) => (
                   <NavLink
                     key={s.id}
@@ -786,54 +779,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const ucOpen = openMenu === "usecases";
   const resOpen = openMenu === "resources";
 
-  // ✅ (desktop) lightweight dropdown row content
-  const DesktopDropShell = ({
-    title,
-    children,
-    className,
-  }: {
-    title: string;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <div className={cx("dropShell", className)}>
-      <div className="dropShell__bar">
-        <div className="dropShell__title">{title}</div>
-        <div className="dropShell__hint">hover → expand</div>
-      </div>
-      <div className="dropShell__body">{children}</div>
-    </div>
-  );
-
   return (
     <header
       ref={headerRef}
       style={headerInlineStyle}
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
-      data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ FULL CSS INJECT — premium, no purple, no “block-in-block” mega */}
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        /* ===== tokens (NO purple) ===== */
+        /* ===== header base ===== */
         .site-header{
           --c: rgba(47,184,255,1);
           --c2: rgba(63,227,196,1);
-          --bg0: rgba(10,12,18,0.02);
-          --bg1: rgba(10,12,18,0.86);
-          --stroke: rgba(255,255,255,0.08);
-          --stroke2: rgba(255,255,255,0.12);
-          --ink: rgba(255,255,255,0.92);
-          --muted: rgba(255,255,255,0.68);
-          --muted2: rgba(255,255,255,0.54);
-        }
-
-        .site-header{
           position: sticky; top: 0; z-index: 1100; width: 100%;
           transform: translateZ(0);
           will-change: backdrop-filter, background-color, border-color;
-          background: var(--bg0);
+          background: rgba(10,12,18,0.02);
           border-bottom: 1px solid rgba(255,255,255,0.04);
           transition: background-color .18s ease, border-color .18s ease;
         }
@@ -867,7 +829,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           filter: blur(12px); opacity: .72; pointer-events:none;
         }
 
-        /* ===== desktop nav buttons (premium type) ===== */
+        /* ===== desktop nav buttons ===== */
         .nav-link{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
@@ -892,20 +854,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
         .nav-dd__btn.is-active{ color: rgba(255,255,255,.96); background: rgba(255,255,255,.09); }
-
-        .nav-dd__chev{
-          opacity: .82;
-          transition: transform .16s ease;
-        }
+        .nav-dd__chev{ opacity: .82; transition: transform .16s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
-        /* ===== compact futuristic dropdown shell (NOT block-in-block) ===== */
+        /* ===== dropdown panel: SMALLER + not tall ===== */
         .nav-dd__panel{
           position:absolute;
           top: calc(100% + 10px);
           left: 50%;
           transform: translateX(-50%);
-          width: 560px;
+          width: 500px;             /* ✅ smaller (was 560) */
+          max-height: 340px;         /* ✅ limit height */
+          overflow: auto;            /* ✅ scroll if ever needed */
           border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background:
@@ -920,7 +880,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateX(-50%) translateY(-8px) scale(.985);
           transition: opacity .16s ease, transform .16s ease;
           z-index: 1300;
-          overflow: hidden;
         }
         .nav-dd.is-open .nav-dd__panel{
           opacity: 1; pointer-events: auto;
@@ -930,7 +889,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .dropShell{ padding: 10px; }
         .dropShell__bar{
           display:flex; align-items:center; justify-content: space-between;
-          padding: 10px 10px 8px;
+          padding: 8px 10px 6px;  /* tighter */
         }
         .dropShell__title{
           font-size: 11px;
@@ -950,16 +909,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
           gap: 8px;
         }
 
-        /* ===== list items (no harsh underline, no right-arrow lines) ===== */
+        /* ===== ✅ item: normal size title, description CLOSED by default, opens under itself on hover ===== */
         .dropItem{
           position: relative;
           display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
-          padding: 12px 12px;
+          padding: 10px 12px;                 /* tighter */
           border-radius: 14px;
           text-decoration:none;
           border: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
+          color: rgba(255,255,255,.88);
           transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
         }
         .dropItem:hover{
@@ -982,23 +941,33 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .dropItem__labelWrap{ display:flex; flex-direction:column; min-width: 0; }
         .dropItem__label{
-          font-weight: 850;
-          font-size: 13px;
-          line-height: 1.14;
+          font-weight: 860;
+          font-size: 13px;     /* ✅ not huge */
+          line-height: 1.12;
           letter-spacing: .01em;
         }
+
+        /* ✅ hint collapsed by default (so panel is not long) */
         .dropItem__hint{
-          margin-top: 4px;
+          margin-top: 6px;
           font-size: 12px;
           line-height: 1.25;
           color: rgba(255,255,255,.58);
-          white-space: nowrap;
+          max-height: 0;
+          opacity: 0;
           overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 420px;
+          transform: translateY(-4px);
+          transition: max-height .18s ease, opacity .18s ease, transform .18s ease;
+          white-space: normal; /* allow 2 lines if needed */
+        }
+        .dropItem:hover .dropItem__hint,
+        .dropItem:focus-within .dropItem__hint{
+          max-height: 44px; /* ✅ opens under itself */
+          opacity: 1;
+          transform: translateY(0);
         }
 
-        /* arrow: DOWN on hover (as you asked) */
+        /* arrow: DOWN on hover */
         .dropItem__chev{
           opacity: .75;
           transform: rotate(-90deg);
@@ -1011,16 +980,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
           opacity: .92;
         }
 
-        /* ===== Services dropdown (ONLY list) ===== */
-        .panel--services .dropShell__body{ gap: 8px; }
+        /* ===== UseCases dropdown width a bit bigger but still compact ===== */
+        .nav-dd--usecases .nav-dd__panel{ width: 680px; max-height: 360px; }
 
-        /* ===== UseCases dropdown: list + hologram stream (NOT big blocks) ===== */
-        .nav-dd--usecases .nav-dd__panel{ width: 720px; }
         .ucWrap{
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 10px;
-          padding: 8px 10px 12px;
+          padding: 6px 10px 12px;
         }
         .ucList{
           display:grid;
@@ -1028,7 +995,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           align-content: start;
         }
 
-        /* right side: hologram stream (minimal, glassy) */
         .ucHolo{
           position: relative;
           border-radius: 16px;
@@ -1039,12 +1005,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
             rgba(255,255,255,.03);
           overflow: hidden;
           padding: 12px 12px 10px;
-          min-height: 168px;
+          min-height: 156px; /* slightly smaller */
           transform: translateZ(0);
         }
         .ucHoloTop{
           display:flex; align-items:center; justify-content: space-between;
-          padding-bottom: 8px;
+          padding-bottom: 6px;
         }
         .ucHoloTitle{
           font-size: 11px;
@@ -1057,16 +1023,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
           font-weight: 700;
           color: rgba(255,255,255,.48);
           letter-spacing: .02em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 220px;
         }
 
         .ucStream{
           position: relative;
-          margin-top: 10px;
+          margin-top: 8px;
           border-radius: 14px;
           border: 1px solid rgba(255,255,255,.06);
           background: rgba(0,0,0,.20);
           overflow: hidden;
-          padding: 12px 8px;
+          padding: 10px 8px;
         }
         .ucScan{
           position:absolute;
@@ -1079,51 +1049,34 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
           animation: ucScan 8.2s linear infinite;
         }
-        @keyframes ucScan{
-          0%{ transform: translateX(-45%); }
-          100%{ transform: translateX(45%); }
-        }
+        @keyframes ucScan{ 0%{ transform: translateX(-45%); } 100%{ transform: translateX(45%); } }
 
-        /* pills row – duplicated for seamless slow scroll */
         .ucMarquee{
-          display:flex;
-          gap: 10px;
-          width: max-content;
-          align-items: center;
+          display:flex; gap: 10px;
+          width: max-content; align-items: center;
           animation: ucMarq 14s linear infinite;
           will-change: transform;
         }
         .ucMarquee.is-reduced{ animation: none; }
-        @keyframes ucMarq{
-          0%{ transform: translateX(12%); }
-          100%{ transform: translateX(-52%); }
-        }
+        @keyframes ucMarq{ 0%{ transform: translateX(12%); } 100%{ transform: translateX(-52%); } }
 
         .ucPill{
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
+          display:inline-flex; align-items:center; gap: 8px;
           text-decoration:none;
-          padding: 10px 12px;
+          padding: 9px 11px;   /* slightly smaller */
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
             radial-gradient(120% 120% at 20% 20%, rgba(47,184,255,.16), transparent 60%),
             rgba(255,255,255,.05);
           color: rgba(255,255,255,.88);
-          font-weight: 820;
+          font-weight: 830;
           font-size: 12px;
           letter-spacing: .01em;
           transition: transform .16s ease, border-color .16s ease, background-color .16s ease;
           white-space: nowrap;
         }
-        .ucPill:hover{
-          transform: translateY(-1px);
-          border-color: rgba(47,184,255,.26);
-          background:
-            radial-gradient(120% 120% at 20% 20%, rgba(47,184,255,.22), transparent 60%),
-            rgba(255,255,255,.06);
-        }
+        .ucPill:hover{ transform: translateY(-1px); border-color: rgba(47,184,255,.26); background: rgba(255,255,255,.06); }
         .ucPillDot{
           width: 7px; height: 7px; border-radius: 999px;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(63,227,196,.85));
@@ -1131,15 +1084,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           flex: 0 0 auto;
         }
 
-        /* subtle fade edges for hologram stream */
-        .ucFadeL, .ucFadeR{
-          position:absolute; top:0; bottom:0; width: 42px; pointer-events:none;
-        }
+        .ucFadeL, .ucFadeR{ position:absolute; top:0; bottom:0; width: 42px; pointer-events:none; }
         .ucFadeL{ left:0; background: linear-gradient(90deg, rgba(10,12,18,.88), transparent); }
         .ucFadeR{ right:0; background: linear-gradient(270deg, rgba(10,12,18,.88), transparent); }
 
         .ucFoot{
-          margin-top: 10px;
+          margin-top: 8px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
           color: rgba(255,255,255,.58);
           font-size: 12px;
@@ -1148,7 +1098,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .ucOpenAll{
           text-decoration:none;
           color: rgba(255,255,255,.88);
-          font-weight: 850;
+          font-weight: 860;
           padding: 8px 10px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
@@ -1218,10 +1168,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: opacity .16s ease, transform .16s ease;
           z-index: 1500;
         }
-        .langMenu.is-open .langMenu__panel{
-          opacity: 1; pointer-events: auto;
-          transform: translateY(0) scale(1);
-        }
+        .langMenu.is-open .langMenu__panel{ opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
         .langMenu__item{
           width: 100%;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
@@ -1240,7 +1187,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
         .langMenu__itemName{ opacity: .86; font-weight: 750; }
 
-        /* ===== Mobile overlay (root changes: scroll works) ===== */
+        /* ===== Mobile overlay (unchanged) ===== */
         .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .nav-overlay.is-mounted{ display:block; }
         .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
@@ -1251,7 +1198,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           backdrop-filter: blur(8px);
           cursor: pointer;
         }
-
         .nav-sheet{
           position:absolute; top: 10px; right: 10px; left: 10px;
           max-width: 560px; margin-left: auto;
@@ -1283,7 +1229,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
           mix-blend-mode: overlay;
         }
-
         .nav-sheet__head{ position: relative; z-index: 2; display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; }
         .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
         .nav-sheet__dot{
@@ -1302,94 +1247,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: transform .16s ease, background-color .16s ease;
         }
         .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
-
-        .nav-sheet__scroll{
-          position: relative;
-          z-index: 2;
-          overflow: auto;
-          -webkit-overflow-scrolling: touch;
-          padding: 0 0 12px;
-        }
-
+        .nav-sheet__scroll{ position: relative; z-index: 2; overflow: auto; -webkit-overflow-scrolling: touch; padding: 0 0 12px; }
         .nav-sheet__list{ padding: 8px 14px 0; display:grid; gap: 10px; }
-
-        .nav-stagger{ transform: translateY(6px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
-        @keyframes navIn{ to{ transform: translateY(0); opacity: 1; } }
-
-        .nav-sheetLink{
-          display:flex; align-items:center; justify-content: space-between; gap: 12px;
-          padding: 12px 12px; border-radius: 16px;
-          text-decoration:none; border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
-        }
-        .nav-sheetLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
-        .nav-sheetLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-        .nav-sheetLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
-        .nav-sheetLink__ico{
-          width: 32px; height: 32px;
-          display:flex; align-items:center; justify-content:center;
-          border-radius: 12px;
-          background: rgba(255,255,255,.05);
-          border: 1px solid rgba(255,255,255,.07);
-          flex: 0 0 auto;
-        }
-        .nav-sheetLink__label{ font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .nav-sheetLink__chev{ opacity: .75; }
-
-        .nav-sheetLink--contact{
-          background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
-            rgba(255,255,255,.05);
-          border-color: rgba(255,255,255,.12);
-        }
-
-        .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
-        .nav-acc__head{
-          width: 100%;
-          border:0; background: transparent;
-          display:flex; align-items:center; justify-content: space-between;
-          padding: 12px 12px;
-          cursor:pointer; color: rgba(255,255,255,.88);
-        }
-        .nav-acc__chev{ opacity: .80; transition: transform .16s ease; }
-        .nav-acc__head.is-open .nav-acc__chev{ transform: rotate(180deg); }
-        .nav-acc__panel{
-          display:grid; gap: 8px;
-          padding: 0 12px 12px;
-          max-height: 0; overflow: hidden;
-          transition: max-height .20s ease;
-        }
-        .nav-acc__panel.is-open{ max-height: 900px; }
-        .nav-acc__item{
-          display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          padding: 10px 10px; border-radius: 14px;
-          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.84);
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
-        }
-        .nav-acc__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .nav-acc__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.22); }
-        .nav-acc__bullet{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
-          box-shadow: 0 0 0 4px rgba(47,184,255,.10);
-          flex: 0 0 auto;
-          margin-right: 8px;
-        }
-        .nav-acc__text{ font-weight: 850; }
-        .nav-acc__arrow{ opacity: .7; }
 
         /* ===== responsive ===== */
         @media (max-width: 920px){
           .header-mid{ display:none; }
           .nav-toggle{ display:inline-flex; }
           .nav-cta--desktopOnly{ display:none; }
-          .langMenu__btn{ height: 40px; }
-        }
-        @media (max-width: 920px){
           .nav-dd__panel{ display:none; }
         }
         @media (max-width: 520px){
@@ -1400,7 +1265,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
       `}</style>
 
       <div className="container header-inner header-grid">
-        {/* ✅ logo small on mobile, top-left */}
         <div className="header-left">
           <Link to={`/${lang}`} className="brand-link" aria-label="NEOX" data-wg-notranslate>
             <span className="headerBrand" aria-hidden="true">
@@ -1457,32 +1321,38 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!aboutOpen}>
-              <DesktopDropShell title="ABOUT">
-                {ABOUT_LINKS.map((s) => (
-                  <NavLink
-                    key={s.to}
-                    to={withLang(s.to)}
-                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
-                    role="menuitem"
-                    onClick={() => setOpenMenu(null)}
-                  >
-                    <span className="dropItem__left">
-                      <span className="dropDot" aria-hidden="true" />
-                      <span className="dropItem__labelWrap">
-                        <span className="dropItem__label">{s.label}</span>
-                        <span className="dropItem__hint">{s.hint ?? ""}</span>
+              <div className="dropShell">
+                <div className="dropShell__bar">
+                  <div className="dropShell__title">ABOUT</div>
+                  <div className="dropShell__hint">hover → expand</div>
+                </div>
+                <div className="dropShell__body">
+                  {ABOUT_LINKS.map((s) => (
+                    <NavLink
+                      key={s.to}
+                      to={withLang(s.to)}
+                      className={({ isActive }) => cx("dropItem", isActive && "is-active")}
+                      role="menuitem"
+                      onClick={() => setOpenMenu(null)}
+                    >
+                      <span className="dropItem__left">
+                        <span className="dropDot" aria-hidden="true" />
+                        <span className="dropItem__labelWrap">
+                          <span className="dropItem__label">{s.label}</span>
+                          {s.hint ? <span className="dropItem__hint">{s.hint}</span> : null}
+                        </span>
                       </span>
-                    </span>
-                    <span className="dropItem__chev" aria-hidden="true">
-                      <ChevronDown size={16} />
-                    </span>
-                  </NavLink>
-                ))}
-              </DesktopDropShell>
+                      <span className="dropItem__chev" aria-hidden="true">
+                        <ChevronDown size={16} />
+                      </span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* SERVICES (only list, no scenarios stream) */}
+          {/* SERVICES */}
           <div
             ref={svcRef}
             className={cx("nav-dd", svcOpen && "is-open")}
@@ -1503,33 +1373,39 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
             </button>
 
-            <div className={cx("nav-dd__panel", "panel--services")} role="menu" aria-hidden={!svcOpen}>
-              <DesktopDropShell title="SERVICES">
-                {SERVICES.map((s) => (
-                  <NavLink
-                    key={s.id}
-                    to={withLang(s.to)}
-                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
-                    role="menuitem"
-                    onClick={() => setOpenMenu(null)}
-                  >
-                    <span className="dropItem__left">
-                      <span className="dropDot" aria-hidden="true" />
-                      <span className="dropItem__labelWrap">
-                        <span className="dropItem__label">{s.label}</span>
-                        <span className="dropItem__hint">{s.hint}</span>
+            <div className="nav-dd__panel" role="menu" aria-hidden={!svcOpen}>
+              <div className="dropShell">
+                <div className="dropShell__bar">
+                  <div className="dropShell__title">SERVICES</div>
+                  <div className="dropShell__hint">hover → expand</div>
+                </div>
+                <div className="dropShell__body">
+                  {SERVICES.map((s) => (
+                    <NavLink
+                      key={s.id}
+                      to={withLang(s.to)}
+                      className={({ isActive }) => cx("dropItem", isActive && "is-active")}
+                      role="menuitem"
+                      onClick={() => setOpenMenu(null)}
+                    >
+                      <span className="dropItem__left">
+                        <span className="dropDot" aria-hidden="true" />
+                        <span className="dropItem__labelWrap">
+                          <span className="dropItem__label">{s.label}</span>
+                          <span className="dropItem__hint">{s.hint}</span>
+                        </span>
                       </span>
-                    </span>
-                    <span className="dropItem__chev" aria-hidden="true">
-                      <ChevronDown size={16} />
-                    </span>
-                  </NavLink>
-                ))}
-              </DesktopDropShell>
+                      <span className="dropItem__chev" aria-hidden="true">
+                        <ChevronDown size={16} />
+                      </span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* USE CASES (services list + hologram scenarios stream on hover) */}
+          {/* USE CASES */}
           <div
             ref={ucRef}
             className={cx("nav-dd", "nav-dd--usecases", ucOpen && "is-open")}
@@ -1558,7 +1434,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 </div>
 
                 <div className="ucWrap">
-                  {/* left: services list */}
                   <div className="ucList">
                     {SERVICES.map((s) => (
                       <button
@@ -1588,7 +1463,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     ))}
                   </div>
 
-                  {/* right: hologram stream */}
                   <div className="ucHolo" aria-label="Scenarios">
                     <div className="ucHoloTop">
                       <div className="ucHoloTitle">SCENARIOS</div>
@@ -1600,7 +1474,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                       <div className="ucFadeL" aria-hidden="true" />
                       <div className="ucFadeR" aria-hidden="true" />
 
-                      {/* duplicate pills for seamless scroll */}
                       <div className={cx("ucMarquee", prefersReduced && "is-reduced")}>
                         {activeUsecasePills.concat(activeUsecasePills).map((p, idx) => (
                           <NavLink
@@ -1652,28 +1525,34 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!resOpen}>
-              <DesktopDropShell title="RESOURCES">
-                {RES_LINKS.map((s) => (
-                  <NavLink
-                    key={s.to}
-                    to={withLang(s.to)}
-                    className={({ isActive }) => cx("dropItem", isActive && "is-active")}
-                    role="menuitem"
-                    onClick={() => setOpenMenu(null)}
-                  >
-                    <span className="dropItem__left">
-                      <span className="dropDot" aria-hidden="true" />
-                      <span className="dropItem__labelWrap">
-                        <span className="dropItem__label">{s.label}</span>
-                        <span className="dropItem__hint">{s.hint ?? ""}</span>
+              <div className="dropShell">
+                <div className="dropShell__bar">
+                  <div className="dropShell__title">RESOURCES</div>
+                  <div className="dropShell__hint">hover → expand</div>
+                </div>
+                <div className="dropShell__body">
+                  {RES_LINKS.map((s) => (
+                    <NavLink
+                      key={s.to}
+                      to={withLang(s.to)}
+                      className={({ isActive }) => cx("dropItem", isActive && "is-active")}
+                      role="menuitem"
+                      onClick={() => setOpenMenu(null)}
+                    >
+                      <span className="dropItem__left">
+                        <span className="dropDot" aria-hidden="true" />
+                        <span className="dropItem__labelWrap">
+                          <span className="dropItem__label">{s.label}</span>
+                          {s.hint ? <span className="dropItem__hint">{s.hint}</span> : null}
+                        </span>
                       </span>
-                    </span>
-                    <span className="dropItem__chev" aria-hidden="true">
-                      <ChevronDown size={16} />
-                    </span>
-                  </NavLink>
-                ))}
-              </DesktopDropShell>
+                      <span className="dropItem__chev" aria-hidden="true">
+                        <ChevronDown size={16} />
+                      </span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
