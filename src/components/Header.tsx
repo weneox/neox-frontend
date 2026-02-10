@@ -57,7 +57,15 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const closeT = useRef<number | null>(null);
 
   const nameOf = (c: Lang) =>
-    c === "az" ? "Azərbaycan" : c === "tr" ? "Türk" : c === "en" ? "English" : c === "ru" ? "Русский" : "Español";
+    c === "az"
+      ? "Azərbaycan"
+      : c === "tr"
+      ? "Türk"
+      : c === "en"
+      ? "English"
+      : c === "ru"
+      ? "Русский"
+      : "Español";
 
   const openDrop = () => {
     if (closeT.current) {
@@ -150,11 +158,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
   const panelId = useId();
+
+  // IMPORTANT: header is portaled to body to avoid "fixed inside transformed parent" drift
+  const [mounted, setMounted] = useState(false);
+
   const headerRef = useRef<HTMLElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [hdrp, setHdrp] = useState(0);
 
   // desktop dropdown state (single open)
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
@@ -165,7 +176,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const ucRef = useRef<HTMLDivElement | null>(null);
   const resRef = useRef<HTMLDivElement | null>(null);
 
-  // hover active item
+  // hover active item (for right panel)
   const [svcActive, setSvcActive] = useState<string>("chatbot-24-7");
   const [ucActive, setUcActive] = useState<string>("finance");
 
@@ -176,6 +187,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const [mobileSvcOpen, setMobileSvcOpen] = useState(false);
   const [mobileUcOpen, setMobileUcOpen] = useState(false);
   const [mobileResOpen, setMobileResOpen] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   // matchMedia
   useEffect(() => {
@@ -394,15 +407,21 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return p.includes("/resources") || p.includes("/privacy");
   }, [location.pathname]);
 
-  // header height var
+  // header height var (stabilized)
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
 
+    let last = -1;
+
     const apply = () => {
       const h = Math.round(el.getBoundingClientRect().height || 72);
-      document.documentElement.style.setProperty("--hdrh", `${h}px`);
+      if (h !== last) {
+        last = h;
+        document.documentElement.style.setProperty("--hdrh", `${h}px`);
+      }
     };
+
     apply();
 
     const ro = new ResizeObserver(apply);
@@ -415,20 +434,28 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, []);
 
-  // scroll -> blur
+  // scroll -> blur (NO rerender loop; only toggles scrolled when threshold changes)
   useEffect(() => {
     let raf = 0;
+    let prevOn = false;
+
     const onScroll = () => {
       if (raf) return;
       raf = window.requestAnimationFrame(() => {
         raf = 0;
         const y = getWindowScrollY();
         const p = clamp01(y / 220);
+
         if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
-        setHdrp(p);
-        setScrolled(p > 0.02);
+
+        const on = p > 0.02;
+        if (on !== prevOn) {
+          prevOn = on;
+          setScrolled(on);
+        }
       });
     };
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
@@ -516,18 +543,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const activeSvc = useMemo(() => SERVICES.find((s) => s.id === svcActive) ?? SERVICES[0], [SERVICES, svcActive]);
   const activeUc = useMemo(() => USECASES.find((u) => u.id === ucActive) ?? USECASES[0], [USECASES, ucActive]);
 
-  // mobile styles
-  const mobileP = clamp01(hdrp);
-  const mobileBgAlpha = open ? 0.92 : 0.04 + 0.66 * mobileP;
-  const mobileBlurPx = open ? 18 : 6 + 14 * mobileP;
-  const mobileSat = open ? 1.22 : 1 + 0.22 * mobileP;
+  // mobile styles (based on CSS var --hdrp, but computed only when needed)
+  const mobileP = 0; // header css var handles blur; keep inline style only when mobile for background alpha
+  const mobileBgAlpha = open ? 0.92 : 0.10;
+  const mobileBlurPx = open ? 18 : 10;
+  const mobileSat = open ? 1.22 : 1.12;
 
   const headerInlineStyle: React.CSSProperties | undefined = isMobile
     ? {
-        backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
-        WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.12 : 0.05 * mobileP).toFixed(3)})`,
+        backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha})`,
+        WebkitBackdropFilter: `blur(${mobileBlurPx}px) saturate(${mobileSat})`,
+        backdropFilter: `blur(${mobileBlurPx}px) saturate(${mobileSat})`,
+        borderBottom: `1px solid rgba(255,255,255,${open ? 0.12 : 0.06})`,
       }
     : undefined;
 
@@ -797,11 +824,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           <div className="hTerm" aria-hidden={prefersReduced ? "true" : "false"}>
             <div className="hTerm__inner">
               {active.terminalLines.map((line, idx) => (
-                <div
-                  key={`${active.id}-${idx}`}
-                  className={cx("hLine", prefersReduced && "is-reduced")}
-                  style={{ ["--d" as any]: `${0.10 * idx}s` }}
-                >
+                <div key={`${active.id}-${idx}`} className={cx("hLine", prefersReduced && "is-reduced")} style={{ ["--d" as any]: `${0.10 * idx}s` }}>
                   <span className="hPrompt">$</span>
                   <span className="hText">{line}</span>
                 </div>
@@ -813,8 +836,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     );
   };
 
-  // ===== IMPORTANT: render Header into document.body so it can't be affected by parent transforms =====
-  const HeaderUI = (
+  const headerNode = (
     <header
       ref={headerRef}
       style={headerInlineStyle}
@@ -824,22 +846,21 @@ export default function Header({ introReady }: { introReady: boolean }) {
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        /* SCOPE RESET (header only) */
         .h, .h *{ box-sizing:border-box; }
         .h a, .h a:hover, .h a:focus, .h a:active{ text-decoration:none !important; }
         .h a{ color: inherit; }
         .h button{ font: inherit; }
         .h :focus-visible{ outline: none; box-shadow: 0 0 0 3px rgba(120,170,255,.18); border-radius: 14px; }
 
-        /* Header shell (hard-fixed, independent) */
+        /* FIXED + PORTAL SAFE */
         .h{
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
-          z-index: 2147482000;
+          z-index: 1100;
           width: 100%;
-          transform: translate3d(0,0,0);
+          transform: translateZ(0);
           will-change: backdrop-filter, background-color, border-color;
           background: rgba(10,12,18,0.01);
           border-bottom: 1px solid rgba(255,255,255,0.03);
@@ -1134,7 +1155,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 18px 60px rgba(0,0,0,.55);
         }
 
-        .hMOv{ position: fixed; inset: 0; z-index: 2147483000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+        .hMOv{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .hMOv.is-mounted{ display:block; }
         .hMOv.is-open{ opacity: 1; pointer-events: auto; }
         .hMOv__backdrop{
@@ -1306,7 +1327,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </Link>
         </div>
 
-        {/* Desktop nav */}
         <nav className="hM" aria-label="Əsas menyu">
           <NavLink to={withLang("/")} end className={navItem}>
             {t("nav.home")}
@@ -1316,7 +1336,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             {t("nav.about")}
           </NavLink>
 
-          {/* Services mega */}
           <div
             ref={svcRef}
             className={cx("hDD", svcOpen && "is-open")}
@@ -1342,7 +1361,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* Use Cases mega */}
           <div
             ref={ucRef}
             className={cx("hDD", ucOpen && "is-open")}
@@ -1368,7 +1386,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* Resources */}
           <div
             ref={resRef}
             className={cx("hDD", resOpen && "is-open")}
@@ -1440,9 +1457,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </header>
   );
 
-  // If SSR, just return.
-  if (typeof document === "undefined") return HeaderUI;
-
-  // Portal header into <body> => parent transforms can't move it
-  return createPortal(HeaderUI, document.body);
+  // PORTAL: header goes to body => drift is gone even if #root has transform animations
+  if (!mounted) return null;
+  return createPortal(headerNode, document.body);
 }
