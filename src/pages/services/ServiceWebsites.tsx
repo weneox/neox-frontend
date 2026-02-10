@@ -22,12 +22,13 @@ function cloudinaryAuto(url: string) {
 }
 const VIDEO_URL = cloudinaryAuto(RAW_VIDEO);
 
+/** ✅ TechSupport palette (CYAN) */
 const TINTS = {
-  violet: {
-    a: "rgba(167,89,255,.22)",
-    b: "rgba(167,89,255,.10)",
-    c: "rgba(167,89,255,.06)",
-    d: "rgba(167,89,255,.28)",
+  cyan: {
+    a: "rgba(47,184,255,.22)",
+    b: "rgba(47,184,255,.10)",
+    c: "rgba(47,184,255,.06)",
+    d: "rgba(47,184,255,.28)",
   },
 } as const;
 
@@ -161,7 +162,7 @@ function PillRotator({
 }
 
 function ServicePage({
-  tint = "violet",
+  tint = "cyan",
   kicker,
   title,
   subtitle,
@@ -251,9 +252,8 @@ function ServicePage({
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
-        /* ✅ kill any underlines anywhere */
-        .svc a{ text-decoration: none !important; }
-        .svc a:hover{ text-decoration: none !important; }
+        .svc a{ text-decoration:none !important; }
+        .svc a:hover{ text-decoration:none !important; }
 
         /* reveal */
         [data-reveal]{
@@ -276,9 +276,9 @@ function ServicePage({
             linear-gradient(
               90deg,
               #ffffff 0%,
-              rgba(236,220,255,.98) 34%,
-              rgba(167,89,255,1) 68%,
-              rgba(84,165,255,1) 100%
+              rgba(170,225,255,.98) 34%,
+              rgba(47,184,255,1) 68%,
+              rgba(42,125,255,1) 100%
             ),
             linear-gradient(
               110deg,
@@ -286,8 +286,8 @@ function ServicePage({
               transparent 34%,
               rgba(255,255,255,.30) 44%,
               rgba(255,255,255,.92) 50%,
-              rgba(236,220,255,.74) 53%,
-              rgba(167,89,255,.45) 56%,
+              rgba(170,225,255,.70) 53%,
+              rgba(47,184,255,.45) 56%,
               transparent 66%,
               transparent 100%
             );
@@ -308,15 +308,15 @@ function ServicePage({
         }
 
         /* =========================
-           ✅ SMM-LIKE TITLE LENTA (ONLY TITLE)
+           ✅ TITLE LENTA (ONLY H1) — TechSupport palette
         ========================= */
         .svc-grad{
           background: linear-gradient(
             90deg,
-            rgba(255,255,255,.98) 0%,
-            rgba(236,220,255,.96) 34%,
-            rgba(167,89,255,.95) 68%,
-            rgba(84,165,255,.95) 100%
+            #ffffff 0%,
+            rgba(170,225,255,.96) 34%,
+            rgba(47,184,255,.95) 68%,
+            rgba(42,125,255,.95) 100%
           );
           -webkit-background-clip:text;
           background-clip:text;
@@ -330,23 +330,23 @@ function ServicePage({
         .svc-shimmer::after{
           content:"";
           position:absolute;
-          inset: -12% -60%;
+          inset:-12% -60%;
           pointer-events:none;
           background: linear-gradient(
             110deg,
             transparent 0%,
             transparent 35%,
-            rgba(255,255,255,.26) 45%,
-            rgba(236,220,255,.58) 50%,
-            rgba(167,89,255,.42) 55%,
+            rgba(255,255,255,.30) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 55%,
             transparent 65%,
             transparent 100%
           );
           mix-blend-mode: screen;
-          opacity: .92;
+          opacity: .9;
           transform: translate3d(-55%,0,0);
           will-change: transform;
-          ${reduced ? "" : "animation: svcShine 3.0s linear infinite;"}
+          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
         }
         @keyframes svcShine{
           0%{ transform: translate3d(-55%,0,0); }
@@ -361,9 +361,9 @@ function ServicePage({
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(900px 520px at 50% 0%, rgba(167,89,255,.08), transparent 62%),
-            radial-gradient(980px 560px at 20% 0%, rgba(84,165,255,.06), transparent 70%),
-            radial-gradient(980px 560px at 80% 0%, rgba(236,220,255,.05), transparent 70%),
+            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.08), transparent 62%),
+            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
+            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
@@ -393,7 +393,7 @@ function ServicePage({
 
         .svc-left{ min-width:0; }
 
-        /* ✅ kicker becomes a pill and dot is inside (symmetric) */
+        /* ✅ pill up a bit so it doesn't touch the title ribbon */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -407,6 +407,8 @@ function ServicePage({
           font-size: 11px;
           color: rgba(255,255,255,.72);
           text-transform:uppercase;
+          margin-top: -4px;
+          transform: translate3d(0,-6px,0);
         }
         .svc-kdot{
           width: 10px; height: 10px; border-radius: 999px;
@@ -469,7 +471,7 @@ function ServicePage({
           ${reduced ? "" : "animation-duration: 2.0s;"}
         }
 
-        /* CTA (TechSupport style) */
+        /* CTA */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -493,7 +495,6 @@ function ServicePage({
           color: rgba(255,255,255,.92);
           font-weight: 700;
           letter-spacing: .02em;
-          text-decoration:none !important;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
           transform: translateZ(0);
         }
@@ -514,10 +515,10 @@ function ServicePage({
             110deg,
             transparent 0%,
             transparent 34%,
-            rgba(255,255,255,.26) 44%,
-            rgba(255,255,255,.92) 50%,
-            rgba(236,220,255,.64) 54%,
-            rgba(167,89,255,.42) 58%,
+            rgba(255,255,255,.30) 44%,
+            rgba(255,255,255,.95) 50%,
+            rgba(170,225,255,.72) 54%,
+            rgba(47,184,255,.45) 58%,
             transparent 68%,
             transparent 100%
           );
@@ -528,18 +529,18 @@ function ServicePage({
         }
         .svc-cta:hover{
           transform: translate3d(0,-1px,0);
-          border-color: rgba(167,89,255,.26);
+          border-color: rgba(47,184,255,.24);
           background: rgba(255,255,255,.08);
         }
         .svc-cta:hover::before{
-          opacity: .96;
+          opacity: .98;
           ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
         }
         @keyframes svcBtnSweep{
           0%{ transform: translate3d(-70%,0,0); }
           100%{ transform: translate3d(70%,0,0); }
         }
-        @media (hover:none){
+        @media (hover: none){
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ opacity:0; animation:none; }
         }
@@ -581,8 +582,8 @@ function ServicePage({
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 20% 15%, rgba(167,89,255,.14), transparent 55%),
-            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.46) 92%);
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
 
@@ -614,8 +615,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
-          box-shadow: 0 0 0 4px var(--tC);
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -672,15 +673,16 @@ function ServicePage({
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.12);
           background: var(--tC);
-          color: rgba(236,220,255,.98);
+          color: rgba(170,225,255,.98);
           flex: 0 0 auto;
           ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
           will-change: transform, filter;
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
-          50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(167,89,255,.55)); }
+          50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
+
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
@@ -788,7 +790,7 @@ export default memo(function ServiceWebsites() {
 
   return (
     <ServicePage
-      tint="violet"
+      tint="cyan"
       kicker={"SERVICES"}
       title={"Veb saytların hazırlanması"}
       subtitle={
