@@ -2,15 +2,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Megaphone,
-  CalendarClock,
-  Zap,
-  BarChart3,
-  ArrowRight,
-  CheckCircle2,
-  MessageSquare,
-} from "lucide-react";
+import { Megaphone, CalendarClock, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -92,10 +84,6 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="svc-pill">{children}</span>;
-}
-
 function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
@@ -107,6 +95,47 @@ function Feature({ title, desc }: { title: string; desc: string }) {
         <div className="svc-feat__d">{desc}</div>
       </div>
     </div>
+  );
+}
+
+/** ✅ Rotating single pill (vertical slide) */
+function PillRotator({
+  items,
+  intervalMs = 2200,
+  disabled,
+}: {
+  items: string[];
+  intervalMs?: number;
+  disabled: boolean;
+}) {
+  const safe = items.length ? items : [""];
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    if (disabled) return;
+    if (safe.length <= 1) return;
+    const t = window.setInterval(() => setI((p) => (p + 1) % safe.length), intervalMs);
+    return () => window.clearInterval(t);
+  }, [disabled, intervalMs, safe.length]);
+
+  return (
+    <span className="svc-pill svc-pill--rot" aria-label={safe[i]}>
+      <span className="svc-pillRot-clip">
+        <span
+          className="svc-pillRot-track"
+          style={{
+            transform: `translate3d(0, ${-i * 100}%, 0)`,
+            transition: disabled ? "none" : "transform 520ms cubic-bezier(.2,.8,.2,1)",
+          }}
+        >
+          {safe.map((t, idx) => (
+            <span className="svc-pillRot-item" key={`${t}-${idx}`}>
+              {t}
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -138,18 +167,57 @@ function ServicePage({
 
   const T = TINTS[tint];
 
+  /** ✅ FPS FIX:
+   * - video starts only when panel is visible (IntersectionObserver)
+   * - small delayed start when it becomes visible
+   * - pause when out of view
+   */
   const vidRef = useRef<HTMLVideoElement | null>(null);
+  const rightRef = useRef<HTMLDivElement | null>(null);
+  const [canPlay, setCanPlay] = useState(false);
+
   useEffect(() => {
-    const v = vidRef.current;
-    if (!v) return;
-    const tryPlay = async () => {
-      try {
-        await v.play();
-      } catch {
-        // ignore
-      }
+    const el = rightRef.current;
+    if (!el) return;
+
+    let started = false;
+    let startTimer: number | null = null;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.some((e) => e.isIntersecting);
+        const v = vidRef.current;
+
+        if (vis) {
+          // delay start a bit to avoid spike during initial render
+          if (!started) {
+            if (startTimer) window.clearTimeout(startTimer);
+            startTimer = window.setTimeout(() => {
+              started = true;
+              setCanPlay(true);
+              // try to play
+              if (v) {
+                v.play().catch(() => {});
+              }
+            }, 450);
+          } else {
+            setCanPlay(true);
+            if (v) v.play().catch(() => {});
+          }
+        } else {
+          // out of view => pause to save FPS
+          setCanPlay(false);
+          if (v) v.pause();
+        }
+      },
+      { threshold: 0.25, rootMargin: "0px 0px -10% 0px" }
+    );
+
+    io.observe(el);
+    return () => {
+      if (startTimer) window.clearTimeout(startTimer);
+      io.disconnect();
     };
-    tryPlay();
   }, []);
 
   const contact =
@@ -177,20 +245,69 @@ function ServicePage({
   return (
     <section className="svc">
       <style>{`
-        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; }
+        html, body { background:#000 !important; }
+
+        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; color: rgba(255,255,255,.92); background:#000; }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
         /* reveal */
         [data-reveal]{
           opacity: 0;
-          transform: translateY(10px);
+          transform: translate3d(0,10px,0);
           transition: opacity .55s ease, transform .55s ease;
           will-change: opacity, transform;
         }
-        .is-in{ opacity: 1 !important; transform: translateY(0) !important; }
+        .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
+        }
+
+        /* ===== Contact blue palette + shimmer band ===== */
+        .svc-grad{
+          background: linear-gradient(
+            90deg,
+            #ffffff 0%,
+            rgba(170,225,255,.96) 34%,
+            rgba(47,184,255,.95) 68%,
+            rgba(42,125,255,.95) 100%
+          );
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+        }
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
+        .svc-shimmer::after{
+          content:"";
+          position:absolute;
+          inset: -12% -60%;
+          pointer-events:none;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.30) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          mix-blend-mode: screen;
+          opacity: .9;
+          transform: translate3d(-40%,0,0);
+          will-change: transform;
+          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+        }
+        @keyframes svcShine{
+          0%{ transform: translate3d(-55%,0,0); }
+          100%{ transform: translate3d(55%,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
         .svc-hero{
@@ -203,6 +320,7 @@ function ServicePage({
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
+          contain: layout paint style;
         }
         .svc-hero::before{
           content:"";
@@ -228,40 +346,50 @@ function ServicePage({
         .svc-left{ min-width:0; }
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
-          font-weight:900; letter-spacing:.18em; font-size:11px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 12px;
+          letter-spacing: .14em;
+          text-transform: uppercase;
           color: rgba(255,255,255,.70);
-          text-transform:uppercase;
         }
         .svc-kdot{
-          width:10px; height:10px; border-radius:999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
+          width: 8px; height: 8px; border-radius: 999px;
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
+        /* Contact-like title */
         .svc-title{
-          margin-top: 10px;
-          font-size: clamp(28px, 3.2vw, 44px);
-          line-height: 1.06;
+          margin-top: 14px;
+          font-size: 40px;
+          line-height: 1.05;
           color: rgba(255,255,255,.94);
-          font-weight: 900;
+          font-weight: 600;
           letter-spacing: -0.02em;
         }
+        @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
+
         .svc-sub{
-          margin-top: 10px;
-          color: rgba(255,255,255,.72);
-          font-size: 15px;
-          line-height: 1.65;
-          max-width: 70ch;
+          margin-top: 14px;
+          color: rgba(255,255,255,.70);
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 72ch;
         }
+        @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
         .svc-pills{
           margin-top: 14px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
+          align-items:center;
         }
         .svc-pill{
-          display:inline-flex; align-items:center;
+          display:inline-flex; align-items:center; justify-content:center;
           height: 34px; padding: 0 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
@@ -270,6 +398,29 @@ function ServicePage({
           font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
+        }
+
+        /* ✅ Rotator pill */
+        .svc-pill--rot{
+          padding: 0 12px;
+          min-width: 140px;
+        }
+        .svc-pillRot-clip{
+          position: relative;
+          height: 34px;
+          overflow:hidden;
+          display:block;
+        }
+        .svc-pillRot-track{
+          display:block;
+          will-change: transform;
+        }
+        .svc-pillRot-item{
+          height: 34px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding: 0 2px;
         }
 
         .svc-ctaRow{
@@ -294,8 +445,10 @@ function ServicePage({
           font-weight: 900;
           text-decoration:none;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          transform: translateZ(0);
         }
-        .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
+        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.08); }
+        @media (hover:none){ .svc-cta:hover{ transform:none; } }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
         /* right video */
@@ -306,6 +459,7 @@ function ServicePage({
           overflow:hidden;
           position:relative;
           background: rgba(0,0,0,.22);
+          contain: layout paint style;
         }
         .svc-videoWrap{
           position: relative;
@@ -315,6 +469,7 @@ function ServicePage({
           border-radius: 22px;
           overflow:hidden;
           transform: translateZ(0);
+          backface-visibility:hidden;
         }
         @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; } }
 
@@ -369,7 +524,6 @@ function ServicePage({
           50%{ transform: scale(1.18); opacity:.80; }
         }
 
-        /* section */
         .svc-section{
           margin-top: 26px;
           display:grid;
@@ -385,16 +539,20 @@ function ServicePage({
           background: rgba(255,255,255,.03);
           padding: 16px 16px;
           box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          contain: layout paint style;
         }
         .svc-card__title{
           display:flex; align-items:center; gap:10px;
-          font-weight: 900;
-          color: rgba(255,255,255,.90);
+          font-weight: 600;
+          color: rgba(255,255,255,.92);
           letter-spacing: -.01em;
+          font-size: 22px;
         }
+        @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
+
         .svc-card__desc{
-          margin-top: 8px;
-          color: rgba(255,255,255,.68);
+          margin-top: 10px;
+          color: rgba(255,255,255,.70);
           line-height: 1.7;
           font-size: 14px;
         }
@@ -412,10 +570,10 @@ function ServicePage({
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.10);
           background: ${T.c};
-          color: rgba(255,255,255,.92);
+          color: rgba(170,225,255,.95);
           flex: 0 0 auto;
         }
-        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.90); }
+        .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
 
@@ -429,16 +587,16 @@ function ServicePage({
               </div>
 
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                {title}
+                <span className="svc-grad svc-shimmer">{title}</span>
               </div>
+
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
+              {/* ✅ pills => single rotator pill */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                {pills.map((p) => (
-                  <Pill key={p}>{p}</Pill>
-                ))}
+                <PillRotator items={pills} disabled={reduced} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
@@ -451,19 +609,20 @@ function ServicePage({
               </div>
             </div>
 
-            <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
+            <div ref={rightRef} className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
                 <video
                   ref={vidRef}
                   className="svc-video"
                   src={videoUrl}
-                  autoPlay
+                  autoPlay={false}
                   muted
                   loop
                   playsInline
-                  preload="metadata"
+                  preload="none"
                 />
                 <div className="svc-videoScrim" aria-hidden="true" />
+
                 <div className="svc-badge" aria-hidden="true">
                   <div className="svc-badgeLeft">
                     <Icon size={14} />
@@ -471,7 +630,7 @@ function ServicePage({
                   </div>
                   <div className="svc-badgeRight">
                     <span className="svc-dot" />
-                    <span>SMM</span>
+                    <span>{canPlay ? "LIVE" : "READY"}</span>
                   </div>
                 </div>
               </div>
@@ -483,7 +642,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <CalendarClock size={18} />
-              <span>{lang === "az" ? "Plan & Publish" : "Plan & Publish"}</span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "Plan & Publish" : "Plan & Publish"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -500,7 +659,7 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <BarChart3 size={18} />
-              <span>{lang === "az" ? "Analytics & Growth" : "Analytics & Growth"}</span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "Analytics & Growth" : "Analytics & Growth"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
