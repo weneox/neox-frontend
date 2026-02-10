@@ -11,6 +11,7 @@ function cx(...xs: Array<string | false | null | undefined>) {
 const RAW_VIDEO =
   "https://res.cloudinary.com/dppoomunj/video/upload/v1770677383/neox/media/asset_1770677379623_8928b0b249907.mp4";
 
+// Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
   try {
     if (!url.includes("/upload/")) return url;
@@ -23,13 +24,6 @@ function cloudinaryAuto(url: string) {
 const VIDEO_URL = cloudinaryAuto(RAW_VIDEO);
 
 const TINTS = {
-  amber: {
-    a: "rgba(255,184,47,.22)",
-    b: "rgba(255,184,47,.10)",
-    c: "rgba(255,184,47,.06)",
-    d: "rgba(255,184,47,.28)",
-    edge: "rgba(255,184,47,.22)",
-  },
   cyan: {
     a: "rgba(47,184,255,.22)",
     b: "rgba(47,184,255,.10)",
@@ -66,9 +60,14 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+/** super light reveal: 1 observer, once */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
-    if (disabled) return;
+    if (disabled) {
+      const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+      els.forEach((el) => el.classList.add("is-in"));
+      return;
+    }
 
     const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (!els.length) return;
@@ -187,7 +186,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 type ServiceLink = { id: string; path: string; title: (lang: Lang) => string };
 
 function ServicePage({
-  tint = "amber",
+  tint = "cyan",
   kicker,
   title,
   subtitle,
@@ -205,21 +204,26 @@ function ServicePage({
 }) {
   const location = useLocation();
   const lang = useMemo(() => getLangFromPath(location.pathname), [location.pathname]);
+
+  // ✅ we DO NOT force reduced motion here; user asked slower but smooth.
   const reduced = usePrefersReducedMotion();
   useRevealOnScroll(reduced);
 
   const T = TINTS[tint];
 
+  // ✅ FPS: only play when ready; avoid heavy preload
   const vidRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
-    const tryPlay = async () => {
-      try {
-        await v.play();
-      } catch {}
+
+    const onCanPlay = () => {
+      // play a bit later so layout settles (less jank)
+      window.setTimeout(() => v.play().catch(() => {}), 220);
     };
-    tryPlay();
+
+    v.addEventListener("canplay", onCanPlay);
+    return () => v.removeEventListener("canplay", onCanPlay);
   }, []);
 
   const contact =
@@ -363,7 +367,7 @@ function ServicePage({
     setDdH(h);
   }, [svcOpen, openSeq, dropdownItems.length]);
 
-  // ✅ perfect alignment under button
+  // ✅ open EXACTLY under button (desktop + mobile)
   const otherBtnRef = useRef<HTMLButtonElement | null>(null);
   const ddSlotRef = useRef<HTMLDivElement | null>(null);
 
@@ -420,16 +424,22 @@ function ServicePage({
       <style>{`
         html, body { background:#000 !important; }
 
-        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; color: rgba(255,255,255,.92); background:#000; }
+        .svc{
+          padding: calc(var(--hdrh,72px) + 28px) 0 84px;
+          overflow-x:hidden;
+          color: rgba(255,255,255,.92);
+          background:#000;
+        }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
-        /* ✅ slightly slower page reveal */
+        /* ✅ slower but smooth (no fps drop feeling) */
         [data-reveal]{
           opacity: 0;
-          transform: translate3d(0,14px,0);
-          transition: opacity .78s ease, transform .78s ease;
+          transform: translate3d(0,12px,0);
+          transition: opacity .92s cubic-bezier(.2,.8,.2,1), transform .92s cubic-bezier(.2,.8,.2,1);
           will-change: opacity, transform;
+          contain: paint;
         }
         .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
@@ -486,13 +496,13 @@ function ServicePage({
           .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
-        /* hero */
+        /* hero (✅ remove yellow tint completely; keep NEOX blue) */
         .svc-hero{
           position: relative;
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, var(--tA), transparent 55%),
+            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.18), transparent 55%),
             radial-gradient(120% 90% at 86% 10%, rgba(47,184,255,.08), transparent 60%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
@@ -502,7 +512,7 @@ function ServicePage({
         .svc-hero::before{
           content:"";
           position:absolute; inset:-2px;
-          background: radial-gradient(600px 260px at 22% 18%, var(--tB), transparent 60%);
+          background: radial-gradient(600px 260px at 22% 18%, rgba(47,184,255,.10), transparent 60%);
           opacity:.85;
           filter: blur(14px);
           pointer-events:none;
@@ -555,7 +565,7 @@ function ServicePage({
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 20% 15%, var(--tB), transparent 58%),
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.10), transparent 58%),
             linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.52) 92%);
           pointer-events:none;
         }
@@ -607,7 +617,7 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid var(--tEdge);
           background:
-            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.18), transparent 60%),
             rgba(255,255,255,.04);
           box-shadow: 0 10px 40px rgba(0,0,0,.35);
           font-weight: 900;
@@ -647,7 +657,7 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.18), transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 900;
@@ -766,32 +776,7 @@ function ServicePage({
           transition: opacity .24s ease, transform .24s ease, border-color .14s ease, background-color .14s ease;
         }
         .svc-ddItem.is-on{ opacity: 1; transform: translate3d(0,0,0); }
-        .svc-ddItem::before{
-          content:"";
-          position:absolute;
-          inset: -2px -55%;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            rgba(255,255,255,0) 35%,
-            rgba(170,225,255,.18) 46%,
-            rgba(47,184,255,.30) 50%,
-            rgba(170,225,255,.18) 54%,
-            transparent 70%,
-            transparent 100%
-          );
-          transform: translate3d(-60%,0,0);
-          opacity: 0;
-          pointer-events:none;
-          mix-blend-mode: screen;
-          will-change: transform, opacity;
-        }
         .svc-ddItem:hover{ border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.05); }
-        .svc-ddItem:hover::before{
-          opacity: .95;
-          ${reduced ? "" : "animation: svcItemSweep .85s ease-out 1;"}
-        }
-        @keyframes svcItemSweep{ 0%{ transform: translate3d(-70%,0,0);} 100%{ transform: translate3d(70%,0,0);} }
 
         /* cards */
         .svc-card{
@@ -824,14 +809,14 @@ function ServicePage({
           width: 30px; height: 30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.10);
-          background: var(--tC);
-          color: rgba(255,255,255,.95);
+          background: rgba(47,184,255,.06);
+          color: rgba(170,225,255,.95);
           flex: 0 0 auto;
           ${reduced ? "" : "animation: svcTickBreath 1.35s ease-in-out infinite;"}
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: scale(1); box-shadow:none; opacity:.98; }
-          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px var(--tC), 0 0 24px var(--tB); opacity:.92; }
+          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
         }
         @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
@@ -866,8 +851,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
-          box-shadow: 0 0 0 4px var(--tC);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.28));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.06);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -885,19 +870,19 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              <div className="svc-title" data-reveal style={{ transitionDelay: "80ms" }}>
+              <div className="svc-title" data-reveal style={{ transitionDelay: "90ms" }}>
                 <span className="svc-grad svc-shimmer">{title}</span>
               </div>
 
-              <div className="svc-sub" data-reveal style={{ transitionDelay: "150ms" }}>
+              <div className="svc-sub" data-reveal style={{ transitionDelay: "180ms" }}>
                 {subtitle}
               </div>
 
-              <div className="svc-pills" data-reveal style={{ transitionDelay: "220ms" }}>
+              <div className="svc-pills" data-reveal style={{ transitionDelay: "260ms" }}>
                 <RotatingPill items={pills} reduced={reduced} />
               </div>
 
-              <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "290ms" }}>
+              <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "330ms" }}>
                 <Link to={withLang("/contact", lang)} className="svc-cta">
                   {contact}
                 </Link>
@@ -916,9 +901,18 @@ function ServicePage({
               </div>
             </div>
 
-            <div className="svc-right" data-reveal style={{ transitionDelay: "160ms" }}>
+            <div className="svc-right" data-reveal style={{ transitionDelay: "170ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay={false}
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -936,11 +930,8 @@ function ServicePage({
           </div>
         </div>
 
-        {/* ✅ Cards grid */}
         <div className="svc-below">
-          {/* LEFT column */}
           <div>
-            {/* dropdown slot */}
             <div ref={ddSlotRef} className="svc-ddSlot">
               <div
                 className={cx("svc-ddFrame", svcOpen && "is-open")}
@@ -975,7 +966,7 @@ function ServicePage({
               <div className="svc-card__desc">
                 {lang === "az"
                   ? "Kontent təqvimi, avtomatik paylaşım, təkrarlanan kampaniyalar və ardıcıl post axınları — hamısı bir yerdə."
-                  : "Content calendar, automated publishing, recurring campaigns — one system."}
+                  : "Content calendar, automated publishing and recurring campaigns in one flow."}
               </div>
 
               <div style={{ marginTop: 12 }}>
@@ -986,7 +977,6 @@ function ServicePage({
             </div>
           </div>
 
-          {/* RIGHT column */}
           <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
             <div className="svc-card__title">
               <BarChart3 size={18} />
@@ -995,11 +985,11 @@ function ServicePage({
             <div className="svc-card__desc">
               {lang === "az"
                 ? "Post performansı, lead dönüşümü, DM cavab sürəti — ölç, artır və optimallaşdır."
-                : "Measure performance, lead conversion, DM response speed — then optimize."}
+                : "Measure post performance, lead conversion and DM response speed — then optimize."}
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <Feature title={lang === "az" ? "Metrics" : "Metrics"} desc={lang === "az" ? "Engagement, CTR, conversion, cost və trend izləmə." : "Engagement, CTR, conversion, cost, trends."} />
+              <Feature title={lang === "az" ? "Metrics" : "Metrics"} desc={lang === "az" ? "Engagement, CTR, conversion, cost və trend izləmə." : "Engagement, CTR, conversion, cost and trends."} />
               <Feature title={lang === "az" ? "Optimize" : "Optimize"} desc={lang === "az" ? "A/B test, audit, təkmilləşdirmə və təkliflər." : "A/B tests, audits, improvements and suggestions."} />
               <Feature title={lang === "az" ? "DM → Lead" : "DM → Lead"} desc={lang === "az" ? "DM-lərdən lead çıxarma, etiketləmə və sürətli cavab axını." : "Turn DMs into leads with tags and fast reply flows."} />
             </div>
@@ -1015,12 +1005,12 @@ export default memo(function ServiceSmmAutomation() {
 
   return (
     <ServicePage
-      tint="amber"
+      tint="cyan" /* ✅ NEOX blue (no yellow) */
       kicker={"SERVICES"}
       title={"SMM avtomatlaşdırılması"}
       subtitle={"Kontent planı, paylaşım avtomatikası, DM/lead axını, analitika və müştəri suallarını AI ilə cavablandırma — hamısı bir sistemdə."}
       icon={Megaphone}
-      pills={["Plan", "Auto publish", "DM/Leads", "Analytics", "AI replies"]}
+      pills={["DM/Leads", "Auto publish", "Analytics", "Campaigns", "AI replies"]}
       videoUrl={VIDEO_URL}
     />
   );
