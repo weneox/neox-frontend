@@ -71,7 +71,7 @@ function usePrefersReducedMotion() {
 }
 
 /* ===== Desktop language dropdown (single button) =====
-   ✅ Hover opens, click still works.
+   ✅ UPDATED: Hover opens (like other dropdowns), click still works.
 */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
@@ -187,14 +187,12 @@ type ScenarioDef = {
   terminal: string[];
 };
 
-type ServiceUseCaseLink = { label: string; to: string; hint?: string };
-
 /* =========================
    Header
 ========================= */
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const [hdrp, setHdrp] = useState(0);
+  const [hdrp, setHdrp] = useState(0); // mobil blur driver
   const [isMobile, setIsMobile] = useState(false);
 
   const [open, setOpen] = useState(false);
@@ -202,8 +200,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const prefersReduced = usePrefersReducedMotion();
 
-  // ✅ SINGLE OPEN MENU
+  // ✅ SINGLE OPEN MENU (fix: dropdownlar qarışmır)
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
+
   const closeT = useRef<number | null>(null);
 
   const svcRef = useRef<HTMLDivElement | null>(null);
@@ -215,10 +214,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const [ucActive, setUcActive] = useState<string>("healthcare");
   const [termText, setTermText] = useState<string>("");
   const [termCursor, setTermCursor] = useState(true);
-
-  // Services mega state (NEW)
-  const [svcActive, setSvcActive] = useState<string>("business-workflows");
-  const [svcCursor, setSvcCursor] = useState(true);
 
   // Mobile accordion state
   const [mobileUcOpen, setMobileUcOpen] = useState(false);
@@ -279,7 +274,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
-  // ✅ App.tsx ROUTES-una uyğun 6 services
+  // ✅ App.tsx ROUTES-una uyğun 6 services (dəqiq)
   const SERVICES: ServiceDef[] = useMemo(
     () => [
       {
@@ -322,13 +317,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ /about subpage yoxdur
+  // ✅ App.tsx-də /about subpage yoxdur → only /about
   const ABOUT_LINKS: NavDef[] = useMemo(
-    () => [{ to: "/about", label: "About NEOX", hint: "Company, mission, technology (single page)" }],
+    () => [
+      { to: "/about", label: "About NEOX", hint: "Company, mission, technology (single page)" },
+    ],
     []
   );
 
-  // ✅ resources: /resources/docs /resources/faq /resources/guides /privacy
+  // ✅ App.tsx resources: /resources/docs /resources/faq /resources/guides /privacy
   const RES_LINKS: NavDef[] = useMemo(
     () => [
       { to: "/resources/docs", label: "Docs", hint: "Documentation & references" },
@@ -339,7 +336,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ Use Cases (5 ssenari)
+  // ✅ Use Cases: sənin istədiyin 5 ssenari (hotel/finance/retail/logistics/healthcare)
   const SCENARIOS: ScenarioDef[] = useMemo(
     () => [
       {
@@ -379,8 +376,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           "boot: neox/usecases/finance",
           "init: intent → risk flags → safe response",
           "flow: pricing → demo → conversion pipeline",
-          "guard: business-only focus, safe responses",
-          "tool: lead → follow-up summary",
+          "guard: off-topic refuse, business-only focus",
+          "tool: lead → CRM → follow-up summary",
           "ok: qualified leads ↑",
         ],
       },
@@ -416,62 +413,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ Services -> “Use cases” links panel (NEW)
-  // Business Workflows: user said your 5 use-cases belong here → we put those 5.
-  // Others: 3-4 ideas (routes can be created later; you said problem deyil).
-  const SERVICE_USECASES: Record<string, ServiceUseCaseLink[]> = useMemo(
-    () => ({
-      "business-workflows": [
-        { label: "Healthcare Automation", to: "/use-cases/healthcare", hint: "Routing, scheduling, triage flows" },
-        { label: "Logistics Tracking Ops", to: "/use-cases/logistics", hint: "ETA, status, escalation" },
-        { label: "Finance Conversion Flow", to: "/use-cases/finance", hint: "Lead capture, safe pipeline" },
-        { label: "Retail Assist & Upsell", to: "/use-cases/retail", hint: "Bundles, checkout CTAs" },
-        { label: "Hotels Concierge Ops", to: "/use-cases/hotels", hint: "Bookings + concierge automation" },
-      ],
-      "chatbot-24-7": [
-        { label: "Lead Qualification", to: "/use-cases/lead-qualification", hint: "Capture → qualify → route" },
-        { label: "Support Deflection", to: "/use-cases/support-deflection", hint: "Instant answers, fewer calls" },
-        { label: "Sales Concierge", to: "/use-cases/sales-concierge", hint: "Packages, demos, upsell" },
-        { label: "Multilingual Chat", to: "/use-cases/multilingual", hint: "Auto-translate conversations" },
-      ],
-      websites: [
-        { label: "High-Conversion Landing", to: "/use-cases/landing", hint: "Fast pages, strong CTAs" },
-        { label: "Product Showcase", to: "/use-cases/showcase", hint: "Premium UI + content blocks" },
-        { label: "SEO + Performance", to: "/use-cases/seo-performance", hint: "Core Web Vitals focus" },
-      ],
-      "mobile-apps": [
-        { label: "Booking App", to: "/use-cases/booking-app", hint: "Flows, reminders, payments" },
-        { label: "Customer Portal", to: "/use-cases/portal", hint: "Tickets, status, profile" },
-        { label: "Push Automation", to: "/use-cases/push", hint: "Smart notifications & triggers" },
-      ],
-      "smm-automation": [
-        { label: "Content Scheduler", to: "/use-cases/scheduler", hint: "Plan → schedule → publish" },
-        { label: "DM Auto-Reply", to: "/use-cases/dm", hint: "Instant replies, lead capture" },
-        { label: "Funnel Automation", to: "/use-cases/funnel", hint: "Click → lead → follow-up" },
-        { label: "Analytics Summary", to: "/use-cases/analytics", hint: "Weekly insights & actions" },
-      ],
-      "technical-support": [
-        { label: "Monitoring & Alerts", to: "/use-cases/monitoring", hint: "Uptime, errors, alerts" },
-        { label: "Deployments", to: "/use-cases/deploy", hint: "CI/CD, rollbacks, releases" },
-        { label: "Incident Response", to: "/use-cases/incidents", hint: "Triage → fix → report" },
-      ],
-    }),
-    []
-  );
-
   // Active checks
-  const isUseCasesActive = useMemo(
-    () => location.pathname.toLowerCase().includes("/use-cases"),
-    [location.pathname]
-  );
-  const isServicesActive = useMemo(
-    () => location.pathname.toLowerCase().includes("/services"),
-    [location.pathname]
-  );
-  const isAboutActive = useMemo(
-    () => location.pathname.toLowerCase().includes("/about"),
-    [location.pathname]
-  );
+  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
+  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
+  const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
   const isResActive = useMemo(() => {
     const p = location.pathname.toLowerCase();
     return p.includes("/resources") || p.includes("/privacy");
@@ -537,6 +482,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     else y = (sc as HTMLElement).scrollTop || 0;
 
     const p = clamp01(y / 180);
+
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
 
     if (Math.abs(p - lastPRef.current) > 0.001) {
@@ -640,7 +586,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => window.removeEventListener("mousedown", onDown);
   }, [openMenu]);
 
-  // hover open/close with tiny delay (✅ closes others)
+  // small helper for hover open/close with tiny delay (✅ closes others)
   const openDrop = (menu: Exclude<MenuKey, null>) => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
@@ -655,7 +601,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     }, 110) as any;
   };
 
-  // ======= UseCases TERMINAL typing =======
+  // ======= UseCases TERMINAL typing (slow, left→right) =======
   const activeScenario = useMemo(
     () => SCENARIOS.find((s) => s.id === ucActive) ?? SCENARIOS[0],
     [SCENARIOS, ucActive]
@@ -687,8 +633,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
       setTermText(full.slice(0, i));
       if (i >= full.length) return;
 
+      // ✅ very slow typing
       const ch = full[i] || "";
-      const base = ch === "\n" ? 260 : 46;
+      const base = ch === "\n" ? 260 : 48;
       const jitter = ch === "\n" ? 120 : 32;
       const delay = base + Math.round(Math.random() * jitter);
 
@@ -703,24 +650,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, [activeScenario, openMenu, prefersReduced]);
 
-  // ======= Services mega subtle cursor blink =======
-  useEffect(() => {
-    if (openMenu !== "services") return;
-    const tmr = window.setInterval(() => setSvcCursor((v) => !v), 560);
-    return () => window.clearInterval(tmr);
-  }, [openMenu]);
-
-  const svcActiveDef = useMemo(
-    () => SERVICES.find((s) => s.id === svcActive) ?? SERVICES[1],
-    [SERVICES, svcActive]
-  );
-  const svcUseCases = useMemo(() => SERVICE_USECASES[svcActiveDef.id] ?? [], [SERVICE_USECASES, svcActiveDef.id]);
-
   // mobile styles
   const mobileP = clamp01(hdrp);
   const base = 0.03;
-  const mobileBgAlpha = open ? 0.90 : base + 0.70 * mobileP;
-  const mobileBlurPx = open ? 20 : 3 + 15 * mobileP;
+  const mobileBgAlpha = open ? 0.88 : base + 0.68 * mobileP;
+  const mobileBlurPx = open ? 18 : 3 + 15 * mobileP;
   const mobileSat = open ? 1.35 : 1 + 0.30 * mobileP;
 
   const headerInlineStyle: React.CSSProperties | undefined = isMobile
@@ -728,13 +662,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
         backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
         WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
         backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.10 : 0.06 * mobileP).toFixed(3)})`,
+        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.09 : 0.06 * mobileP).toFixed(3)})`,
       }
     : undefined;
 
-  // ✅ Logo: mobile-də balaca, yuxarı sol
-  const logoH = isMobile ? 16 : 28;
-  const logoMaxW = isMobile ? "104px" : "156px";
+  const logoH = isMobile ? 18 : 28;
+  const logoMaxW = isMobile ? "124px" : "156px";
 
   // ===== Mobile Overlay (same links as desktop) =====
   const MobileOverlay = (
@@ -754,7 +687,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         <div className="nav-sheet__head">
           <div className="nav-sheet__brand">
             <span className="nav-sheet__dot" aria-hidden="true" />
-            <span className="nav-sheet__title">MENU</span>
+            <span className="nav-sheet__title">MENYU</span>
           </div>
 
           <button className="nav-sheet__close" type="button" aria-label="Bağla" onClick={closeMobile}>
@@ -762,7 +695,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </button>
         </div>
 
-        <div className="nav-sheet__list" role="navigation" aria-label="Mobil menyu">
+        <div className="nav-sheet__list">
           <NavLink
             to={withLang("/")}
             end
@@ -778,6 +711,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <Home size={18} />
               </span>
               <span className="nav-sheetLink__label">{t("nav.home")}</span>
+            </span>
+            <span className="nav-sheetLink__chev" aria-hidden="true">
+              →
             </span>
           </NavLink>
 
@@ -808,7 +744,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
+                  <span className="nav-acc__bullet" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
+                  <span className="nav-acc__arrow" aria-hidden="true">
+                    →
+                  </span>
                 </NavLink>
               ))}
             </div>
@@ -841,7 +781,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
+                  <span className="nav-acc__bullet" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
+                  <span className="nav-acc__arrow" aria-hidden="true">
+                    →
+                  </span>
                 </NavLink>
               ))}
             </div>
@@ -872,7 +816,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                 onClick={() => closeMobile()}
               >
+                <span className="nav-acc__bullet" aria-hidden="true" />
                 <span className="nav-acc__text">All Use Cases</span>
+                <span className="nav-acc__arrow" aria-hidden="true">
+                  →
+                </span>
               </NavLink>
 
               {SCENARIOS.map((s) => (
@@ -882,7 +830,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
+                  <span className="nav-acc__bullet" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
+                  <span className="nav-acc__arrow" aria-hidden="true">
+                    →
+                  </span>
                 </NavLink>
               ))}
             </div>
@@ -915,7 +867,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
+                  <span className="nav-acc__bullet" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
+                  <span className="nav-acc__arrow" aria-hidden="true">
+                    →
+                  </span>
                 </NavLink>
               ))}
             </div>
@@ -937,6 +893,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
               </span>
               <span className="nav-sheetLink__label">{t("nav.blog")}</span>
             </span>
+            <span className="nav-sheetLink__chev" aria-hidden="true">
+              →
+            </span>
           </NavLink>
 
           {/* Contact */}
@@ -954,6 +913,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <PhoneCall size={18} />
               </span>
               <span className="nav-sheetLink__label">{t("nav.contact")}</span>
+            </span>
+            <span className="nav-sheetLink__chev" aria-hidden="true">
+              →
             </span>
           </NavLink>
         </div>
@@ -973,7 +935,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ FULL CSS INJECT — Premium, NO purple, NO arrows/underlines, mobile scroll fix */}
+      {/* ✅ FULL CSS INJECT — updated (terminal + single-open menu behavior) */}
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
@@ -986,184 +948,142 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: background-color .18s ease, border-color .18s ease;
         }
         .site-header.is-scrolled{
-          background: rgba(8, 10, 16, calc(0.10 + 0.26 * var(--hdrp)));
-          border-bottom-color: rgba(255,255,255, calc(0.07 + 0.06 * var(--hdrp)));
-          -webkit-backdrop-filter: blur(calc(10px + 12px * var(--hdrp))) saturate(1.22);
-          backdrop-filter: blur(calc(10px + 12px * var(--hdrp))) saturate(1.22);
+          background: rgba(10, 12, 18, calc(0.08 + 0.26 * var(--hdrp)));
+          border-bottom-color: rgba(255,255,255, calc(0.06 + 0.06 * var(--hdrp)));
+          -webkit-backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
+          backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
         }
         .site-header.is-open{
-          background: rgba(8, 10, 16, 0.92);
+          background: rgba(10, 12, 18, 0.88);
           border-bottom-color: rgba(255,255,255,0.10);
-          -webkit-backdrop-filter: blur(20px) saturate(1.35);
-          backdrop-filter: blur(20px) saturate(1.35);
+          -webkit-backdrop-filter: blur(18px) saturate(1.35);
+          backdrop-filter: blur(18px) saturate(1.35);
         }
 
         .container{ max-width: 1180px; margin: 0 auto; padding: 0 18px; }
         .header-inner{ height: var(--hdrh); display: grid; align-items: center; }
         .header-grid{ grid-template-columns: auto 1fr auto; gap: 16px; }
-        .header-left{ display:flex; align-items:center; min-width: 0; }
+        .header-left{ display:flex; align-items:center; }
         .header-mid{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .header-right{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
 
-        .brand-link{ display: inline-flex; align-items: center; gap: 10px; text-decoration: none; user-select: none; }
+        .brand-link{ display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
         .headerBrand{ position: relative; display:flex; align-items:center; }
         .headerBrand__aura{
           position:absolute; inset:-10px -16px;
           background:
-            radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.18), transparent 60%),
-            radial-gradient(120px 44px at 70% 40%, rgba(47,184,255,.10), transparent 62%);
-          filter: blur(10px); opacity: .75; pointer-events:none;
+            radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.16), transparent 60%),
+            radial-gradient(120px 44px at 70% 40%, rgba(167,89,255,.12), transparent 62%);
+          filter: blur(10px); opacity: .7; pointer-events:none;
         }
 
-        /* premium nav typography */
         .nav-link{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
           gap: 8px; height: 40px; padding: 0 12px; border-radius: 999px;
-          text-decoration: none;
-          color: rgba(255,255,255,.72);
-          font-weight: 650;
-          font-size: 13px;
-          letter-spacing: .015em;
-          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-          transition: color .16s ease, background-color .16s ease, transform .16s ease, border-color .16s ease;
+          text-decoration: none; color: rgba(255,255,255,.72);
+          font-weight: 600; font-size: 13px; letter-spacing: .02em;
+          transition: color .16s ease, background-color .16s ease, transform .16s ease;
         }
-        .nav-link:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
-        .nav-link.is-active{ color: rgba(255,255,255,.96); background: rgba(255,255,255,.08); }
+        .nav-link:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
+        .nav-link.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
         .nav-dd{ position: relative; display:inline-flex; }
         .nav-dd__btn{
           position: relative; display:inline-flex; align-items:center; gap: 8px;
           height: 40px; padding: 0 12px; border-radius: 999px;
           color: rgba(255,255,255,.72); background: transparent; border: 0;
-          cursor: pointer;
-          font: inherit;
-          font-weight: 700;
-          letter-spacing: .015em;
-          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-          transition: color .16s ease, background-color .16s ease, transform .16s ease;
+          cursor: pointer; font: inherit; font-weight: 700; letter-spacing: .02em;
+          transition: color .16s ease, background-color .16s ease;
         }
-        .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); transform: translateY(-1px); }
-        .nav-dd__btn.is-active{ color: rgba(255,255,255,.96); background: rgba(255,255,255,.08); }
+        .nav-dd__btn:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
+        .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        .nav-dd__chev{ opacity: .78; transition: transform .14s ease; }
+        .nav-dd__chev{ opacity: .8; transition: transform .14s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
-        /* panel – no purple, cleaner */
         .nav-dd__panel{
           position:absolute; top: calc(100% + 10px); left: 50%;
           transform: translateX(-50%);
-          width: 390px; border-radius: 18px; padding: 14px;
-          border: 1px solid rgba(255,255,255,.09);
+          width: 380px; border-radius: 18px; padding: 14px;
+          border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 90% at 18% 12%, rgba(47,184,255,.14), transparent 55%),
-            radial-gradient(120% 90% at 88% 10%, rgba(47,184,255,.08), transparent 60%),
-            rgba(8,10,16,.88);
-          -webkit-backdrop-filter: blur(20px) saturate(1.25);
-          backdrop-filter: blur(20px) saturate(1.25);
-          box-shadow: 0 28px 90px rgba(0,0,0,.70);
+            radial-gradient(120% 90% at 20% 10%, rgba(47,184,255,.14), transparent 55%),
+            radial-gradient(120% 90% at 90% 10%, rgba(167,89,255,.12), transparent 60%),
+            rgba(10,12,18,.88);
+          -webkit-backdrop-filter: blur(18px) saturate(1.25);
+          backdrop-filter: blur(18px) saturate(1.25);
+          box-shadow: 0 24px 80px rgba(0,0,0,.65);
           opacity: 0; pointer-events: none;
           transform-origin: top center;
-          transform: translateX(-50%) translateY(-8px) scale(.985);
-          transition: opacity .16s ease, transform .16s ease;
+          transform: translateX(-50%) translateY(-6px) scale(.98);
+          transition: opacity .14s ease, transform .14s ease;
           z-index: 1300;
         }
         .nav-dd.is-open .nav-dd__panel{
           opacity: 1; pointer-events: auto;
           transform: translateX(-50%) translateY(0) scale(1);
         }
-        .nav-dd__title{
-          font-size: 10px;
-          letter-spacing: .20em;
-          color: rgba(255,255,255,.55);
-          padding: 2px 6px 10px;
-          font-weight: 800;
-        }
+        .nav-dd__title{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.55); padding: 2px 6px 10px; }
         .nav-dd__grid{ display:grid; gap: 8px; }
-
         .nav-dd__item{
           display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
           padding: 10px 10px; border-radius: 14px;
-          text-decoration:none;
-          border: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.035);
-          color: rgba(255,255,255,.86);
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.04);
+          color: rgba(255,255,255,.82);
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
-        .nav-dd__item:hover{
-          background: rgba(255,255,255,.055);
-          border-color: rgba(255,255,255,.10);
-          transform: translateY(-1px);
-        }
-        .nav-dd__item.is-active{
-          background: rgba(47,184,255,.10);
-          border-color: rgba(47,184,255,.22);
-        }
+        .nav-dd__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
+        .nav-dd__item.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
 
         .nav-dd__left{ display:flex; align-items:flex-start; gap: 10px; min-width: 0; }
         .nav-dd__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
           box-shadow: 0 0 0 3px rgba(47,184,255,.10);
           margin-top: 5px; flex: 0 0 auto;
         }
         .nav-dd__labelWrap{ display:flex; flex-direction:column; min-width: 0; }
-        .nav-dd__label{
-          font-weight: 820;
-          font-size: 13px;
-          line-height: 1.15;
-          letter-spacing: .01em;
-        }
+        .nav-dd__label{ font-weight: 800; font-size: 13px; line-height: 1.15; }
         .nav-dd__hint{
-          margin-top: 4px;
-          font-size: 12px;
-          line-height: 1.25;
-          color: rgba(255,255,255,.58);
+          margin-top: 4px; font-size: 12px; line-height: 1.25;
+          color: rgba(255,255,255,.56);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          max-width: 260px;
+          max-width: 240px;
         }
-        /* ❌ remove arrow visuals */
-        .nav-dd__arrow{ display:none; }
+        .nav-dd__arrow{ opacity: .7; margin-top: 2px; }
 
-        /* ===== Mega (UseCases + Services) ===== */
-        .nav-dd--mega .nav-dd__panel{ width: 900px; padding: 14px; border-radius: 20px; }
-
-        /* ---- UseCases mega ---- */
+        /* ===== Use Cases mega ===== */
+        .nav-dd--mega .nav-dd__panel{ width: 860px; padding: 14px; border-radius: 20px; }
         .uc-mega{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 12px; align-items: stretch; }
-        .uc-left{
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-          overflow: hidden;
-        }
+
+        .uc-left{ border-radius: 16px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); overflow: hidden; }
         .uc-leftHead{
-          padding: 10px 12px;
-          font-size: 10px;
-          letter-spacing: .22em;
-          color: rgba(255,255,255,.58);
+          padding: 10px 12px; font-size: 11px; letter-spacing: .18em;
+          color: rgba(255,255,255,.55);
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
-          font-weight: 850;
         }
         .uc-item{
           width: 100%;
           display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
           padding: 12px 12px; border: 0; cursor: pointer; text-align: left;
-          background: transparent; color: rgba(255,255,255,.90);
-          transition: background-color .16s ease, transform .16s ease;
+          background: transparent; color: rgba(255,255,255,.84);
+          transition: background-color .14s ease, transform .14s ease;
         }
         .uc-item:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
         .uc-item.is-active{ background: rgba(47,184,255,.10); }
-        .uc-itemTitle{ font-weight: 880; font-size: 13px; line-height: 1.15; }
-        .uc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.58); line-height: 1.2; }
+        .uc-itemTitle{ font-weight: 900; font-size: 13px; line-height: 1.15; }
+        .uc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.56); line-height: 1.2; }
         .uc-itemIcon{ opacity: .7; margin-top: 2px; flex: 0 0 auto; }
 
+        /* ===== Terminal (no LIVE) ===== */
         .uc-right{
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 16px; border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.12), transparent 55%),
-            radial-gradient(120% 80% at 90% 0%, rgba(47,184,255,.06), transparent 60%),
+            radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.10), transparent 55%),
+            radial-gradient(120% 80% at 90% 0%, rgba(167,89,255,.08), transparent 60%),
             rgba(0,0,0,.22);
           overflow: hidden; position: relative;
         }
@@ -1172,226 +1092,80 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
         }
-        .uc-termTitle{
-          font-size: 10px;
-          letter-spacing: .22em;
-          color: rgba(255,255,255,.66);
-          font-weight: 900;
-          text-transform: uppercase;
-        }
-        .uc-termBadge{
-          font-size: 10px;
-          letter-spacing: .18em;
-          color: rgba(255,255,255,.55);
-          font-weight: 850;
-        }
+        .uc-termTitle{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.64); font-weight: 900; }
+
         .uc-termBody{
           padding: 12px;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.86);
+          font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.84);
           min-height: 230px;
           white-space: pre-wrap;
           word-break: break-word;
         }
-        .uc-prompt{ color: rgba(47,184,255,.94); font-weight: 900; }
+        .uc-prompt{ color: rgba(47,184,255,.92); font-weight: 900; }
         .uc-cursor{
           display:inline-block; width: 9px; height: 14px; margin-left: 6px;
-          transform: translateY(2px); background: rgba(255,255,255,.86);
-          border-radius: 2px;
+          transform: translateY(2px); background: rgba(255,255,255,.82);
         }
+
         .uc-footer{
-          padding: 10px 12px;
-          border-top: 1px solid rgba(255,255,255,.06);
+          padding: 10px 12px; border-top: 1px solid rgba(255,255,255,.06);
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
           background: rgba(255,255,255,.02);
         }
         .uc-miniLink{
           display:inline-flex; align-items:center; gap: 8px;
-          text-decoration:none; font-weight: 850; font-size: 12px;
-          color: rgba(255,255,255,.90);
+          text-decoration:none; font-weight: 800; font-size: 12px;
+          color: rgba(255,255,255,.86);
           padding: 8px 10px; border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
-        .uc-miniLink:hover{
-          transform: translateY(-1px);
-          background: rgba(255,255,255,.06);
-          border-color: rgba(255,255,255,.14);
-        }
-        .uc-miniHint{ font-size: 12px; color: rgba(255,255,255,.58); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* ---- Services mega (NEW: services list + right-to-left usecase links) ---- */
-        .svc-mega{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 12px; align-items: stretch; }
-        .svc-left{
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-          overflow: hidden;
-        }
-        .svc-leftHead{
-          padding: 10px 12px;
-          font-size: 10px;
-          letter-spacing: .22em;
-          color: rgba(255,255,255,.58);
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.02);
-          font-weight: 850;
-        }
-        .svc-item{
-          width: 100%;
-          display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
-          padding: 12px 12px;
-          border: 0;
-          cursor: pointer;
-          text-align: left;
-          background: transparent;
-          color: rgba(255,255,255,.90);
-          transition: background-color .16s ease, transform .16s ease;
-        }
-        .svc-item:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
-        .svc-item.is-active{ background: rgba(47,184,255,.10); }
-        .svc-itemTitle{ font-weight: 880; font-size: 13px; line-height: 1.15; }
-        .svc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.58); line-height: 1.2; }
-        .svc-itemIcon{ opacity: .7; margin-top: 2px; flex: 0 0 auto; }
-
-        .svc-right{
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
-          background:
-            radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.12), transparent 55%),
-            radial-gradient(120% 80% at 90% 0%, rgba(47,184,255,.06), transparent 60%),
-            rgba(0,0,0,.22);
-          overflow: hidden;
-          position: relative;
-        }
-        .svc-rightTop{
-          padding: 10px 12px;
-          display:flex; align-items:center; justify-content: space-between;
-          border-bottom: 1px solid rgba(255,255,255,.06);
-          background: rgba(255,255,255,.02);
-        }
-        .svc-rightTitle{
-          font-size: 10px;
-          letter-spacing: .22em;
-          color: rgba(255,255,255,.66);
-          font-weight: 900;
-          text-transform: uppercase;
-        }
-        .svc-rightHint{
-          font-size: 10px;
-          letter-spacing: .18em;
-          color: rgba(255,255,255,.55);
-          font-weight: 850;
-          display:flex; align-items:center; gap: 8px;
-        }
-        .svc-blink{
-          display:inline-block; width: 8px; height: 10px;
-          background: rgba(255,255,255,.86);
-          border-radius: 2px;
-          transform: translateY(1px);
-        }
-
-        .svc-rightBody{ padding: 12px; }
-        .svc-rail{
-          display:grid;
-          gap: 10px;
-        }
-        .svc-ucLink{
-          text-decoration:none;
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 12px 12px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.035);
-          color: rgba(255,255,255,.90);
-          position: relative;
-          overflow:hidden;
-          transform: translateX(18px);
-          opacity: 0;
-          animation: svcIn .26s ease forwards;
-          animation-delay: calc(0.03s * var(--i, 0));
-          will-change: transform, opacity;
-        }
-        @keyframes svcIn{
-          to{ transform: translateX(0); opacity: 1; }
-        }
-        .svc-ucLink:hover{
-          background: rgba(255,255,255,.055);
-          border-color: rgba(255,255,255,.12);
-          transform: translateX(0) translateY(-1px);
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
-        }
-        .svc-ucLabel{
-          font-weight: 880;
-          font-size: 13px;
-          letter-spacing: .01em;
-          line-height: 1.15;
-        }
-        .svc-ucHint{
-          margin-top: 4px;
-          font-size: 12px;
-          color: rgba(255,255,255,.58);
-          line-height: 1.25;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 420px;
-        }
-        .svc-ucDot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
-          flex: 0 0 auto;
-        }
+        .uc-miniLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
+        .uc-miniHint{ font-size: 12px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .nav-cta{
           display:inline-flex; align-items:center; justify-content:center;
-          height: 38px; padding: 0 14px; border-radius: 999px;
-          text-decoration:none;
-          font-weight: 850; font-size: 13px;
-          color: rgba(255,255,255,.94);
+          height: 38px; padding: 0 14px; border-radius: 999px; text-decoration:none;
+          font-weight: 800; font-size: 13px; color: rgba(255,255,255,.92);
           border: 1px solid rgba(255,255,255,.10);
           background:
             radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
             rgba(255,255,255,.06);
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
         .nav-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .nav-cta--desktopOnly{ display:inline-flex; }
 
         .nav-toggle{
-          width: 44px; height: 40px; border-radius: 14px;
+          width: 44px; height: 40px; border-radius: 12px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
           display:none; align-items:center; justify-content:center;
           flex-direction: column; gap: 5px;
           cursor: pointer;
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .nav-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
 
-        /* Language (NO purple) */
         .langMenu{ position: relative; }
         .langMenu__btn{
           display:inline-flex; align-items:center; gap: 8px;
           height: 38px; padding: 0 10px; border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.90);
-          font-weight: 850; font-size: 12px;
+          color: rgba(255,255,255,.86);
+          font-weight: 800; font-size: 12px;
           cursor: pointer;
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .langMenu__btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .langMenu__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(47,184,255,.88));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(167,89,255,.9));
+          box-shadow: 0 0 0 3px rgba(167,89,255,.10);
         }
         .langMenu__code{ letter-spacing: .08em; }
         .langMenu__chev{ opacity: .75; }
@@ -1400,13 +1174,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
           position:absolute; top: calc(100% + 10px); right: 0;
           width: 210px; border-radius: 16px; padding: 10px;
           border: 1px solid rgba(255,255,255,.10);
-          background: rgba(8,10,16,.92);
-          -webkit-backdrop-filter: blur(20px) saturate(1.2);
-          backdrop-filter: blur(20px) saturate(1.2);
-          box-shadow: 0 26px 90px rgba(0,0,0,.70);
+          background: rgba(10,12,18,.90);
+          -webkit-backdrop-filter: blur(18px) saturate(1.2);
+          backdrop-filter: blur(18px) saturate(1.2);
+          box-shadow: 0 24px 80px rgba(0,0,0,.65);
           opacity: 0; pointer-events: none;
-          transform: translateY(-8px) scale(.985);
-          transition: opacity .16s ease, transform .16s ease;
+          transform: translateY(-6px) scale(.98);
+          transition: opacity .14s ease, transform .14s ease;
           z-index: 1500;
         }
         .langMenu.is-open .langMenu__panel{
@@ -1416,54 +1190,52 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .langMenu__item{
           width: 100%;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          border: 1px solid rgba(255,255,255,.07);
+          border: 0;
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.90);
+          border: 1px solid rgba(255,255,255,.06);
+          color: rgba(255,255,255,.86);
           padding: 10px 10px;
           border-radius: 12px;
           cursor: pointer;
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .langMenu__item + .langMenu__item{ margin-top: 8px; }
         .langMenu__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .langMenu__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.22); }
+        .langMenu__item.is-active{ background: rgba(167,89,255,.12); border-color: rgba(167,89,255,.22); }
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
-        .langMenu__itemName{ opacity: .88; font-weight: 750; }
+        .langMenu__itemName{ opacity: .85; font-weight: 700; }
 
-        /* ===== Mobile overlay (scroll FIX + premium) ===== */
-        .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+        /* ===== Mobile overlay ===== */
+        .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .nav-overlay.is-mounted{ display:block; }
         .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
         .nav-overlay__backdrop{
           position:absolute; inset:0; border:0;
-          background: rgba(0,0,0,.52);
-          -webkit-backdrop-filter: blur(10px);
-          backdrop-filter: blur(10px);
+          background: rgba(0,0,0,.45);
+          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
           cursor: pointer;
         }
 
         .nav-sheet{
           position:absolute; top: 12px; right: 12px; left: 12px;
           max-width: 520px; margin-left: auto;
-          height: calc(100dvh - 24px);
           border-radius: 22px; border: 1px solid rgba(255,255,255,.10);
           overflow: hidden;
-          transform: translateY(-12px) scale(.985);
+          transform: translateY(-10px) scale(.985);
           opacity: 0;
-          transition: transform .18s ease, opacity .18s ease;
-          display:flex;
-          flex-direction: column;
+          transition: transform .16s ease, opacity .16s ease;
         }
         .nav-sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
 
         .nav-sheet__bg{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 18% 0%, rgba(47,184,255,.16), transparent 55%),
-            radial-gradient(120% 90% at 88% 0%, rgba(47,184,255,.08), transparent 60%),
-            rgba(8,10,16,.94);
-          -webkit-backdrop-filter: blur(20px) saturate(1.25);
-          backdrop-filter: blur(20px) saturate(1.25);
+            radial-gradient(120% 90% at 20% 0%, rgba(47,184,255,.16), transparent 55%),
+            radial-gradient(120% 90% at 90% 0%, rgba(167,89,255,.14), transparent 60%),
+            rgba(10,12,18,.92);
+          -webkit-backdrop-filter: blur(18px) saturate(1.25);
+          backdrop-filter: blur(18px) saturate(1.25);
         }
         .nav-sheet__noise{
           position:absolute; inset:0;
@@ -1474,79 +1246,51 @@ export default function Header({ introReady }: { introReady: boolean }) {
           mix-blend-mode: overlay;
         }
 
-        .nav-sheet__head{
-          position: relative; z-index: 2;
-          display:flex; align-items:center; justify-content: space-between;
-          padding: 14px 14px 10px;
-          flex: 0 0 auto;
-        }
+        .nav-sheet__head{ position: relative; z-index: 2; display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; }
         .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
         .nav-sheet__dot{
           width: 10px; height: 10px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
           box-shadow: 0 0 0 4px rgba(47,184,255,.10);
         }
-        .nav-sheet__title{
-          font-weight: 900;
-          letter-spacing: .22em;
-          font-size: 11px;
-          color: rgba(255,255,255,.72);
-        }
+        .nav-sheet__title{ font-weight: 900; letter-spacing: .18em; font-size: 11px; color: rgba(255,255,255,.70); }
         .nav-sheet__close{
-          width: 40px; height: 38px; border-radius: 14px;
+          width: 40px; height: 38px; border-radius: 12px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
-          color: rgba(255,255,255,.90);
+          color: rgba(255,255,255,.88);
           display:flex; align-items:center; justify-content:center;
           cursor: pointer;
-          transition: transform .16s ease, background-color .16s ease;
+          transition: transform .14s ease, background-color .14s ease;
         }
         .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
 
-        /* ✅ scrollable list */
-        .nav-sheet__list{
-          position: relative; z-index: 2;
-          padding: 8px 14px 14px;
-          display:grid;
-          gap: 10px;
-          overflow: auto;
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior: contain;
-          flex: 1 1 auto;
-          min-height: 0;
-        }
+        .nav-sheet__list{ position: relative; z-index: 2; padding: 8px 14px 14px; display:grid; gap: 10px; }
 
-        .nav-stagger{ transform: translateY(8px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
+        .nav-stagger{ transform: translateY(6px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
         @keyframes navIn{ to{ transform: translateY(0); opacity: 1; } }
 
         .nav-sheetLink{
           display:flex; align-items:center; justify-content: space-between; gap: 12px;
           padding: 12px 12px; border-radius: 16px;
-          text-decoration:none;
-          border: 1px solid rgba(255,255,255,.08);
+          text-decoration:none; border: 1px solid rgba(255,255,255,.08);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.88);
-          transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
+          color: rgba(255,255,255,.84);
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
         .nav-sheetLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
         .nav-sheetLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-
         .nav-sheetLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
         .nav-sheetLink__ico{
-          width: 34px; height: 34px;
+          width: 32px; height: 32px;
           display:flex; align-items:center; justify-content:center;
-          border-radius: 14px;
+          border-radius: 12px;
           background: rgba(255,255,255,.05);
           border: 1px solid rgba(255,255,255,.07);
           flex: 0 0 auto;
         }
-        .nav-sheetLink__label{
-          font-weight: 850;
-          letter-spacing: .01em;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
+        .nav-sheetLink__label{ font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .nav-sheetLink__chev{ opacity: .75; }
 
         .nav-sheetLink--contact{
           background:
@@ -1555,43 +1299,42 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-color: rgba(255,255,255,.12);
         }
 
-        .nav-acc{
-          border-radius: 18px;
-          overflow:hidden;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-        }
+        .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
         .nav-acc__head{
           width: 100%;
           border:0; background: transparent;
           display:flex; align-items:center; justify-content: space-between;
           padding: 12px 12px;
-          cursor:pointer;
-          color: rgba(255,255,255,.90);
+          cursor:pointer; color: rgba(255,255,255,.86);
         }
-        .nav-acc__chev{ opacity: .80; transition: transform .16s ease; }
+        .nav-acc__chev{ opacity: .75; transition: transform .14s ease; }
         .nav-acc__head.is-open .nav-acc__chev{ transform: rotate(180deg); }
-
         .nav-acc__panel{
           display:grid; gap: 8px;
           padding: 0 12px 12px;
           max-height: 0; overflow: hidden;
-          transition: max-height .20s ease;
+          transition: max-height .18s ease;
         }
-        .nav-acc__panel.is-open{ max-height: 900px; }
-
+        .nav-acc__panel.is-open{ max-height: 720px; }
         .nav-acc__item{
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
           padding: 10px 10px; border-radius: 14px;
-          text-decoration:none;
-          border: 1px solid rgba(255,255,255,.06);
+          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+          color: rgba(255,255,255,.82);
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .nav-acc__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .nav-acc__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.22); }
-        .nav-acc__text{ font-weight: 850; letter-spacing: .01em; }
+        .nav-acc__item.is-active{ background: rgba(167,89,255,.12); border-color: rgba(167,89,255,.22); }
+        .nav-acc__bullet{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(167,89,255,.85));
+          box-shadow: 0 0 0 3px rgba(167,89,255,.10);
+          flex: 0 0 auto;
+          margin-right: 8px;
+        }
+        .nav-acc__text{ font-weight: 800; }
+        .nav-acc__arrow{ opacity: .7; }
 
         @media (max-width: 920px){
           .header-mid{ display:none; }
@@ -1628,8 +1371,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   objectFit: "contain",
                   display: "block",
                   userSelect: "none",
-                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.08))",
-                  transform: isMobile ? "translateY(0px) translateZ(0)" : "translateZ(0)",
+                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
+                  transform: isMobile ? "translateY(1px) translateZ(0)" : "translateZ(0)",
                 }}
               />
             </span>
@@ -1641,7 +1384,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             <span className="nav-label nav-label--full">{t("nav.home")}</span>
           </NavLink>
 
-          {/* ABOUT */}
+          {/* ABOUT dropdown (single link, App.tsx uyğun) */}
           <div
             ref={aboutRef}
             className={cx("nav-dd", aboutOpen && "is-open")}
@@ -1680,16 +1423,19 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         <span className="nav-dd__hint">{s.hint ?? "About page"}</span>
                       </span>
                     </span>
+                    <span className="nav-dd__arrow" aria-hidden="true">
+                      →
+                    </span>
                   </NavLink>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* SERVICES mega (NEW) */}
+          {/* SERVICES dropdown (App.tsx-ə uyğun 6 link) */}
           <div
             ref={svcRef}
-            className={cx("nav-dd", "nav-dd--mega", svcOpen && "is-open")}
+            className={cx("nav-dd", svcOpen && "is-open")}
             onMouseEnter={() => openDrop("services")}
             onMouseLeave={() => scheduleCloseDrop("services")}
           >
@@ -1709,72 +1455,32 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!svcOpen}>
               <div className="nav-dd__title">SERVICES</div>
-
-              <div className="svc-mega">
-                <div className="svc-left">
-                  <div className="svc-leftHead">SELECT A SERVICE</div>
-
-                  {SERVICES.map((s) => {
-                    const active = s.id === svcActiveDef.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className={cx("svc-item", active && "is-active")}
-                        onMouseEnter={() => setSvcActive(s.id)}
-                        onFocus={() => setSvcActive(s.id)}
-                        onClick={() => {
-                          setOpenMenu(null);
-                          navigate(withLang(s.to));
-                          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-                        }}
-                      >
-                        <span style={{ minWidth: 0 }}>
-                          <div className="svc-itemTitle">{s.label}</div>
-                          <div className="svc-itemSub">{s.hint}</div>
-                        </span>
-                        <span className="svc-itemIcon" aria-hidden="true">
-                          <span style={{ opacity: 0.85 }}>⋯</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="svc-right">
-                  <div className="svc-rightTop">
-                    <div className="svc-rightTitle">{svcActiveDef.label}</div>
-                    <div className="svc-rightHint">
-                      USE CASES
-                      <span className="svc-blink" style={{ opacity: svcCursor ? 0.85 : 0.15 }} aria-hidden="true" />
-                    </div>
-                  </div>
-
-                  <div className="svc-rightBody">
-                    <div key={svcActiveDef.id} className="svc-rail" aria-label="Service use cases">
-                      {svcUseCases.map((u, idx) => (
-                        <NavLink
-                          key={`${svcActiveDef.id}:${u.to}:${idx}`}
-                          to={withLang(u.to)}
-                          className="svc-ucLink"
-                          style={{ ["--i" as any]: idx }}
-                          onClick={() => setOpenMenu(null)}
-                        >
-                          <span style={{ minWidth: 0 }}>
-                            <div className="svc-ucLabel">{u.label}</div>
-                            <div className="svc-ucHint">{u.hint ?? "Open scenario page"}</div>
-                          </span>
-                          <span className="svc-ucDot" aria-hidden="true" />
-                        </NavLink>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div className="nav-dd__grid">
+                {SERVICES.map((s) => (
+                  <NavLink
+                    key={s.id}
+                    to={withLang(s.to)}
+                    className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
+                    role="menuitem"
+                    onClick={() => setOpenMenu(null)}
+                  >
+                    <span className="nav-dd__left">
+                      <span className="nav-dd__dot" aria-hidden="true" />
+                      <span className="nav-dd__labelWrap">
+                        <span className="nav-dd__label">{s.label}</span>
+                        <span className="nav-dd__hint">{s.hint}</span>
+                      </span>
+                    </span>
+                    <span className="nav-dd__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </NavLink>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* USE CASES mega */}
+          {/* USE CASES mega dropdown (✅ scenarios list + slow terminal typing; no LIVE) */}
           <div
             ref={ucRef}
             className={cx("nav-dd", "nav-dd--mega", ucOpen && "is-open")}
@@ -1822,7 +1528,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                           <div className="uc-itemSub">{s.subtitle}</div>
                         </span>
                         <span className="uc-itemIcon" aria-hidden="true">
-                          <span style={{ opacity: 0.85 }}>⋯</span>
+                          →
                         </span>
                       </button>
                     );
@@ -1832,7 +1538,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <div className="uc-right">
                   <div className="uc-termTop">
                     <div className="uc-termTitle">{activeScenario.label}</div>
-                    <div className="uc-termBadge">TERMINAL</div>
+                    {/* ✅ LIVE removed */}
+                    <div style={{ fontSize: 11, letterSpacing: ".12em", color: "rgba(255,255,255,.55)", fontWeight: 800 }}>
+                      TERMINAL
+                    </div>
                   </div>
 
                   <div className="uc-termBody" aria-live="polite">
@@ -1843,7 +1552,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
                   <div className="uc-footer">
                     <NavLink to={withLang("/use-cases")} className="uc-miniLink" onClick={() => setOpenMenu(null)}>
-                      Open {t("nav.useCases")}
+                      Open {t("nav.useCases")} →
                     </NavLink>
                     <div className="uc-miniHint">{activeScenario.subtitle}</div>
                   </div>
@@ -1852,7 +1561,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* RESOURCES */}
+          {/* RESOURCES dropdown */}
           <div
             ref={resRef}
             className={cx("nav-dd", resOpen && "is-open")}
@@ -1890,6 +1599,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         <span className="nav-dd__label">{s.label}</span>
                         <span className="nav-dd__hint">{s.hint ?? "Guides, docs, policy"}</span>
                       </span>
+                    </span>
+                    <span className="nav-dd__arrow" aria-hidden="true">
+                      →
                     </span>
                   </NavLink>
                 ))}
