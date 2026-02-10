@@ -9,7 +9,13 @@ import React, {
 } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Smartphone, ShieldCheck, ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
+import {
+  Smartphone,
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+} from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -89,7 +95,13 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/** ✅ Single pill that swaps texts (vertical wipe) AND truly resizes to the visible text width */
+/**
+ * ✅ Rotating pill (fixes):
+ * - pill never cuts text (uses measured width + clamps + viewport auto height)
+ * - uses scrollWidth of the ACTIVE line (not container)
+ * - adds safe padding + min width + max width
+ * - keeps text centered + no overflow cut
+ */
 function RotatingPill({
   items,
   reduced,
@@ -103,44 +115,46 @@ function RotatingPill({
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   const [w, setW] = useState<number | null>(null);
 
-  const aRef = useRef<HTMLSpanElement | null>(null);
-  const viewportRef = useRef<HTMLSpanElement | null>(null);
+  const activeRef = useRef<HTMLSpanElement | null>(null);
 
   const current = items[idx % items.length] || "";
   const next = items[(idx + 1) % items.length] || "";
 
-  // Measure the *actual visible line width* precisely, including font rendering.
   useLayoutEffect(() => {
     const measure = () => {
-      const el = aRef.current;
+      const el = activeRef.current;
       if (!el) return;
+
+      // exact text width (no clamp)
       const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
       if (!raw) return;
-      // 24 = left+right padding (12+12)
-      setW(raw + 24);
+
+      // padding left+right (we control with CSS var too)
+      const pad = 28; // a bit larger so never clips
+      // clamp to keep UX clean on very long labels
+      const max = Math.min(window.innerWidth * 0.82, 520);
+      const min = 84;
+      const nextW = Math.max(min, Math.min(max, raw + pad));
+
+      setW(nextW);
     };
 
-    // Measure twice (font load / paint)
+    // measure after paint and after fonts swap
     const r1 = requestAnimationFrame(() => {
       measure();
-      const r2 = requestAnimationFrame(measure);
-      // also try after a tiny delay (helps when fonts swap late)
-      const t = window.setTimeout(measure, 60);
-      (measure as any)._cleanup = () => {
-        cancelAnimationFrame(r2);
-        clearTimeout(t);
-      };
+      requestAnimationFrame(measure);
+      const t = window.setTimeout(measure, 80);
+      (measure as any)._t = t;
     });
 
-    // ResizeObserver to keep perfect width (window resize, font swap)
-    const ro = "ResizeObserver" in window ? new ResizeObserver(measure) : null;
-    if (ro && viewportRef.current) ro.observe(viewportRef.current);
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
 
     return () => {
       cancelAnimationFrame(r1);
-      const c = (measure as any)._cleanup;
-      if (typeof c === "function") c();
-      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      const t = (measure as any)._t;
+      if (t) clearTimeout(t);
     };
   }, [current]);
 
@@ -171,12 +185,9 @@ function RotatingPill({
 
   return (
     <span className="svc-rotPill" style={{ width: w ?? undefined }}>
-      <span
-        ref={viewportRef}
-        className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}
-      >
+      <span className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}>
         <span className="svc-rotStack">
-          <span ref={aRef} className="svc-rotLine is-a">
+          <span ref={activeRef} className="svc-rotLine is-a">
             {current}
           </span>
           <span className="svc-rotLine is-b">{next}</span>
@@ -200,7 +211,12 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-type ServiceLink = { id: string; title: (lang: Lang) => string; path: string; desc?: (lang: Lang) => string };
+type ServiceLink = {
+  id: string;
+  path: string;
+  title: (lang: Lang) => string;
+  desc?: (lang: Lang) => string;
+};
 
 function ServicePage({
   tint = "cyan",
@@ -249,7 +265,6 @@ function ServicePage({
       ? "Contacto"
       : "Contact";
 
-  // ✅ Replace pricing button with “Other services” dropdown
   const otherServicesLabel =
     lang === "az"
       ? "Digər xidmətlər"
@@ -266,8 +281,7 @@ function ServicePage({
       {
         id: "chatbot-24-7",
         path: "/services/chatbot-24-7",
-        title: (l) =>
-          l === "az" ? "Chatbot 24/7" : l === "ru" ? "Чатбот 24/7" : l === "tr" ? "Chatbot 24/7" : l === "es" ? "Chatbot 24/7" : "Chatbot 24/7",
+        title: (l) => (l === "az" ? "Chatbot 24/7" : "Chatbot 24/7"),
         desc: (l) =>
           l === "az"
             ? "Always-on satış chat"
@@ -371,37 +385,13 @@ function ServicePage({
     []
   );
 
-  // Current page is /services/mobile-apps, so dropdown shows other 5
   const dropdownItems = useMemo(
-    () => services.filter((s) => !location.pathname.includes(s.path)),
+    () => services.filter((s) => !location.pathname.includes(s.path)).filter((s) => s.path !== "/services/mobile-apps"),
     [services, location.pathname]
   );
 
+  // ✅ Make dropdown push content down (NOT absolute)
   const [svcOpen, setSvcOpen] = useState(false);
-  const svcBtnRef = useRef<HTMLButtonElement | null>(null);
-  const svcPanelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSvcOpen(false);
-    };
-    const onDown = (e: MouseEvent | TouchEvent) => {
-      if (!svcOpen) return;
-      const t = e.target as Node | null;
-      if (!t) return;
-      if (svcBtnRef.current?.contains(t)) return;
-      if (svcPanelRef.current?.contains(t)) return;
-      setSvcOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("touchstart", onDown, { passive: true } as any);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("touchstart", onDown as any);
-    };
-  }, [svcOpen]);
 
   return (
     <section className="svc">
@@ -424,7 +414,7 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== Contact blue palette (text gradient base) ===== */
+        /* ===== Contact blue palette ===== */
         .svc-grad{
           background: linear-gradient(
             90deg,
@@ -438,7 +428,10 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer / Shine — “blockdan cixir, sonda blokun icine girir” ===== */
+        /* ===== Shimmer: MUST go full width and “enter” at the end =====
+           Fix: keep the band moving across, but the mask fades ONLY at edges,
+           so it looks like it goes *into* the block instead of disappearing early.
+        */
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -447,7 +440,7 @@ function ServicePage({
         .svc-shimmer::after{
           content:"";
           position:absolute;
-          inset: -12% -60%;
+          inset: -12% -70%;
           pointer-events:none;
 
           background: linear-gradient(
@@ -462,20 +455,20 @@ function ServicePage({
           );
 
           mix-blend-mode: screen;
-          opacity: .9;
+          opacity: .92;
 
-          transform: translate3d(-55%,0,0);
+          transform: translate3d(-70%,0,0);
           will-change: transform;
 
-          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
+          /* fade-in/out ONLY at edges (so it “enters” the end) */
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
 
-          /* IMPORTANT: fade-in at start + fade-out at end (enter/exit inside block) */
-          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
         }
         @keyframes svcShine{
-          0%{ transform: translate3d(-62%,0,0); }
-          100%{ transform: translate3d(62%,0,0); }
+          0%{ transform: translate3d(-78%,0,0); }
+          100%{ transform: translate3d(78%,0,0); }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-shimmer::after{ animation:none !important; display:none; }
@@ -486,7 +479,7 @@ function ServicePage({
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, ${T.a}, transparent 55%),
+            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.22), transparent 55%),
             radial-gradient(120% 90% at 86% 10%, rgba(255,184,47,.12), transparent 60%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
@@ -496,26 +489,10 @@ function ServicePage({
         .svc-hero::before{
           content:"";
           position:absolute; inset:-2px;
-          background: radial-gradient(600px 260px at 22% 18%, ${T.b}, transparent 60%);
+          background: radial-gradient(600px 260px at 22% 18%, rgba(47,184,255,.10), transparent 60%);
           opacity:.85;
           filter: blur(14px);
           pointer-events:none;
-        }
-
-        /* ✅ This “seam mask” creates the feeling the shimmer goes behind the video panel (for title area)
-           It sits on top of the left content near the seam, blending into the right card. */
-        .svc-seamMask{
-          position:absolute;
-          top: 0; bottom: 0;
-          left: calc(50% - 22px);
-          width: 64px;
-          pointer-events:none;
-          background: linear-gradient(90deg, rgba(10,12,18,0) 0%, rgba(10,12,18,.62) 55%, rgba(10,12,18,0) 100%);
-          opacity: .9;
-          filter: blur(0px);
-        }
-        @media (max-width: 980px){
-          .svc-seamMask{ display:none; }
         }
 
         .svc-hero__inner{
@@ -580,18 +557,16 @@ function ServicePage({
           align-items: center;
           flex-wrap: wrap;
         }
-
         .svc-rotPill{
           position: relative;
           display:inline-flex;
           align-items:center;
           justify-content:center;
           height: 34px;
-          padding: 0 12px; /* kept for fallback; width is set precisely by JS */
           border-radius: 999px;
           border: 1px solid rgba(47,184,255,.22);
           background:
-            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
             rgba(255,255,255,.04);
           box-shadow: 0 10px 40px rgba(0,0,0,.35);
           font-weight: 900;
@@ -599,10 +574,10 @@ function ServicePage({
           white-space: nowrap;
           transition: width .26s ease;
           transform: translateZ(0);
-          overflow: hidden;
-          min-width: 0;
+          overflow: visible; /* ✅ never cut text */
+          padding: 0 14px;   /* ✅ real padding */
+          min-width: 84px;
         }
-
         .svc-rotViewport{
           position: relative;
           height: 18px;
@@ -628,8 +603,8 @@ function ServicePage({
           font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
+          padding: 0 2px; /* ✅ tiny safety */
         }
-
         .svc-rotViewport.is-out .svc-rotStack{
           transform: translate3d(0,-18px,0);
           opacity: .92;
@@ -647,11 +622,10 @@ function ServicePage({
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
-          align-items: center;
-          position: relative;
+          align-items: flex-start;
         }
 
-        /* ✅ Buttons: remove underline/arrow styling; on hover a gradient band sweeps over the button */
+        /* ✅ Buttons: remove underline & remove arrow-only styling from Link */
         .svc-cta{
           position: relative;
           display:inline-flex;
@@ -663,15 +637,23 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 900;
-          text-decoration:none;
+          text-decoration:none !important;
+          outline: none;
           transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
           transform: translateZ(0);
           overflow: hidden;
         }
+        .svc-cta:visited{ color: rgba(255,255,255,.92); }
+        .svc-cta *{ text-decoration: none !important; }
+
+        /* Remove any external underline effects */
+        .svc a, .svc a:hover{ text-decoration:none !important; }
+        .svc a::after{ display:none !important; }
+
         .svc-cta::before{
           content:"";
           position:absolute;
@@ -686,7 +668,7 @@ function ServicePage({
             transparent 70%,
             transparent 100%
           );
-          transform: translate3d(-40%,0,0);
+          transform: translate3d(-55%,0,0);
           opacity: 0;
           transition: opacity .18s ease;
           pointer-events:none;
@@ -703,17 +685,19 @@ function ServicePage({
           ${reduced ? "" : "animation: svcBtnSweep .85s ease-out 1;"}
         }
         @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-50%,0,0); }
-          100%{ transform: translate3d(50%,0,0); }
+          0%{ transform: translate3d(-60%,0,0); }
+          100%{ transform: translate3d(60%,0,0); }
         }
         @media (hover:none){
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ animation:none; }
         }
 
+        /* ✅ Remove arrow icon next to “Əlaqə saxla” (you asked to remove it) */
+        .svc-cta--contact .svc-ctaIcon{ display:none !important; }
+
         .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
 
-        /* Services dropdown button */
         .svc-ctaBtn{
           cursor:pointer;
           appearance:none;
@@ -721,19 +705,17 @@ function ServicePage({
           background: rgba(255,255,255,.04);
         }
 
-        /* Dropdown panel (like your screenshot list) */
-        .svc-dd{
-          position: absolute;
-          top: calc(44px + 10px);
-          left: 0;
-          width: min(460px, 92vw);
+        /* ✅ Dropdown is now in-flow: pushes content down */
+        .svc-ddFlow{
+          width: 100%;
+          max-width: 520px;
+          margin-top: 10px;
           border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(10,12,18,.72);
           box-shadow: 0 26px 120px rgba(0,0,0,.65);
           overflow:hidden;
           backdrop-filter: blur(10px);
-          z-index: 20;
         }
         .svc-ddHead{
           padding: 12px 14px;
@@ -759,7 +741,7 @@ function ServicePage({
           background:
             radial-gradient(120% 120% at 18% 10%, rgba(47,184,255,.10), transparent 60%),
             rgba(255,255,255,.03);
-          text-decoration:none;
+          text-decoration:none !important;
           color: rgba(255,255,255,.90);
           transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
         }
@@ -856,8 +838,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.28));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.06);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -910,31 +892,19 @@ function ServicePage({
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
 
-        /* ✅ “breathing” check icon */
         .svc-feat__tick{
           width: 30px; height: 30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.10);
-          background: ${T.c};
+          background: rgba(47,184,255,.06);
           color: rgba(170,225,255,.95);
           flex: 0 0 auto;
           transform: translateZ(0);
-          box-shadow: 0 0 0 0 rgba(47,184,255,.0);
           ${reduced ? "" : "animation: svcTickBreath 1.35s ease-in-out infinite;"}
         }
         @keyframes svcTickBreath{
-          0%,100%{
-            transform: translateZ(0) scale(1);
-            box-shadow: 0 0 0 0 rgba(47,184,255,.0), 0 0 0 0 rgba(47,184,255,.0);
-            filter: saturate(1);
-            opacity: .98;
-          }
-          50%{
-            transform: translateZ(0) scale(1.07);
-            box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22);
-            filter: saturate(1.15);
-            opacity: .92;
-          }
+          0%,100%{ transform: translateZ(0) scale(1); box-shadow:none; opacity:.98; }
+          50%{ transform: translateZ(0) scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-feat__tick{ animation:none !important; }
@@ -947,9 +917,6 @@ function ServicePage({
       <div className="container">
         <div className="svc-hero">
           <div className="svc-hero__inner">
-            {/* seam mask for “goes behind panel” feel */}
-            <div className="svc-seamMask" aria-hidden="true" />
-
             <div className="svc-left">
               <div className="svc-kicker" data-reveal>
                 <span className="svc-kdot" aria-hidden="true" />
@@ -969,15 +936,14 @@ function ServicePage({
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
-                <Link to={withLang("/contact", lang)} className="svc-cta">
+                <Link to={withLang("/contact", lang)} className="svc-cta svc-cta--contact">
                   {contact}
                   <ArrowRight className="svc-ctaIcon" size={16} />
                 </Link>
 
                 <button
-                  ref={svcBtnRef}
                   type="button"
-                  className={cx("svc-cta svc-ctaBtn")}
+                  className="svc-cta svc-ctaBtn"
                   onClick={() => setSvcOpen((v) => !v)}
                   aria-expanded={svcOpen ? "true" : "false"}
                   aria-haspopup="menu"
@@ -985,37 +951,49 @@ function ServicePage({
                   {otherServicesLabel}
                   <ChevronDown className="svc-ctaIcon" size={16} />
                 </button>
-
-                {svcOpen && (
-                  <div ref={svcPanelRef} className="svc-dd" role="menu" aria-label="Services">
-                    <div className="svc-ddHead">
-                      <span>{lang === "az" ? "SERVICES" : "SERVICES"}</span>
-                      <span style={{ opacity: 0.75 }}>{lang === "az" ? "Seç və keçid et" : "Select & switch"}</span>
-                    </div>
-                    <div className="svc-ddList">
-                      {dropdownItems.map((s) => (
-                        <Link
-                          key={s.id}
-                          to={withLang(s.path, lang)}
-                          className="svc-ddItem"
-                          onClick={() => setSvcOpen(false)}
-                        >
-                          <div className="svc-ddLeft">
-                            <div className="svc-ddTitle">{s.title(lang)}</div>
-                            <div className="svc-ddDesc">{s.desc ? s.desc(lang) : ""}</div>
-                          </div>
-                          <ArrowRight size={16} style={{ opacity: 0.8, flex: "0 0 auto" }} />
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
+
+              {/* ✅ In-flow dropdown that pushes blocks down */}
+              {svcOpen && (
+                <div className="svc-ddFlow" role="menu" aria-label="Services">
+                  <div className="svc-ddHead">
+                    <span>SERVICES</span>
+                    <span style={{ opacity: 0.75 }}>
+                      {lang === "az" ? "Seç və keçid et" : "Select & switch"}
+                    </span>
+                  </div>
+                  <div className="svc-ddList">
+                    {dropdownItems.map((s) => (
+                      <Link
+                        key={s.id}
+                        to={withLang(s.path, lang)}
+                        className="svc-ddItem"
+                        onClick={() => setSvcOpen(false)}
+                      >
+                        <div className="svc-ddLeft">
+                          <div className="svc-ddTitle">{s.title(lang)}</div>
+                          <div className="svc-ddDesc">{s.desc ? s.desc(lang) : ""}</div>
+                        </div>
+                        <ArrowRight size={16} style={{ opacity: 0.8, flex: "0 0 auto" }} />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
