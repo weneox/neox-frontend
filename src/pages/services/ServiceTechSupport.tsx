@@ -1,15 +1,15 @@
-// src/pages/services/ServiceTechSupport.tsx
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+// src/pages/services/ServiceMobileApps.tsx
+import React, { memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Headset, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
+import { Smartphone, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
 const RAW_VIDEO =
-  "https://res.cloudinary.com/dppoomunj/video/upload/v1770679078/neox/media/asset_1770679068213_8656376783645.mp4";
+  "https://res.cloudinary.com/dppoomunj/video/upload/v1770675145/neox/media/asset_1770675134359_b91c8b8d8927a.mp4";
 
 function cloudinaryAuto(url: string) {
   try {
@@ -28,6 +28,7 @@ const TINTS = {
     b: "rgba(47,184,255,.10)",
     c: "rgba(47,184,255,.06)",
     d: "rgba(47,184,255,.28)",
+    edge: "rgba(47,184,255,.22)",
   },
 } as const;
 
@@ -58,12 +59,16 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+/** FPS-friendly reveal (single observer, once) */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
-    if (disabled) return;
-
     const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (!els.length) return;
+
+    if (disabled) {
+      els.forEach((el) => el.classList.add("is-in"));
+      return;
+    }
 
     const io = new IntersectionObserver(
       (entries) => {
@@ -96,11 +101,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-/**
- * Rotator (ghost last = first)
- * NOTE: this version keeps the same "premium sweep" look.
- * If you want the "NO width jump" rotator like Websites, say it and I'll swap it in.
- */
+/** ✅ Rotator pill — eni əvvəlcədən ölçür (söz gəlir→sonra böyüyür YOX) */
 function PillRotator({
   items,
   intervalMs = 2200,
@@ -115,6 +116,40 @@ function PillRotator({
 
   const [i, setI] = useState(0);
   const [noTrans, setNoTrans] = useState(false);
+
+  const measureRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const [widths, setWidths] = useState<number[]>([]);
+  const curIdx = Math.min(i, safe.length - 1);
+
+  const measureAll = () => {
+    const PAD = 40;
+    const FUDGE = 12;
+    const MIN = 58;
+    const MAX = 420;
+
+    const next: number[] = safe.map((_, idx) => {
+      const el = measureRefs.current[idx];
+      const w = el ? Math.ceil(el.getBoundingClientRect().width) : 0;
+      return Math.max(MIN, Math.min(MAX, w + PAD + FUDGE));
+    });
+
+    setWidths(next);
+  };
+
+  useLayoutEffect(() => {
+    measureAll();
+    const fonts = (document as any).fonts;
+    if (fonts?.ready?.then) fonts.ready.then(() => measureAll()).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safe.join("|")]);
+
+  useEffect(() => {
+    if (disabled) return;
+    const on = () => measureAll();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, safe.join("|")]);
 
   useEffect(() => {
     if (disabled) return;
@@ -137,9 +172,24 @@ function PillRotator({
 
   const step = 34;
   const y = -i * step;
+  const w = widths[curIdx];
 
   return (
-    <span className="svc-pill svc-pill--rot" aria-label={safe[Math.min(i, safe.length - 1)]}>
+    <span className="svc-pill svc-pill--rot" aria-label={safe[curIdx]} style={w ? ({ width: `${w}px` } as any) : undefined}>
+      <span className="svc-pillMeasure" aria-hidden="true">
+        {safe.map((t, idx) => (
+          <span
+            key={`${t}-${idx}`}
+            ref={(node) => {
+              measureRefs.current[idx] = node;
+            }}
+            className="svc-pillMeasureItem"
+          >
+            {t}
+          </span>
+        ))}
+      </span>
+
       <span className="svc-pillRot-clip">
         <span
           className="svc-pillRot-track"
@@ -182,38 +232,30 @@ function ServicePage({
 }) {
   const location = useLocation();
   const lang = useMemo(() => getLangFromPath(location.pathname), [location.pathname]);
+
   const reduced = usePrefersReducedMotion();
   useRevealOnScroll(reduced);
 
   const T = TINTS[tint];
 
+  // ✅ FPS: preload metadata, play after canplay + small delay
   const vidRef = useRef<HTMLVideoElement | null>(null);
-
-  // ✅ play once, no loop, keep last frame visible
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
 
-    v.loop = false;
-    v.muted = true;
-
-    const tryPlay = async () => {
-      try {
-        await v.play();
-      } catch {}
+    const onCanPlay = () => {
+      window.setTimeout(() => v.play().catch(() => {}), 180);
     };
 
-    const onEnded = () => {
-      try {
-        v.pause();
-        v.currentTime = Math.max(0, (v.duration || 0) - 0.03);
-      } catch {}
-    };
+    v.addEventListener("canplay", onCanPlay);
+    return () => v.removeEventListener("canplay", onCanPlay);
+  }, []);
 
-    v.addEventListener("ended", onEnded);
-    tryPlay();
-
-    return () => v.removeEventListener("ended", onEnded);
+  const [softIn, setSoftIn] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setSoftIn(true));
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const contact =
@@ -240,13 +282,14 @@ function ServicePage({
 
   return (
     <section
-      className="svc"
+      className={cx("svc", softIn && "svc--in")}
       style={
         {
           ["--tA" as any]: T.a,
           ["--tB" as any]: T.b,
           ["--tC" as any]: T.c,
           ["--tD" as any]: T.d,
+          ["--tEdge" as any]: (T as any).edge ?? "rgba(47,184,255,.22)",
         } as React.CSSProperties
       }
     >
@@ -260,7 +303,12 @@ function ServicePage({
           color: rgba(255,255,255,.92);
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+
+          opacity: 0.01;
+          transform: translate3d(0,6px,0);
+          transition: opacity .55s ease, transform .55s ease;
         }
+        .svc.svc--in{ opacity: 1; transform: translate3d(0,0,0); }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
@@ -271,15 +319,19 @@ function ServicePage({
         [data-reveal]{
           opacity:0;
           transform: translate3d(0,10px,0);
-          transition: opacity .55s ease, transform .55s ease;
+          transition: opacity .72s ease, transform .72s ease;
           will-change: opacity, transform;
+          contain: paint;
         }
-        .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
+        .svc--in [data-reveal].is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
+        .svc--in .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
+
         @media (prefers-reduced-motion: reduce){
+          .svc{ opacity: 1; transform:none; transition:none; }
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* sweep text */
+        /* sweep text (lightweight) */
         .svc-sweepText{
           display:inline-block;
           background-image:
@@ -296,35 +348,12 @@ function ServicePage({
         @keyframes svcTextSweep{ 0%{background-position:0 0,-220% 0} 100%{background-position:0 0,220% 0} }
         @media (prefers-reduced-motion: reduce){ .svc-sweepText{ animation:none !important; } }
 
-        /* title shimmer ribbon (ONLY title) */
-        .svc-grad{
-          background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
-          -webkit-background-clip:text;
-          background-clip:text;
-          color:transparent;
-        }
-        .svc-shimmer{ position: relative; display:inline-block; isolation:isolate; }
-        .svc-shimmer::after{
-          content:"";
-          position:absolute;
-          inset: -12% -60%;
-          pointer-events:none;
-          background: linear-gradient(110deg, transparent 0%, transparent 35%, rgba(255,255,255,.30) 45%, rgba(170,225,255,.55) 50%, rgba(47,184,255,.45) 55%, transparent 65%, transparent 100%);
-          mix-blend-mode: screen;
-          opacity: .92;
-          transform: translate3d(-55%,0,0);
-          will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
-        }
-        @keyframes svcShine{ 0%{ transform: translate3d(-55%,0,0); } 100%{ transform: translate3d(55%,0,0); } }
-        @media (prefers-reduced-motion: reduce){ .svc-shimmer::after{ animation:none !important; display:none; } }
-
         .svc-hero{
           position: relative;
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.08), transparent 62%),
+            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.10), transparent 62%),
             radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
             radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
             rgba(10,12,18,.55);
@@ -337,47 +366,66 @@ function ServicePage({
           position:absolute; inset:0;
           pointer-events:none;
           background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
-          opacity:.9;
+          opacity:.88;
         }
 
         .svc-hero__inner{
           position:relative;
           z-index:1;
-          padding: 28px 22px;
+          padding: 30px 22px;
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
           align-items: stretch;
           min-width:0;
         }
-        @media (max-width: 980px){ .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; } }
+        @media (max-width: 980px){
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 24px 16px; }
+        }
 
         .svc-left{ min-width:0; }
 
         .svc-kicker{
-          display:inline-flex; align-items:center; gap:10px;
-          font-weight: 900;
-          letter-spacing:.18em;
-          font-size: 11px;
-          color: rgba(255,255,255,.70);
-          text-transform:uppercase;
+          display:inline-flex;
+          align-items:center;
+          gap:10px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.46);
+          color: rgba(255,255,255,.78);
+          font-size: 12px;
+          letter-spacing:.14em;
+          text-transform: uppercase;
+          position: relative;
+          z-index: 10;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
         .svc-kdot{
           width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
-          transform: translateY(-2px);
+          flex: 0 0 auto;
         }
 
         .svc-title{
-          margin-top: 14px;
+          margin-top: 10px;
           font-size: 40px;
           line-height: 1.05;
           font-weight: 600;
           letter-spacing: -0.02em;
-          color: rgba(255,255,255,.94);
+          position: relative;
+          z-index: 6;
         }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
+
+        .svc-grad{
+          background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+        }
 
         .svc-sub{
           margin-top: 14px;
@@ -385,14 +433,16 @@ function ServicePage({
           font-size: 16px;
           line-height: 1.7;
           max-width: 68ch;
+          position: relative;
+          z-index: 6;
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
-        .svc-pills{ margin-top: 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+        .svc-pills{ margin-top: 14px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap; position: relative; z-index: 6; }
         .svc-pill{
           display:inline-flex; align-items:center; justify-content:center;
           height: 34px;
-          padding: 0 12px;
+          padding: 0 16px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
@@ -400,13 +450,41 @@ function ServicePage({
           font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
+          position: relative;
         }
-        .svc-pill--rot{ min-width: 170px; padding: 0 14px; }
-        .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; }
+        .svc-pill--rot{
+          max-width: min(420px, 92vw);
+          transition: width 180ms cubic-bezier(.2,.8,.2,1);
+          overflow: visible;
+        }
+        .svc-pillMeasure{
+          position:absolute;
+          left:-9999px; top:-9999px;
+          opacity:0; pointer-events:none;
+          white-space: nowrap;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; width:100%; }
         .svc-pillRot-track{ display:block; will-change: transform; }
-        .svc-pillRot-item{ height: 34px; line-height: 34px; display:flex; align-items:center; justify-content:center; }
+        .svc-pillRot-item{
+          height: 34px;
+          line-height: 34px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          width: 100%;
+          padding: 0 2px;
+        }
 
-        .svc-ctaRow{ margin-top: 18px; display:flex; flex-wrap: wrap; gap: 10px; }
+        .svc-ctaRow{
+          margin-top: 18px;
+          display:flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          position: relative;
+          z-index: 6;
+        }
         .svc-cta{
           position: relative;
           overflow:hidden;
@@ -417,12 +495,48 @@ function ServicePage({
           padding: 0 18px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-          background: radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%), rgba(255,255,255,.06);
+          background:
+            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
+            rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: .02em;
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
           transform: translateZ(0);
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+        }
+        .svc-cta::before{
+          content:"";
+          position:absolute;
+          inset:-55% -70%;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 34%,
+            rgba(255,255,255,.30) 44%,
+            rgba(255,255,255,.95) 50%,
+            rgba(170,225,255,.72) 54%,
+            rgba(47,184,255,.45) 58%,
+            transparent 68%,
+            transparent 100%
+          );
+          transform: translate3d(-70%,0,0);
+          opacity: 0;
+          will-change: transform, opacity;
+          pointer-events:none;
+        }
+        .svc-cta:hover{
+          transform: translate3d(0,-1px,0);
+          border-color: rgba(47,184,255,.24);
+          background: rgba(255,255,255,.08);
+        }
+        .svc-cta:hover::before{
+          opacity: .98;
+          ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
+        }
+        @keyframes svcBtnSweep{ 0%{transform:translate3d(-70%,0,0)} 100%{transform:translate3d(70%,0,0)} }
+        @media (hover: none){
+          .svc-cta:hover{ transform:none; }
+          .svc-cta:hover::before{ opacity:0; animation:none; }
         }
         .svc-ctaText{
           display:inline-flex;
@@ -433,25 +547,9 @@ function ServicePage({
           text-transform: uppercase;
           color: rgba(255,255,255,.92);
         }
-        .svc-cta::before{
-          content:"";
-          position:absolute;
-          inset:-55% -70%;
-          background: linear-gradient(110deg, transparent 0%, transparent 34%, rgba(255,255,255,.28) 44%, rgba(255,255,255,.92) 50%, rgba(170,225,255,.66) 54%, rgba(47,184,255,.42) 58%, transparent 68%, transparent 100%);
-          transform: translate3d(-70%,0,0);
-          opacity: 0;
-          pointer-events:none;
-          will-change: transform, opacity;
-        }
-        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.26); background: rgba(255,255,255,.08); }
-        .svc-cta:hover::before{
-          opacity: .96;
-          ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
-        }
-        @keyframes svcBtnSweep{ 0%{transform:translate3d(-70%,0,0)} 100%{transform:translate3d(70%,0,0)} }
-        @media (hover:none){ .svc-cta:hover{ transform:none; } .svc-cta:hover::before{ opacity:0; animation:none; } }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
 
+        /* video */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -460,6 +558,7 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
+          z-index: 3;
         }
         .svc-videoWrap{
           position: relative;
@@ -481,7 +580,9 @@ function ServicePage({
         }
         .svc-videoScrim{
           position:absolute; inset:0;
-          background: radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%), linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
+          background:
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
 
@@ -546,6 +647,7 @@ function ServicePage({
           line-height: 1.2;
         }
         @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
+
         .svc-card__desc{
           margin-top: 10px;
           color: rgba(255,255,255,.70);
@@ -568,13 +670,7 @@ function ServicePage({
           background: var(--tC);
           color: rgba(170,225,255,.98);
           flex: 0 0 auto;
-          ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
         }
-        @keyframes svcTickBreath{
-          0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
-          50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
-        }
-        @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
@@ -591,7 +687,7 @@ function ServicePage({
               </div>
 
               <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+                <span className="svc-grad">{title}</span>
               </h1>
 
               <p className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
@@ -614,7 +710,7 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted playsInline preload="metadata" />
+                <video ref={vidRef} className="svc-video" src={videoUrl} muted loop playsInline preload="metadata" />
                 <div className="svc-videoScrim" aria-hidden="true" />
                 <div className="svc-badge" aria-hidden="true">
                   <div className="svc-badgeLeft">
@@ -623,7 +719,7 @@ function ServicePage({
                   </div>
                   <div className="svc-badgeRight">
                     <span className="svc-dot" />
-                    <span>Support</span>
+                    <span>Mobile</span>
                   </div>
                 </div>
               </div>
@@ -634,13 +730,11 @@ function ServicePage({
         <div className="svc-section">
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
-              <Clock size={18} />
-              <span className="svc-sweepText">{lang === "az" ? "Sürətli cavab" : "Fast response"}</span>
+              <Smartphone size={18} />
+              <span className="svc-sweepText">Mobile UX</span>
             </div>
             <div className="svc-card__desc">
-              {lang === "az"
-                ? "SLA əsaslı dəstək: kritik problem → prioritet eskalasiya. Problem olanda “itmirik” — sürətli reaksiya veririk."
-                : "SLA-based support: critical issues get prioritized escalation and fast response."}
+              iOS/Android üçün premium UX, sürətli açılış, stabil arxitektura və offline-ready yanaşma.
             </div>
             <div style={{ marginTop: 12 }}>
               {featuresLeft.map((f) => (
@@ -652,12 +746,10 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span className="svc-sweepText">{lang === "az" ? "Stabil sistem" : "Stable system"}</span>
+              <span className="svc-sweepText">Backend & Security</span>
             </div>
             <div className="svc-card__desc">
-              {lang === "az"
-                ? "Update, security patch, backup, performans və uptime monitorinq. Planlı maintenance + rollback planı."
-                : "Updates, security patches, backups, performance and uptime monitoring with safe rollback."}
+              Auth, təhlükəsizlik, deploy və monitorinq. İstəsən admin panel + analitika + push bildirişləri də qururuq.
             </div>
             <div style={{ marginTop: 12 }}>
               {featuresRight.map((f) => (
@@ -671,28 +763,28 @@ function ServicePage({
   );
 }
 
-export default memo(function ServiceTechSupport() {
+export default memo(function ServiceMobileApps() {
   useTranslation();
 
   return (
     <ServicePage
       tint="cyan"
       kicker={"SERVICES"}
-      title={"Texniki dəstək"}
+      title={"Mobil app-lərin hazırlanması"}
       subtitle={
-        "Qurulan sistemlər üçün monitorinq, düzəliş, yeniləmə, təhlükəsizlik və stabil işləmə. Problem olanda “itmirik” — sürətli reaksiya veririk."
+        "iOS/Android üçün sürətli, stabil və premium UX-li tətbiqlər. İstəsən backend, admin panel, analitika və push bildirişlərini də qururuq."
       }
-      icon={Headset}
-      pills={["SLA", "Monitoring", "Maintenance", "Security", "Fast response"]}
+      icon={Smartphone}
+      pills={["iOS/Android", "Premium UX", "High performance", "Secure API", "Push/Events"]}
       featuresLeft={[
-        { title: "Operator kanal", desc: "Birbaşa admin panel + Telegram bildirişləri ilə eskalasiya." },
-        { title: "SLA", desc: "Cavab vaxtı ölçümü, reminder və alertlər." },
-        { title: "Prioritet", desc: "Kritik incident → dərhal müdaxilə və status yenilənməsi." },
+        { title: "Native-like UX", desc: "Smooth animasiyalar, gesture-lər və mobil-first UX." },
+        { title: "Performance", desc: "Fast startup, optimizasiya və stabil render (high FPS)." },
+        { title: "Offline-ready", desc: "Smart cache, queue və zəif internetdə belə stabil iş." },
       ]}
       featuresRight={[
-        { title: "Maintenance", desc: "Planlı yeniləmələr, test, rollback planı." },
-        { title: "Security", desc: "Rate limit, auth, audit, log və qoruma layer-ləri." },
-        { title: "Uptime", desc: "Monitoring + xəbərdarlıqlar + backup strategiyası." },
+        { title: "Secure API", desc: "JWT, roles, rate limit və audit log." },
+        { title: "Analytics", desc: "Event tracking, funnel, conversion və ölçülə bilən nəticə." },
+        { title: "Push/Notifications", desc: "Reminder, status, kampaniya və real-time bildirişlər." },
       ]}
       videoUrl={VIDEO_URL}
     />
