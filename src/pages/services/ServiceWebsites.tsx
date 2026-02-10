@@ -99,9 +99,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 }
 
 /**
- * ✅ Pill Rotator — fully adaptive width:
- * - measures current visible text width (hidden measurer w/ same font)
- * - pill grows/shrinks to match the word length
+ * ✅ Pill Rotator — adaptive width (and SEO can shrink more)
  */
 function PillRotator({
   items,
@@ -118,7 +116,6 @@ function PillRotator({
   const [i, setI] = useState(0);
   const [noTrans, setNoTrans] = useState(false);
 
-  const pillRef = useRef<HTMLSpanElement | null>(null);
   const measureRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const [w, setW] = useState<number | null>(null);
 
@@ -130,10 +127,9 @@ function PillRotator({
 
     const textW = Math.ceil(el.getBoundingClientRect().width);
 
-    // must match CSS paddings/border feeling
-    const PAD = 28; // 14 + 14
-    const MIN = 118; // small pill for short words
-    const MAX = 420; // cap
+    const PAD = 28; // same as visible pill (14+14)
+    const MIN = 82; // ✅ smaller so "SEO" becomes tighter
+    const MAX = 420;
 
     const next = Math.max(MIN, Math.min(MAX, textW + PAD));
     setW(next);
@@ -141,7 +137,6 @@ function PillRotator({
 
   useLayoutEffect(() => {
     doMeasure();
-    // also after fonts load (prevents “wrong first width”)
     const fonts = (document as any).fonts;
     if (fonts?.ready?.then) {
       fonts.ready.then(() => doMeasure()).catch(() => {});
@@ -180,12 +175,7 @@ function PillRotator({
   const y = -i * step;
 
   return (
-    <span
-      ref={pillRef}
-      className="svc-pill svc-pill--rot"
-      aria-label={safe[curIdx]}
-      style={w ? ({ width: `${w}px` } as React.CSSProperties) : undefined}
-    >
+    <span className="svc-pill svc-pill--rot" aria-label={safe[curIdx]} style={w ? ({ width: `${w}px` } as any) : undefined}>
       {/* hidden measurer */}
       <span className="svc-pillMeasure" aria-hidden="true">
         {safe.map((t, idx) => (
@@ -335,7 +325,7 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* TEXT SWEEP (pills + section headings) */
+        /* TEXT SWEEP */
         .svc-sweepText{
           display:inline-block;
           background-image:
@@ -401,7 +391,6 @@ function ServicePage({
           isolation: isolate;
         }
 
-        /* “ilan kimi” shine */
         .svc-grad.svc-shimmer::after{
           content:"";
           position:absolute;
@@ -450,7 +439,9 @@ function ServicePage({
             radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
-          overflow:hidden;
+
+          /* ✅ IMPORTANT: allow kicker to sit “above” without being covered */
+          overflow: visible;
           contain: layout paint style;
         }
         .svc-hero::after{
@@ -459,6 +450,7 @@ function ServicePage({
           pointer-events:none;
           background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
           opacity:.9;
+          border-radius: 26px;
         }
 
         .svc-hero__inner{
@@ -475,24 +467,28 @@ function ServicePage({
           .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
         }
 
-        .svc-left{ min-width:0; }
+        .svc-left{ min-width:0; position: relative; }
 
-        /* ✅ SERVICES pill moved UP + higher z-index so nothing “cuts” it */
+        /* ✅ SERVICES PILL — out of glow zone (absolute on top-left of hero) */
         .svc-kicker{
+          position: absolute;
+          top: -18px;   /* ✅ lifts above hero so glow never crosses it */
+          left: 14px;
+
           display:inline-flex; align-items:center; gap:10px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.55);  /* ✅ solid chip, prevents glow bleed */
           padding: 10px 14px;
           border-radius: 999px;
           font-size: 12px;
           letter-spacing: .14em;
           text-transform: uppercase;
-          color: rgba(255,255,255,.70);
+          color: rgba(255,255,255,.78);
 
-          position: relative;
-          z-index: 5;
-          transform: translate3d(0,-10px,0); /* ✅ slightly higher */
-          margin-bottom: -6px;              /* keeps spacing tight */
+          z-index: 20;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          box-shadow: 0 18px 60px rgba(0,0,0,.45);
         }
         .svc-kdot{
           width: 8px; height: 8px; border-radius: 999px;
@@ -522,7 +518,6 @@ function ServicePage({
           position: relative;
         }
 
-        /* ✅ adaptive width (real fit) */
         .svc-pill--rot{
           width: auto;
           max-width: min(420px, 92vw);
@@ -534,12 +529,10 @@ function ServicePage({
           left:-9999px; top:-9999px;
           opacity:0; pointer-events:none;
           white-space: nowrap;
-
-          /* match visible pill typography */
           font-size: 12px;
           font-weight: 800;
         }
-        .svc-pillMeasureItem{ display:inline-block; padding: 0 0; }
+        .svc-pillMeasureItem{ display:inline-block; }
 
         .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; width:100%; }
         .svc-pillRot-track{ display:block; will-change: transform; }
@@ -553,7 +546,7 @@ function ServicePage({
           padding: 0 2px;
         }
 
-        /* ✅ CTA BUTTONS — old premium (no arrow, no underline, shine on hover) */
+        /* CTA (unchanged — you said buttons are perfect) */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -563,7 +556,6 @@ function ServicePage({
         .svc-cta{
           position: relative;
           overflow:hidden;
-
           display:inline-flex;
           align-items:center;
           justify-content:center;
@@ -571,11 +563,9 @@ function ServicePage({
           padding: 0 18px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-
           background:
             radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
             rgba(255,255,255,.06);
-
           color: rgba(255,255,255,.92);
           font-weight: 700;
           letter-spacing: .02em;
@@ -654,7 +644,6 @@ function ServicePage({
           backface-visibility:hidden;
         }
         @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; } }
-
         .svc-video{
           position:absolute; inset:0;
           width:100%; height:100%;
