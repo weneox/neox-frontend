@@ -58,6 +58,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+/** lightweight reveal (FPS friendly) */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
@@ -74,7 +75,7 @@ function useRevealOnScroll(disabled: boolean) {
           }
         }
       },
-      { threshold: 0.16, rootMargin: "0px 0px -10% 0px" }
+      { threshold: 0.14, rootMargin: "0px 0px -12% 0px" }
     );
 
     els.forEach((el) => io.observe(el));
@@ -86,7 +87,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
       <div className="svc-feat__tick" aria-hidden="true">
-        <CheckCircle2 size={18} strokeWidth={2.8} />
+        <CheckCircle2 size={18} strokeWidth={2.6} />
       </div>
       <div className="svc-feat__body">
         <div className="svc-feat__t">{title}</div>
@@ -98,8 +99,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 
 /**
  * Rotator (ghost last = first)
- * NOTE: this version keeps the same "premium sweep" look.
- * If you want the "NO width jump" rotator like Websites, say it and I'll swap it in.
+ * Keeps premium sweep look, but stays lightweight.
  */
 function PillRotator({
   items,
@@ -174,7 +174,7 @@ function ServicePage({
   kicker: string;
   title: string;
   subtitle: string;
-  icon: any;
+  icon: React.ElementType;
   pills: string[];
   featuresLeft: Array<{ title: string; desc: string }>;
   featuresRight: Array<{ title: string; desc: string }>;
@@ -189,7 +189,7 @@ function ServicePage({
 
   const vidRef = useRef<HTMLVideoElement | null>(null);
 
-  // ✅ play once, no loop, keep last frame visible
+  // ✅ play once, no loop, keep last frame visible (FPS-friendly)
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
@@ -268,10 +268,11 @@ function ServicePage({
         .svc a:hover{ text-decoration:none !important; }
         .svc a::after{ display:none !important; }
 
+        /* ✅ reveal: GPU only */
         [data-reveal]{
           opacity:0;
-          transform: translate3d(0,10px,0);
-          transition: opacity .55s ease, transform .55s ease;
+          transform: translate3d(0,12px,0);
+          transition: opacity .58s ease, transform .58s ease;
           will-change: opacity, transform;
         }
         .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
@@ -279,7 +280,7 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* sweep text */
+        /* sweep text (lightweight) */
         .svc-sweepText{
           display:inline-block;
           background-image:
@@ -291,12 +292,12 @@ function ServicePage({
           background-clip: text;
           color: transparent;
           will-change: background-position;
-          ${reduced ? "" : "animation: svcTextSweep 2.2s linear infinite;"}
+          ${reduced ? "" : "animation: svcTextSweep 2.25s linear infinite;"}
         }
         @keyframes svcTextSweep{ 0%{background-position:0 0,-220% 0} 100%{background-position:0 0,220% 0} }
         @media (prefers-reduced-motion: reduce){ .svc-sweepText{ animation:none !important; } }
 
-        /* title shimmer ribbon (ONLY title) */
+        /* title shimmer only */
         .svc-grad{
           background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
           -webkit-background-clip:text;
@@ -311,10 +312,10 @@ function ServicePage({
           pointer-events:none;
           background: linear-gradient(110deg, transparent 0%, transparent 35%, rgba(255,255,255,.30) 45%, rgba(170,225,255,.55) 50%, rgba(47,184,255,.45) 55%, transparent 65%, transparent 100%);
           mix-blend-mode: screen;
-          opacity: .92;
+          opacity: .90;
           transform: translate3d(-55%,0,0);
           will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
         }
         @keyframes svcShine{ 0%{ transform: translate3d(-55%,0,0); } 100%{ transform: translate3d(55%,0,0); } }
         @media (prefers-reduced-motion: reduce){ .svc-shimmer::after{ animation:none !important; display:none; } }
@@ -331,13 +332,15 @@ function ServicePage({
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
           contain: layout paint style;
+          content-visibility: auto;
+          contain-intrinsic-size: 700px;
         }
         .svc-hero::after{
           content:"";
           position:absolute; inset:0;
           pointer-events:none;
-          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
-          opacity:.9;
+          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.16), rgba(0,0,0,.70));
+          opacity:.92;
         }
 
         .svc-hero__inner{
@@ -460,6 +463,8 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
+          content-visibility: auto;
+          contain-intrinsic-size: 360px;
         }
         .svc-videoWrap{
           position: relative;
@@ -472,6 +477,7 @@ function ServicePage({
           backface-visibility:hidden;
         }
         @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; height: 260px; } }
+
         .svc-video{
           position:absolute; inset:0;
           width:100%; height:100%;
@@ -481,7 +487,9 @@ function ServicePage({
         }
         .svc-videoScrim{
           position:absolute; inset:0;
-          background: radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%), linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
+          background:
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.44) 92%);
           pointer-events:none;
         }
 
@@ -536,6 +544,8 @@ function ServicePage({
           padding: 16px 16px;
           box-shadow: 0 22px 90px rgba(0,0,0,.40);
           contain: layout paint style;
+          content-visibility: auto;
+          contain-intrinsic-size: 340px;
         }
         .svc-card__title{
           display:flex; align-items:center; gap:10px;
@@ -614,7 +624,15 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
                 <div className="svc-badge" aria-hidden="true">
                   <div className="svc-badgeLeft">
