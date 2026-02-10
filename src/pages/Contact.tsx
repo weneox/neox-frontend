@@ -115,7 +115,7 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
   }, [opts.title, opts.description, opts.canonicalPath, opts.ogImage]);
 }
 
-/* ================= Styles (OUTSIDE component) ================= */
+/* ================= Styles (LIGHT + FPS FRIENDLY) ================= */
 const CONTACT_CSS = `
   html, body {
     background: #000 !important;
@@ -134,41 +134,62 @@ const CONTACT_CSS = `
     overflow-wrap: anywhere;
     word-break: break-word;
     isolation: isolate;
-    text-rendering: geometricPrecision;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   .ct-page *{ min-width:0; max-width:100%; }
 
+  /* ===== Title living effect (no heavy blur) ===== */
+  @keyframes ctGlowPulse {
+    0%   { text-shadow: 0 0 0 rgba(47,184,255,0), 0 0 0 rgba(42,125,255,0); opacity: .96; }
+    40%  { text-shadow: 0 0 18px rgba(47,184,255,.20), 0 0 34px rgba(42,125,255,.14); opacity: 1; }
+    100% { text-shadow: 0 0 0 rgba(47,184,255,0), 0 0 0 rgba(42,125,255,0); opacity: .97; }
+  }
+  @keyframes ctShimmer {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+
+  .ct-titleLive{
+    animation: ctGlowPulse 2.8s ease-in-out infinite;
+    will-change: opacity;
+  }
+
   .ct-gradient{
-    background: linear-gradient(
-      90deg,
-      #ffffff 0%,
-      rgba(170,225,255,.96) 34%,
-      rgba(47,184,255,.95) 68%,
-      rgba(42,125,255,.95) 100%
-    );
+    background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.98) 25%, rgba(47,184,255,.95) 55%, rgba(42,125,255,.95) 80%, #ffffff 100%);
+    background-size: 220% 100%;
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
+    animation: ctShimmer 3.2s linear infinite;
   }
 
-  .ct-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility:hidden; }
-  .ct-stack{ position: relative; isolation: isolate; }
-
+  /* ===== lightweight enter/reveal (NO blur) ===== */
   .ct-enter{
     opacity: 0;
-    transform: translate3d(0,16px,0);
-    filter: blur(7px);
-    transition: opacity .62s ease, transform .62s ease, filter .62s ease;
+    transform: translate3d(0,14px,0);
+    transition: opacity .52s ease, transform .62s cubic-bezier(.14,1,.22,1);
     transition-delay: var(--d, 0ms);
-    will-change: opacity, transform, filter;
+    will-change: opacity, transform;
   }
   .ct-enter.ct-in{
     opacity: 1;
     transform: translate3d(0,0,0);
-    filter: blur(0px);
   }
+
+  .ct-reveal{
+    opacity:0;
+    transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
+    transition: opacity .50s ease, transform .62s cubic-bezier(.14,1,.22,1);
+    will-change: opacity, transform;
+  }
+  .ct-reveal.is-in{
+    opacity:1;
+    transform: translate3d(0,0,0);
+  }
+  .ct-reveal-left{ --rx:-18px; --ry:0px; }
+  .ct-reveal-right{ --rx:18px; --ry:0px; }
+  .ct-reveal-bottom{ --rx:0px; --ry:14px; }
 
   .ct-crumb{
     display:inline-flex;
@@ -186,7 +207,7 @@ const CONTACT_CSS = `
     background: rgba(47,184,255,1);
     box-shadow:
       0 0 0 4px rgba(47,184,255,.14),
-      0 0 18px rgba(47,184,255,.42);
+      0 0 16px rgba(47,184,255,.36);
     flex: 0 0 auto;
   }
   .ct-crumbText{
@@ -196,23 +217,6 @@ const CONTACT_CSS = `
     color: rgba(255,255,255,.70);
     white-space: nowrap;
   }
-
-  .ct-reveal{
-    opacity:0;
-    transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-    filter: blur(8px);
-    transition: opacity .55s ease, transform .65s cubic-bezier(.14,1,.22,1), filter .65s ease;
-    will-change: opacity, transform, filter;
-  }
-  .ct-reveal.is-in{
-    opacity:1;
-    transform: translate3d(0,0,0);
-    filter: blur(0px);
-  }
-  .ct-reveal-left{ --rx:-22px; --ry:0px; }
-  .ct-reveal-right{ --rx:22px; --ry:0px; }
-  .ct-reveal-top{ --rx:0px; --ry:-16px; }
-  .ct-reveal-bottom{ --rx:0px; --ry:16px; }
 
   .ct-hero{
     position: relative;
@@ -224,86 +228,63 @@ const CONTACT_CSS = `
     display:flex;
     align-items:center;
     justify-content:center;
-    padding: 64px 0 26px;
+    padding: 64px 0 22px;
   }
   @media (max-width: 560px){
     .ct-heroInner{
       min-height:auto;
-      padding-top: 84px;
-      padding-bottom: 18px;
+      padding-top: 86px;
+      padding-bottom: 14px;
     }
   }
+
   .ct-heroBG{ pointer-events:none; position:absolute; inset:0; }
   .ct-heroBG::before{
     content:"";
     position:absolute;
     inset:-10% -10%;
     background:
-      radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.09), transparent 62%),
+      radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.08), transparent 62%),
       radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
       radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
-    opacity:.92;
+    opacity:.90;
   }
   .ct-heroBG::after{
     content:"";
     position:absolute;
     inset:0;
-    background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
+    background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.92));
   }
+
   .ct-divider{
     height: 1px;
     width: 100%;
     max-width: 920px;
-    margin: 42px auto 0;
+    margin: 40px auto 0;
     background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
     opacity: .95;
   }
-  .ct-spacer{ height: 34px; }
+  .ct-spacer{ height: 28px; }
 
+  /* ===== panels: keep premium but lighter ===== */
   .ct-panel{
     border-radius: 24px;
     border: 1px solid rgba(255,255,255,.10);
-    background: linear-gradient(180deg, rgba(255,255,255,.034), rgba(255,255,255,.016));
-    box-shadow: 0 16px 62px rgba(0,0,0,.62);
+    background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.014));
+    box-shadow: 0 14px 54px rgba(0,0,0,.58);
     overflow: hidden;
     position: relative;
-  }
-  .ct-panel::before{
-    content:"";
-    position:absolute;
-    inset:-40% -30%;
-    pointer-events:none;
-    opacity:.22;
-    background:
-      radial-gradient(520px 220px at 18% 12%, rgba(47,184,255,.18), transparent 62%),
-      radial-gradient(520px 220px at 78% 0%, rgba(42,125,255,.12), transparent 64%);
-    transform: translate3d(-10px,0,0);
-    transition: transform .45s ease, opacity .45s ease;
   }
   .ct-panel::after{
     content:"";
     position:absolute;
     inset:0;
     pointer-events:none;
-    opacity:.92;
+    opacity:.82;
     background:
       radial-gradient(700px 420px at 60% 0%, rgba(255,255,255,.05), transparent 62%),
-      radial-gradient(700px 420px at 20% 0%, rgba(47,184,255,.06), transparent 70%),
+      radial-gradient(700px 420px at 20% 0%, rgba(47,184,255,.055), transparent 70%),
       linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.40));
-  }
-
-  .ct-pop{
-    position: relative;
-    z-index: 1;
-    transform: translate3d(0,0,0) scale(1);
-    transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
-    will-change: transform;
-  }
-  .ct-pop:hover{
-    transform: translate3d(0,-10px,0) scale(1.02);
-  }
-  @media (hover: none){
-    .ct-pop:hover{ transform:none !important; }
   }
 
   .ct-row{
@@ -312,46 +293,44 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
+  /* ===== buttons: premium (no underline), compact arrows ===== */
   .ct-btn{
     display:inline-flex; align-items:center; justify-content:center; gap:10px;
     padding: 12px 16px; border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.12);
     background: rgba(255,255,255,.03);
     color: rgba(255,255,255,.92);
-    transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
-    text-decoration:none;
+    transition: transform .16s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+    text-decoration:none !important;
     position: relative;
     overflow: hidden;
     cursor: pointer;
+    user-select: none;
   }
-  .ct-btn::before{
-    content:"";
-    position:absolute;
-    inset:-40% -40%;
-    opacity: 0;
-    transform: translate3d(-10px,0,0);
-    transition: opacity .22s ease, transform .22s ease;
-    background:
-      radial-gradient(420px 180px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
-      radial-gradient(420px 180px at 80% 0%, rgba(47,184,255,.10), transparent 70%);
-    pointer-events:none;
-  }
-  .ct-btn:hover::before{ opacity: 1; transform: translate3d(0,0,0); }
   .ct-btn:hover{
     transform: translate3d(0,-2px,0);
     border-color: rgba(47,184,255,.22);
     background: rgba(255,255,255,.045);
-    box-shadow: 0 16px 56px rgba(0,0,0,.55);
+    box-shadow: 0 16px 52px rgba(0,0,0,.52);
+    text-decoration:none !important;
+  }
+  .ct-btn:focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 16px 52px rgba(0,0,0,.52);
   }
   .ct-btn--primary{
-    border-color: rgba(47,184,255,.24);
-    background: linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
+    border-color: rgba(47,184,255,.22);
+    background:
+      linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
   }
   .ct-btn--square{
     border-radius: 14px;
     padding: 10px 12px;
   }
   .ct-btn:active{ transform: translate3d(0,-1px,0); }
+
+  /* smaller arrow icon */
+  .ct-arrowTiny{ width: 18px; height: 18px; opacity: .78; }
 
   .ct-input{
     width:100%;
@@ -367,7 +346,7 @@ const CONTACT_CSS = `
     border-color: rgba(47,184,255,.28);
     box-shadow:
       0 0 0 4px rgba(47,184,255,.10),
-      0 18px 60px rgba(0,0,0,.40);
+      0 18px 60px rgba(0,0,0,.36);
     background: rgba(0,0,0,.44);
   }
   .ct-input--bad{ border-color: rgba(248,113,113,.45) !important; }
@@ -385,7 +364,6 @@ const CONTACT_CSS = `
     width: var(--w, 0%);
     background: linear-gradient(90deg, rgba(170,225,255,.92), rgba(47,184,255,.90), rgba(42,125,255,.90));
     opacity: .75;
-    transform: translateZ(0);
   }
 
   .ct-status{
@@ -394,14 +372,66 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
+  /* Rotating subtitle phrase */
+  .ct-rotWrap{
+    display:inline-flex;
+    align-items:baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .ct-rotLead{
+    color: rgba(255,255,255,.70);
+  }
+  .ct-rotWord{
+    position: relative;
+    display:inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(47,184,255,.18);
+    background: rgba(47,184,255,.06);
+    color: rgba(255,255,255,.90);
+    white-space: nowrap;
+    transform: translateZ(0);
+  }
+  .ct-rotWord::after{
+    content:"";
+    position:absolute;
+    inset: -1px;
+    border-radius: 999px;
+    pointer-events:none;
+    opacity:.35;
+    background: radial-gradient(120px 40px at 20% 20%, rgba(170,225,255,.18), transparent 60%);
+  }
+  .ct-rotFade{
+    animation: ctRotFade .32s ease;
+  }
+  @keyframes ctRotFade{
+    from { opacity: 0; transform: translate3d(0,6px,0); }
+    to   { opacity: 1; transform: translate3d(0,0,0); }
+  }
+
+  /* Mobile: ensure phone/email fully visible */
+  @media (max-width: 560px){
+    .ct-row .truncate{ white-space: normal !important; overflow: visible !important; text-overflow: initial !important; }
+    .ct-row .ct-mobileBreak{
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .ct-row .ct-mobileStack{
+      flex-direction: column;
+      align-items: flex-start !important;
+      gap: 10px !important;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce){
-    .ct-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
-    .ct-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
-    .ct-pop{ transition:none !important; transform:none !important; }
-    .ct-panel::before{ transition:none !important; }
+    .ct-enter{ opacity:1 !important; transform:none !important; transition:none !important; }
+    .ct-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
+    .ct-titleLive{ animation: none !important; }
+    .ct-gradient{ animation: none !important; }
+    .ct-rotFade{ animation: none !important; }
     .ct-btn{ transition:none !important; }
-    .ct-btn::before{ display:none !important; }
-    .ct-input{ transition:none !important; }
   }
 `;
 
@@ -441,7 +471,7 @@ export default function Contact() {
   const [enter, setEnter] = useState(false);
   useEffect(() => {
     if (reduced) return;
-    const tt = window.setTimeout(() => setEnter(true), 220);
+    const tt = window.setTimeout(() => setEnter(true), 180);
     return () => window.clearTimeout(tt);
   }, [reduced]);
 
@@ -467,11 +497,33 @@ export default function Contact() {
   const email = "info@weneox.com";
   const phone = "+994 51 800 55 77";
 
-  const WHATSAPP_NUMBER = "994518005577"; // +994 51 800 55 77
+  const WHATSAPP_NUMBER = "994518005577";
   const WA_TEXT = useMemo(() => encodeURIComponent(t("contact.whatsapp.text")), [t]);
   const WHATSAPP_LINK = useMemo(() => `https://wa.me/${WHATSAPP_NUMBER}?text=${WA_TEXT}`, [WA_TEXT]);
 
   const clean = (s: string) => s.replace(/\s+/g, " ").trim();
+
+  // ===== Rotating phrase (3s interval) =====
+  const rotating = useMemo(
+    () => [
+      t("contact.hero.rotate.ai_automation"), // e.g. "AI avtomatlaşdırma"
+      t("contact.hero.rotate.agents"),        // e.g. "agentlər"
+      t("contact.hero.rotate.sales"),         // e.g. "satış"
+      t("contact.hero.rotate.support"),       // e.g. "support"
+    ],
+    [t]
+  );
+  const [rotIdx, setRotIdx] = useState(0);
+  const [rotKey, setRotKey] = useState(0); // for small fade animation restart
+
+  useEffect(() => {
+    if (reduced) return;
+    const id = window.setInterval(() => {
+      setRotIdx((p) => (p + 1) % rotating.length);
+      setRotKey((k) => k + 1);
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [rotating.length, reduced]);
 
   useEffect(() => {
     const root = pageRef.current;
@@ -484,11 +536,10 @@ export default function Contact() {
       els.forEach((el) => el.classList.add("is-in"));
       return;
     }
-
     if (!enter) return;
 
-    const base = isMobile ? 520 : 420;
-    const step = isMobile ? 95 : 110;
+    const base = isMobile ? 420 : 340;
+    const step = isMobile ? 85 : 95;
 
     const timers: number[] = [];
     els.forEach((el, i) => {
@@ -550,7 +601,6 @@ export default function Contact() {
     e.preventDefault();
     setErrorMessage("");
 
-    // honeypot => bot
     if (formData.website) {
       setStatus("success");
       setFormData({ name: "", email: "", company: "", phone: "", message: "", website: "" });
@@ -614,7 +664,7 @@ export default function Contact() {
 
       const isAbort = err?.name === "AbortError";
       const msg = isAbort
-        ? t("contact.form.errors.send_failed") // istəsən ayrıca "timeout" key-i də edərik
+        ? t("contact.form.errors.send_failed")
         : (err?.message as string) || t("contact.form.errors.send_failed");
 
       setStatus("error");
@@ -639,12 +689,13 @@ export default function Contact() {
               </div>
 
               <h1 className={cx("mt-6 text-white break-words ct-enter", enter && "ct-in")} style={d(90)}>
-                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
+                <span className={cx("block text-[40px] leading-[1.05] sm:text-[60px] font-semibold ct-titleLive")}>
                   {t("contact.hero.title.before")}{" "}
                   <span className="ct-gradient">{t("contact.hero.title.highlight")}</span>
                 </span>
               </h1>
 
+              {/* subtitle with rotating phrase */}
               <p
                 className={cx(
                   "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words ct-enter",
@@ -652,13 +703,16 @@ export default function Contact() {
                 )}
                 style={d(180)}
               >
-                {t("contact.hero.subtitle")}
+                <span className="ct-rotWrap">
+                  <span className="ct-rotLead">{t("contact.hero.subtitle_lead")}</span>
+                  <span key={rotKey} className={cx("ct-rotWord", !reduced && "ct-rotFade")}>
+                    {rotating[rotIdx]}
+                  </span>
+                  <span className="ct-rotLead">{t("contact.hero.subtitle_tail")}</span>
+                </span>
               </p>
 
-              <div
-                className={cx("mt-8 flex flex-col sm:flex-row gap-3 justify-center ct-enter", enter && "ct-in")}
-                style={d(270)}
-              >
+              <div className={cx("mt-8 flex flex-col sm:flex-row gap-3 justify-center ct-enter", enter && "ct-in")} style={d(270)}>
                 <a
                   href={WHATSAPP_LINK}
                   target="_blank"
@@ -668,7 +722,7 @@ export default function Contact() {
                 >
                   <CalendarDays className="h-5 w-5" />
                   {t("contact.hero.cta_whatsapp")}
-                  <ArrowRight className="h-5 w-5 opacity-80" />
+                  <ArrowRight className="ct-arrowTiny" />
                 </a>
 
                 <button type="button" onClick={copyEmail} className="ct-btn" aria-label={t("contact.hero.cta_email_aria")}>
@@ -685,21 +739,18 @@ export default function Contact() {
       </section>
 
       {/* ================= CONTENT ================= */}
-      <section
-        className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-16"
-        aria-label={t("contact.aria.content")}
-      >
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-start ct-stack">
+      <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-16" aria-label={t("contact.aria.content")}>
+        <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-start">
           {/* LEFT */}
           <div className="ct-reveal ct-reveal-left">
-            <div className="ct-panel ct-pop ct-contain p-6 sm:p-8 md:sticky md:top-6">
+            <div className="ct-panel p-6 sm:p-8 md:sticky md:top-6">
               <div className="relative z-[1]">
                 <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
                 <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
 
                 <div className="mt-6 space-y-4">
                   {/* Email */}
-                  <div className="ct-row ct-pop ct-contain p-4">
+                  <div className="ct-row p-4">
                     <div className="flex items-start gap-4">
                       <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
                         <Mail className="h-5 w-5 text-white" />
@@ -708,8 +759,8 @@ export default function Contact() {
                       <div className="flex-1 min-w-0">
                         <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
 
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <div className="text-white/75 text-sm truncate">{email}</div>
+                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                          <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
                           <button
                             type="button"
                             onClick={copyEmail}
@@ -718,9 +769,7 @@ export default function Contact() {
                             aria-label={t("contact.left.channels.email.copy_aria")}
                           >
                             <Copy className="h-4 w-4" />
-                            <span className="text-xs">
-                              {copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}
-                            </span>
+                            <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
                           </button>
                         </div>
 
@@ -730,7 +779,7 @@ export default function Contact() {
                   </div>
 
                   {/* Phone */}
-                  <div className="ct-row ct-pop ct-contain p-4">
+                  <div className="ct-row p-4">
                     <div className="flex items-start gap-4">
                       <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
                         <Phone className="h-5 w-5 text-white" />
@@ -739,8 +788,8 @@ export default function Contact() {
                       <div className="flex-1 min-w-0">
                         <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
 
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <div className="text-white/75 text-sm truncate">{phone}</div>
+                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                          <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
                           <button
                             type="button"
                             onClick={copyPhone}
@@ -749,9 +798,7 @@ export default function Contact() {
                             aria-label={t("contact.left.channels.phone.copy_aria")}
                           >
                             <Copy className="h-4 w-4" />
-                            <span className="text-xs">
-                              {copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}
-                            </span>
+                            <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
                           </button>
                         </div>
 
@@ -761,16 +808,14 @@ export default function Contact() {
                   </div>
 
                   {/* Location */}
-                  <div className="ct-row ct-pop ct-contain p-4">
+                  <div className="ct-row p-4">
                     <div className="flex items-start gap-4">
                       <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
                         <MapPin className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
-                        <div className="mt-2 text-white/75 text-sm break-words">
-                          {t("contact.left.channels.location.value")}
-                        </div>
+                        <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
                         <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
                       </div>
                     </div>
@@ -779,7 +824,7 @@ export default function Contact() {
 
                 {/* What to expect */}
                 <div
-                  className="mt-6 ct-row ct-pop ct-contain p-5"
+                  className="mt-6 ct-row p-5"
                   style={{
                     background:
                       "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
@@ -809,7 +854,7 @@ export default function Contact() {
 
           {/* RIGHT: FORM */}
           <div className="ct-reveal ct-reveal-right">
-            <div className="ct-panel ct-pop ct-contain p-6 sm:p-8">
+            <div className="ct-panel p-6 sm:p-8">
               <div className="relative z-[1]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -824,7 +869,7 @@ export default function Contact() {
 
                 {/* status */}
                 {status !== "idle" && (
-                  <div className="mt-5 ct-status ct-contain p-4 flex items-start gap-3">
+                  <div className="mt-5 ct-status p-4 flex items-start gap-3">
                     {status === "success" ? (
                       <>
                         <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
@@ -883,9 +928,7 @@ export default function Contact() {
                         className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
                         placeholder={t("contact.form.fields.name.placeholder")}
                       />
-                      {touched.name && !nameOk && (
-                        <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>
-                      )}
+                      {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
                     </div>
 
                     <div className="min-w-0">
@@ -899,9 +942,7 @@ export default function Contact() {
                         className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
                         placeholder={t("contact.form.fields.email.placeholder")}
                       />
-                      {touched.email && !emailOk && (
-                        <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>
-                      )}
+                      {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
                     </div>
                   </div>
 
@@ -952,7 +993,7 @@ export default function Contact() {
                         <div className="text-xs text-white/45">{t("contact.form.hint")}</div>
                       )}
 
-                      <div className="w-[120px] ct-meter ct-contain" aria-label={t("contact.form.message_meter_aria")}>
+                      <div className="w-[120px] ct-meter" aria-label={t("contact.form.message_meter_aria")}>
                         <i style={{ ["--w" as any]: `${msgPct}%` }} />
                       </div>
                     </div>
@@ -984,7 +1025,7 @@ export default function Contact() {
 
       {/* ================= CTA ================= */}
       <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-20" aria-label={t("contact.aria.cta")}>
-        <div className="ct-panel ct-pop ct-contain p-8 sm:p-10 text-center ct-reveal ct-reveal-bottom">
+        <div className="ct-panel p-8 sm:p-10 text-center ct-reveal ct-reveal-bottom">
           <div className="relative z-[1]">
             <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">{t("contact.final.title")}</h2>
             <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">{t("contact.final.subtitle")}</p>
@@ -999,7 +1040,7 @@ export default function Contact() {
             >
               <CalendarDays className="h-5 w-5" />
               {t("contact.final.cta")}
-              <ArrowRight className="h-5 w-5 opacity-80" />
+              <ArrowRight className="ct-arrowTiny" />
             </a>
           </div>
         </div>
