@@ -722,12 +722,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </div>
 
           {/* Blog */}
-          <NavLink
-            to={withLang("/blog")}
-            className={cx("hMRow", "hStg")}
-            style={{ ["--i" as any]: 5 }}
-            onClick={() => closeMobile()}
-          >
+          <NavLink to={withLang("/blog")} className={cx("hMRow", "hStg")} style={{ ["--i" as any]: 5 }} onClick={closeMobile}>
             <span className="hMRow__left">
               <span className="hMRow__ico" aria-hidden="true">
                 <BookOpen size={18} />
@@ -744,7 +739,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             to={withLang("/contact")}
             className={cx("hMRow", "hMRow--contact", "hStg")}
             style={{ ["--i" as any]: 6 }}
-            onClick={() => closeMobile()}
+            onClick={closeMobile}
           >
             <span className="hMRow__left">
               <span className="hMRow__ico" aria-hidden="true">
@@ -844,7 +839,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
         /* ==============================
            SCOPE RESET (header only)
-           underline / global a styles -> OFF
         ============================== */
         .h, .h *{ box-sizing:border-box; }
         .h a, .h a:hover, .h a:focus, .h a:active{ text-decoration:none !important; }
@@ -852,9 +846,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .h button{ font: inherit; }
         .h :focus-visible{ outline: none; box-shadow: 0 0 0 3px rgba(120,170,255,.18); border-radius: 14px; }
 
-        /* ===== Header shell (natural premium) ===== */
+        /* ===== Header shell (FIXED: never drifts) ===== */
         .h{
-          position: sticky; top: 0; z-index: 1100; width: 100%;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1100;
+          width: 100%;
           transform: translateZ(0);
           will-change: backdrop-filter, background-color, border-color;
           background: rgba(10,12,18,0.01);
@@ -894,7 +893,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
         }
 
-        /* ===== Desktop links (no underline, no fake pills) ===== */
+        /* ===== Desktop links ===== */
         .hLink{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
@@ -1000,7 +999,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hCard__desc{ margin-top: 8px; font-size: 12.5px; color: rgba(255,255,255,.66); line-height: 1.3; }
         .hCard__cta{ margin-top: 10px; font-weight: 900; letter-spacing: .14em; font-size: 11px; color: rgba(255,255,255,.72); }
 
-        /* Terminal (subtle, no “paste” feel) */
+        /* Terminal */
         .hTerm{
           margin-top: 12px;
           border-radius: 14px;
@@ -1038,7 +1037,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hLine.is-reduced .hText{ clip-path: none; animation: none; }
         @keyframes hReveal{ from{ clip-path: inset(0 0 0 100%);} to{ clip-path: inset(0 0 0 0%);} }
 
-        /* Resources list (compact) */
+        /* Resources list */
         .hList{ padding: 12px; display:grid; gap: 10px; }
         .hRow{
           display:flex; align-items:center;
