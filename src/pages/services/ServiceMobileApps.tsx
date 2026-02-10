@@ -2,14 +2,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Smartphone,
-  Layers,
-  Zap,
-  ShieldCheck,
-  ArrowRight,
-  CheckCircle2,
-} from "lucide-react";
+import { Smartphone, ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -18,11 +11,9 @@ function cx(...xs: Array<string | false | null | undefined>) {
 const RAW_VIDEO =
   "https://res.cloudinary.com/dppoomunj/video/upload/v1770675145/neox/media/asset_1770675134359_b91c8b8d8927a.mp4";
 
-// Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
   try {
     if (!url.includes("/upload/")) return url;
-    // don’t duplicate
     if (url.includes("/upload/q_auto") || url.includes("/upload/f_auto")) return url;
     return url.replace("/upload/", "/upload/q_auto,f_auto/");
   } catch {
@@ -67,7 +58,6 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/** Smooth reveal-on-scroll (very light, FPS-friendly) */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
@@ -138,7 +128,6 @@ function ServicePage({
 
   const T = TINTS[tint];
 
-  // try to start video even if browser is picky
   const vidRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const v = vidRef.current;
@@ -146,9 +135,7 @@ function ServicePage({
     const tryPlay = async () => {
       try {
         await v.play();
-      } catch {
-        // ignore (mobile may block until user gesture)
-      }
+      } catch {}
     };
     tryPlay();
   }, []);
@@ -178,20 +165,79 @@ function ServicePage({
   return (
     <section className="svc">
       <style>{`
-        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; }
+        html, body { background:#000 !important; }
+
+        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; color: rgba(255,255,255,.92); background:#000; }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
         /* reveal */
         [data-reveal]{
           opacity: 0;
-          transform: translateY(10px);
+          transform: translate3d(0,10px,0);
           transition: opacity .55s ease, transform .55s ease;
           will-change: opacity, transform;
         }
-        .is-in{ opacity: 1 !important; transform: translateY(0) !important; }
+        .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
+        }
+
+        /* ===== Contact blue palette (text gradient base) ===== */
+        .svc-grad{
+          background: linear-gradient(
+            90deg,
+            #ffffff 0%,
+            rgba(170,225,255,.96) 34%,
+            rgba(47,184,255,.95) 68%,
+            rgba(42,125,255,.95) 100%
+          );
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+        }
+
+        /* ===== Shimmer / Shine (your “ilan kimi” effect) =====
+           Idea: keep the text visible, and move a bright band over it forever.
+           Only animates transform => good FPS.
+        */
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
+        .svc-shimmer::after{
+          content:"";
+          position:absolute;
+          inset: -12% -60%;
+          pointer-events:none;
+
+          /* moving light band */
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.30) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+
+          /* show band only inside the text */
+          mix-blend-mode: screen;
+          opacity: .9;
+
+          transform: translate3d(-40%,0,0);
+          will-change: transform;
+          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+        }
+        @keyframes svcShine{
+          0%{ transform: translate3d(-55%,0,0); }
+          100%{ transform: translate3d(55%,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
         .svc-hero{
@@ -204,6 +250,7 @@ function ServicePage({
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
+          contain: layout paint style;
         }
         .svc-hero::before{
           content:"";
@@ -229,30 +276,42 @@ function ServicePage({
         .svc-left{ min-width:0; }
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
-          font-weight:900; letter-spacing:.18em; font-size:11px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 12px;
+          letter-spacing: .14em;
+          text-transform: uppercase;
           color: rgba(255,255,255,.70);
-          text-transform:uppercase;
         }
         .svc-kdot{
-          width:10px; height:10px; border-radius:999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
+          width: 8px; height: 8px; border-radius: 999px;
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
+        /* Contact-like title sizing */
         .svc-title{
-          margin-top: 10px;
-          font-size: clamp(28px, 3.2vw, 44px);
-          line-height: 1.06;
+          margin-top: 14px;
+          font-size: 40px;
+          line-height: 1.05;
           color: rgba(255,255,255,.94);
-          font-weight: 900;
+          font-weight: 600;
           letter-spacing: -0.02em;
         }
+        @media (min-width: 640px){
+          .svc-title{ font-size: 60px; }
+        }
         .svc-sub{
-          margin-top: 10px;
-          color: rgba(255,255,255,.72);
-          font-size: 15px;
-          line-height: 1.65;
+          margin-top: 14px;
+          color: rgba(255,255,255,.70);
+          font-size: 16px;
+          line-height: 1.7;
           max-width: 70ch;
+        }
+        @media (min-width: 640px){
+          .svc-sub{ font-size: 18px; }
         }
 
         .svc-pills{
@@ -295,11 +354,13 @@ function ServicePage({
           font-weight: 900;
           text-decoration:none;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          transform: translateZ(0);
         }
-        .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
+        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.08); }
+        @media (hover: none){ .svc-cta:hover{ transform:none; } }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
-        /* RIGHT = CLEAN VIDEO (NO HEAVY OVERLAYS) */
+        /* RIGHT = CLEAN VIDEO */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -307,8 +368,8 @@ function ServicePage({
           overflow:hidden;
           position:relative;
           background: rgba(0,0,0,.22);
+          contain: layout paint style;
         }
-
         .svc-videoWrap{
           position: relative;
           width: 100%;
@@ -317,11 +378,11 @@ function ServicePage({
           border-radius: 22px;
           overflow:hidden;
           transform: translateZ(0);
+          backface-visibility:hidden;
         }
         @media (max-width: 980px){
           .svc-videoWrap{ min-height: 260px; }
         }
-
         .svc-video{
           position:absolute; inset:0;
           width: 100%; height: 100%;
@@ -329,8 +390,6 @@ function ServicePage({
           display:block;
           transform: translateZ(0);
         }
-
-        /* subtle readability scrim (very light) */
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
@@ -339,7 +398,6 @@ function ServicePage({
           pointer-events:none;
         }
 
-        /* small badge only */
         .svc-badge{
           position:absolute; top: 12px; left: 12px; right: 12px;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
@@ -377,7 +435,6 @@ function ServicePage({
           50%{ transform: scale(1.18); opacity:.80; }
         }
 
-        /* section grid */
         .svc-section{
           margin-top: 26px;
           display:grid;
@@ -395,16 +452,21 @@ function ServicePage({
           background: rgba(255,255,255,.03);
           padding: 16px 16px;
           box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          contain: layout paint style;
         }
         .svc-card__title{
           display:flex; align-items:center; gap: 10px;
-          font-weight: 900;
-          color: rgba(255,255,255,.90);
+          font-weight: 600;
+          color: rgba(255,255,255,.92);
           letter-spacing: -.01em;
+          font-size: 22px;
+        }
+        @media (min-width: 640px){
+          .svc-card__title{ font-size: 26px; }
         }
         .svc-card__desc{
-          margin-top: 8px;
-          color: rgba(255,255,255,.68);
+          margin-top: 10px;
+          color: rgba(255,255,255,.70);
           line-height: 1.7;
           font-size: 14px;
         }
@@ -422,10 +484,10 @@ function ServicePage({
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.10);
           background: ${T.c};
-          color: rgba(255,255,255,.92);
+          color: rgba(170,225,255,.95);
           flex: 0 0 auto;
         }
-        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.90); }
+        .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
 
@@ -438,9 +500,11 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
+              {/* ✅ Title: Contact palette + shimmer band (your “ilan kimi”) */}
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                {title}
+                <span className="svc-grad svc-shimmer">{title}</span>
               </div>
+
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
@@ -461,19 +525,9 @@ function ServicePage({
               </div>
             </div>
 
-            {/* ✅ CLEAN VIDEO PANEL */}
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video
-                  ref={vidRef}
-                  className="svc-video"
-                  src={videoUrl}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                />
+                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -495,7 +549,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Smartphone size={18} />
-              <span>{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -503,16 +557,29 @@ function ServicePage({
                 : "Premium mobile UX with fast load, smooth animation and offline-ready architecture."}
             </div>
             <div style={{ marginTop: 12 }}>
-              <Feature title={lang === "az" ? "Fast" : "Fast"} desc={lang === "az" ? "Optimized bundle, caching, minimal latency və sürətli açılış." : "Optimized bundle, caching, minimal latency."} />
-              <Feature title={lang === "az" ? "Scalable" : "Scalable"} desc={lang === "az" ? "Modular arxitektura, rahat genişlənmə və clean code." : "Modular architecture, easy to extend."} />
-              <Feature title={lang === "az" ? "Offline-ready" : "Offline-ready"} desc={lang === "az" ? "Smart cache, queue və zəif internetdə belə stabil iş." : "Smart cache and queues for poor connections."} />
+              <Feature
+                title={lang === "az" ? "Fast" : "Fast"}
+                desc={
+                  lang === "az"
+                    ? "Optimized bundle, caching, minimal latency və sürətli açılış."
+                    : "Optimized bundle, caching, minimal latency."
+                }
+              />
+              <Feature
+                title={lang === "az" ? "Scalable" : "Scalable"}
+                desc={lang === "az" ? "Modular arxitektura, rahat genişlənmə və clean code." : "Modular architecture, easy to extend."}
+              />
+              <Feature
+                title={lang === "az" ? "Offline-ready" : "Offline-ready"}
+                desc={lang === "az" ? "Smart cache, queue və zəif internetdə belə stabil iş." : "Smart cache and queues for poor connections."}
+              />
             </div>
           </div>
 
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span>{lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}</span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -520,9 +587,18 @@ function ServicePage({
                 : "Secure APIs with auth, rate-limits, auditing, plus deploy/monitoring, analytics and push."}
             </div>
             <div style={{ marginTop: 12 }}>
-              <Feature title={lang === "az" ? "Secure" : "Secure"} desc={lang === "az" ? "JWT, roles, logging, rate-limit və qorunma layer-ləri." : "JWT, roles, logging, rate-limits."} />
-              <Feature title={lang === "az" ? "Push / Events" : "Push / Events"} desc={lang === "az" ? "Bildirişlər, event tracking, funnel və analitika." : "Notifications, event tracking, funnel analytics."} />
-              <Feature title={lang === "az" ? "Deploy & Monitor" : "Deploy & Monitor"} desc={lang === "az" ? "Release flow, crash monitoring, performance izləmə." : "Release flow, crash monitoring, performance tracking."} />
+              <Feature
+                title={lang === "az" ? "Secure" : "Secure"}
+                desc={lang === "az" ? "JWT, roles, logging, rate-limit və qorunma layer-ləri." : "JWT, roles, logging, rate-limits."}
+              />
+              <Feature
+                title={lang === "az" ? "Push / Events" : "Push / Events"}
+                desc={lang === "az" ? "Bildirişlər, event tracking, funnel və analitika." : "Notifications, event tracking, funnel analytics."}
+              />
+              <Feature
+                title={lang === "az" ? "Deploy & Monitor" : "Deploy & Monitor"}
+                desc={lang === "az" ? "Release flow, crash monitoring, performance izləmə." : "Release flow, crash monitoring, performance tracking."}
+              />
             </div>
           </div>
         </div>
