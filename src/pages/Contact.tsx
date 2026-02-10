@@ -104,26 +104,44 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
   }, [opts.title, opts.description, opts.canonicalPath, opts.ogImage]);
 }
 
-/* ================= Styles (FAST / PREMIUM) ================= */
+/* ================= Styles (FIX container + scrollbar + symmetry) ================= */
 const CONTACT_CSS = `
+  /* ✅ GLOBAL FIX: sağ boş zolaq / 100vw daşması */
   html, body {
     background:#000 !important;
     margin:0;
     padding:0;
     width:100%;
-    overflow-x:hidden;
+    max-width:100%;
+    overflow-x: clip;
   }
+  @supports not (overflow-x: clip){
+    html, body { overflow-x: hidden; }
+  }
+
+  /* ✅ scrollbar “gutter” stabil olsun (layout shift olmasın) */
+  html { scrollbar-gutter: stable; }
 
   .ct-page{
     background:#000 !important;
     color: rgba(255,255,255,.92);
     min-height: 100vh;
     width: 100%;
-    overflow-x:hidden;
+    max-width: 100%;
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  .ct-page *{ min-width:0; max-width:100%; }
+
+  /* container: həmişə simmetrik */
+  .ct-container{
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 16px;
+  }
+  @media (min-width: 640px){ .ct-container{ padding-inline: 24px; } }
+  @media (min-width: 1024px){ .ct-container{ padding-inline: 32px; } }
 
   /* Gradient text (static) */
   .ct-gradient{
@@ -133,33 +151,30 @@ const CONTACT_CSS = `
     color:transparent;
   }
 
-  /* Title "alive" shimmer (lightweight) */
-  .ct-titleAlive{
-    position: relative;
-    display:inline-block;
-  }
+  /* Title subtle alive (lightweight) */
+  .ct-titleAlive{ position: relative; display:inline-block; }
   .ct-titleAlive::after{
     content:"";
     position:absolute;
     inset: -10px -18px;
     pointer-events:none;
-    opacity:.22;
+    opacity:.20;
     background:
-      radial-gradient(320px 120px at 30% 20%, rgba(47,184,255,.35), transparent 60%),
-      radial-gradient(320px 120px at 70% 80%, rgba(170,225,255,.22), transparent 60%);
+      radial-gradient(320px 120px at 30% 20%, rgba(47,184,255,.32), transparent 60%),
+      radial-gradient(320px 120px at 70% 80%, rgba(170,225,255,.20), transparent 60%);
     transform: translate3d(0,0,0);
     animation: ctGlow 5.2s ease-in-out infinite;
   }
   @keyframes ctGlow{
-    0%,100% { opacity:.16; transform: translate3d(0,0,0); }
-    50% { opacity:.28; transform: translate3d(0,-1px,0); }
+    0%,100% { opacity:.14; transform: translate3d(0,0,0); }
+    50% { opacity:.26; transform: translate3d(0,-1px,0); }
   }
 
   /* Scroll reveal (no blur) */
   .ct-reveal{
     opacity:0;
     transform: translate3d(0,14px,0);
-    transition: opacity .34s ease, transform .46s cubic-bezier(.14,1,.22,1);
+    transition: opacity .32s ease, transform .42s cubic-bezier(.14,1,.22,1);
     will-change: opacity, transform;
   }
   .ct-reveal.is-in{
@@ -266,7 +281,7 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
-  /* Premium buttons: no underline, no arrows */
+  /* Premium buttons */
   .ct-btn{
     display:inline-flex; align-items:center; justify-content:center; gap:10px;
     padding: 12px 16px; border-radius: 999px;
@@ -338,7 +353,7 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
-  /* subtitle: rotating word + fixed tail */
+  /* subtitle */
   .ct-subline{
     display:flex;
     flex-wrap:wrap;
@@ -415,7 +430,7 @@ export default function Contact() {
     company: "",
     phone: "",
     message: "",
-    website: "", // honeypot
+    website: "",
   });
 
   const [status, setStatus] = useState<Status>("idle");
@@ -433,13 +448,11 @@ export default function Contact() {
 
   const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
-  // i18n fallback (key görünməsin)
   const safeT = (key: string, fallback: string) => {
     const v = t(key);
     return v === key ? fallback : v;
   };
 
-  // Rotating words (3s)
   const rotating = useMemo(
     () => [
       safeT("contact.hero.rotate.agents", "agentlər"),
@@ -458,7 +471,7 @@ export default function Contact() {
     return () => window.clearInterval(id);
   }, [rotating.length, reduced]);
 
-  // Scroll reveal (only when ~30% visible)
+  // ✅ reveal: yalnız 30% görünəndə aç
   useEffect(() => {
     const root = pageRef.current;
     if (!root) return;
@@ -529,7 +542,6 @@ export default function Contact() {
     } catch {}
   };
 
-  // Backend base
   const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
   const API_BASE = String(API_BASE_RAW).replace(/\/+$/, "");
 
@@ -539,7 +551,6 @@ export default function Contact() {
     e.preventDefault();
     setErrorMessage("");
 
-    // honeypot
     if (formData.website) {
       setStatus("success");
       setFormData({ name: "", email: "", company: "", phone: "", message: "", website: "" });
@@ -596,7 +607,9 @@ export default function Contact() {
       window.setTimeout(() => setStatus("idle"), 4200);
     } catch (err: any) {
       const isAbort = err?.name === "AbortError";
-      const msg = isAbort ? t("contact.form.errors.send_failed") : (err?.message as string) || t("contact.form.errors.send_failed");
+      const msg = isAbort
+        ? t("contact.form.errors.send_failed")
+        : (err?.message as string) || t("contact.form.errors.send_failed");
       setStatus("error");
       setErrorMessage(msg);
     } finally {
@@ -604,7 +617,6 @@ export default function Contact() {
     }
   };
 
-  // fixed tail exactly as you want
   const tail = safeT("contact.hero.tail", "konkret nəticə üçün.");
 
   return (
@@ -615,7 +627,7 @@ export default function Contact() {
       <section className="ct-hero" aria-label={t("contact.aria.hero")}>
         <div className="ct-heroBG" aria-hidden="true" />
         <div className="ct-heroInner">
-          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
+          <div className="ct-container">
             <div className="mx-auto max-w-[980px] text-center">
               <div className="flex justify-center ct-reveal">
                 <BreadcrumbPill text={t("contact.hero.breadcrumb")} />
@@ -628,7 +640,6 @@ export default function Contact() {
                 </span>
               </h1>
 
-              {/* ONLY rotating word + fixed tail */}
               <p className="mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words ct-reveal">
                 <span className="ct-subline">
                   <span key={rotIdx} className="ct-subWord ct-rot">
@@ -663,284 +674,269 @@ export default function Contact() {
         <div className="ct-spacer" />
       </section>
 
-      {/* ================= CONTENT ================= */}
-      <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-16" aria-label={t("contact.aria.content")}>
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-start">
-          {/* LEFT */}
-          <div className="ct-panel p-6 sm:p-8 md:sticky md:top-6 ct-reveal">
-            <div className="relative z-[1]">
-              <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
-              <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
+      {/* ================= CONTENT (✅ symmetry fix: NO sticky) ================= */}
+      <section className="pb-16" aria-label={t("contact.aria.content")}>
+        <div className="ct-container">
+          <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-stretch">
+            {/* LEFT */}
+            <div className="ct-panel p-6 sm:p-8 ct-reveal self-stretch">
+              <div className="relative z-[1] h-full flex flex-col">
+                <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
+                <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
 
-              <div className="mt-6 space-y-4">
-                {/* Email */}
-                <div className="ct-row p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                      <Mail className="h-5 w-5 text-white" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
-
-                      <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
-                        <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
-                        <button
-                          type="button"
-                          onClick={copyEmail}
-                          className="ct-btn ct-btn--square"
-                          style={{ width: "auto" }}
-                          aria-label={t("contact.left.channels.email.copy_aria")}
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
-                        </button>
+                <div className="mt-6 space-y-4">
+                  {/* Email */}
+                  <div className="ct-row p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                        <Mail className="h-5 w-5 text-white" />
                       </div>
-
-                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.email.note")}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div className="ct-row p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                      <Phone className="h-5 w-5 text-white" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
-
-                      <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
-                        <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
-                        <button
-                          type="button"
-                          onClick={copyPhone}
-                          className="ct-btn ct-btn--square"
-                          style={{ width: "auto" }}
-                          aria-label={t("contact.left.channels.phone.copy_aria")}
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
-                        </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
+                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                          <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
+                          <button type="button" onClick={copyEmail} className="ct-btn ct-btn--square" aria-label={t("contact.left.channels.email.copy_aria")}>
+                            <Copy className="h-4 w-4" />
+                            <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                          </button>
+                        </div>
+                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.email.note")}</div>
                       </div>
-
-                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.phone.note")}</div>
                     </div>
                   </div>
-                </div>
 
-                {/* Location */}
-                <div className="ct-row p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
-                      <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
-                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* What to expect */}
-              <div
-                className="mt-6 ct-row p-5"
-                style={{
-                  background: "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
-                }}
-              >
-                <div className="text-white font-semibold">{t("contact.left.expect.title")}</div>
-                <ul className="mt-3 space-y-2 text-white/70">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                    {t("contact.left.expect.items.0")}
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                    {t("contact.left.expect.items.1")}
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                    {t("contact.left.expect.items.2")}
-                  </li>
-                </ul>
-              </div>
-
-              <div className="mt-5 text-xs text-white/45">{t("contact.left.footer_note")}</div>
-            </div>
-          </div>
-
-          {/* RIGHT: FORM */}
-          <div className="ct-panel p-6 sm:p-8 ct-reveal">
-            <div className="relative z-[1]">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.form.title")}</h3>
-                  <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.form.subtitle")}</p>
-                </div>
-                <div className="hidden sm:block text-right flex-shrink-0">
-                  <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">{t("contact.form.badge.label")}</div>
-                  <div className="text-white font-semibold">{t("contact.form.badge.value")}</div>
-                </div>
-              </div>
-
-              {status !== "idle" && (
-                <div className="mt-5 ct-status p-4 flex items-start gap-3">
-                  {status === "success" ? (
-                    <>
-                      <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
-                      <div className="min-w-0">
-                        <div className="text-emerald-200 font-semibold">{t("contact.form.status.success_title")}</div>
-                        <div className="text-emerald-200/80 text-sm">{t("contact.form.status.success_desc")}</div>
+                  {/* Phone */}
+                  <div className="ct-row p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-5 w-5 text-white" />
                       </div>
-                    </>
-                  ) : status === "error" ? (
-                    <>
-                      <AlertTriangle className="h-5 w-5 text-red-300 mt-[2px]" />
-                      <div className="min-w-0">
-                        <div className="text-red-200 font-semibold">{t("contact.form.status.error_title")}</div>
-                        <div className="text-red-200/85 text-sm">{errorMessage || t("contact.form.errors.send_failed")}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
+                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                          <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
+                          <button type="button" onClick={copyPhone} className="ct-btn ct-btn--square" aria-label={t("contact.left.channels.phone.copy_aria")}>
+                            <Copy className="h-4 w-4" />
+                            <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                          </button>
+                        </div>
+                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.phone.note")}</div>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div
-                        className="h-5 w-5 rounded-full border border-white/15"
-                        style={{
-                          background:
-                            "conic-gradient(from 90deg, rgba(47,184,255,.85), rgba(42,125,255,.75), rgba(170,225,255,.80), rgba(47,184,255,.85))",
-                          maskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
-                          WebkitMaskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <div className="text-white font-semibold">{t("contact.form.status.loading_title")}</div>
-                        <div className="text-white/65 text-sm">{t("contact.form.status.loading_desc")}</div>
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  <div className="ct-row p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                        <MapPin className="h-5 w-5 text-white" />
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                {/* honeypot */}
-                <input tabIndex={-1} autoComplete="off" name="website" value={formData.website} onChange={handleChange} className="hidden" />
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="min-w-0">
-                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.name.label")}</label>
-                    <input
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      onBlur={() => markTouched("name")}
-                      className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
-                      placeholder={t("contact.form.fields.name.placeholder")}
-                    />
-                    {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
-                  </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.email.label")}</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      onBlur={() => markTouched("email")}
-                      className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
-                      placeholder={t("contact.form.fields.email.placeholder")}
-                    />
-                    {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="min-w-0">
-                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.company.label")}</label>
-                    <input name="company" value={formData.company} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.company.placeholder")} />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.phone.label")}</label>
-                    <input name="phone" value={formData.phone} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.phone.placeholder")} />
-                  </div>
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-end justify-between gap-3">
-                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.message.label")}</label>
-                    <div className="text-xs text-white/45 mb-2">{msgLen}/500</div>
-                  </div>
-
-                  <textarea
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    onBlur={() => markTouched("message")}
-                    rows={6}
-                    className={cx("ct-input", touched.message && !msgOk && "ct-input--bad")}
-                    style={{ resize: "none" }}
-                    placeholder={t("contact.form.fields.message.placeholder")}
-                  />
-
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    {touched.message && !msgOk ? (
-                      <div className="text-xs text-red-200/90">{t("contact.form.errors.message_short")}</div>
-                    ) : (
-                      <div className="text-xs text-white/45">{t("contact.form.hint")}</div>
-                    )}
-
-                    <div className="w-[120px] ct-meter" aria-label={t("contact.form.message_meter_aria")}>
-                      <i style={{ ["--w" as any]: `${msgPct}%` }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
+                        <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
+                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className={cx("ct-btn ct-btn--primary w-full", "disabled:opacity-50 disabled:cursor-not-allowed")}
-                  aria-label={t("contact.form.submit_aria")}
+                {/* Expect */}
+                <div
+                  className="mt-6 ct-row p-5"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
+                  }}
                 >
-                  {status === "loading" ? (
-                    t("contact.form.submit_loading")
-                  ) : (
-                    <>
-                      {t("contact.form.submit")}
-                      <Send className="h-5 w-5" />
-                    </>
-                  )}
-                </button>
+                  <div className="text-white font-semibold">{t("contact.left.expect.title")}</div>
+                  <ul className="mt-3 space-y-2 text-white/70">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                      {t("contact.left.expect.items.0")}
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                      {t("contact.left.expect.items.1")}
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                      {t("contact.left.expect.items.2")}
+                    </li>
+                  </ul>
+                </div>
 
-                <div className="text-xs text-white/45">{t("contact.form.legal")}</div>
-              </form>
+                <div className="mt-5 text-xs text-white/45">{t("contact.left.footer_note")}</div>
+              </div>
+            </div>
+
+            {/* RIGHT: FORM */}
+            <div className="ct-panel p-6 sm:p-8 ct-reveal self-stretch">
+              <div className="relative z-[1] h-full flex flex-col">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.form.title")}</h3>
+                    <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.form.subtitle")}</p>
+                  </div>
+                  <div className="hidden sm:block text-right flex-shrink-0">
+                    <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">{t("contact.form.badge.label")}</div>
+                    <div className="text-white font-semibold">{t("contact.form.badge.value")}</div>
+                  </div>
+                </div>
+
+                {status !== "idle" && (
+                  <div className="mt-5 ct-status p-4 flex items-start gap-3">
+                    {status === "success" ? (
+                      <>
+                        <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
+                        <div className="min-w-0">
+                          <div className="text-emerald-200 font-semibold">{t("contact.form.status.success_title")}</div>
+                          <div className="text-emerald-200/80 text-sm">{t("contact.form.status.success_desc")}</div>
+                        </div>
+                      </>
+                    ) : status === "error" ? (
+                      <>
+                        <AlertTriangle className="h-5 w-5 text-red-300 mt-[2px]" />
+                        <div className="min-w-0">
+                          <div className="text-red-200 font-semibold">{t("contact.form.status.error_title")}</div>
+                          <div className="text-red-200/85 text-sm">{errorMessage || t("contact.form.errors.send_failed")}</div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          className="h-5 w-5 rounded-full border border-white/15"
+                          style={{
+                            background:
+                              "conic-gradient(from 90deg, rgba(47,184,255,.85), rgba(42,125,255,.75), rgba(170,225,255,.80), rgba(47,184,255,.85))",
+                            maskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                            WebkitMaskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-white font-semibold">{t("contact.form.status.loading_title")}</div>
+                          <div className="text-white/65 text-sm">{t("contact.form.status.loading_desc")}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                  <input tabIndex={-1} autoComplete="off" name="website" value={formData.website} onChange={handleChange} className="hidden" />
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="min-w-0">
+                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.name.label")}</label>
+                      <input
+                        name="name"
+                        value={formData.name}
+                        onChange={handleChange}
+                        onBlur={() => markTouched("name")}
+                        className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
+                        placeholder={t("contact.form.fields.name.placeholder")}
+                      />
+                      {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
+                    </div>
+
+                    <div className="min-w-0">
+                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.email.label")}</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        onBlur={() => markTouched("email")}
+                        className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
+                        placeholder={t("contact.form.fields.email.placeholder")}
+                      />
+                      {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="min-w-0">
+                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.company.label")}</label>
+                      <input name="company" value={formData.company} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.company.placeholder")} />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.phone.label")}</label>
+                      <input name="phone" value={formData.phone} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.phone.placeholder")} />
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-end justify-between gap-3">
+                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.message.label")}</label>
+                      <div className="text-xs text-white/45 mb-2">{msgLen}/500</div>
+                    </div>
+
+                    <textarea
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      onBlur={() => markTouched("message")}
+                      rows={6}
+                      className={cx("ct-input", touched.message && !msgOk && "ct-input--bad")}
+                      style={{ resize: "none" }}
+                      placeholder={t("contact.form.fields.message.placeholder")}
+                    />
+
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      {touched.message && !msgOk ? (
+                        <div className="text-xs text-red-200/90">{t("contact.form.errors.message_short")}</div>
+                      ) : (
+                        <div className="text-xs text-white/45">{t("contact.form.hint")}</div>
+                      )}
+
+                      <div className="w-[120px] ct-meter" aria-label={t("contact.form.message_meter_aria")}>
+                        <i style={{ ["--w" as any]: `${msgPct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    className={cx("ct-btn ct-btn--primary w-full", "disabled:opacity-50 disabled:cursor-not-allowed")}
+                    aria-label={t("contact.form.submit_aria")}
+                  >
+                    {status === "loading" ? (
+                      t("contact.form.submit_loading")
+                    ) : (
+                      <>
+                        {t("contact.form.submit")}
+                        <Send className="h-5 w-5" />
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-xs text-white/45">{t("contact.form.legal")}</div>
+                </form>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ================= CTA ================= */}
-      <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-20" aria-label={t("contact.aria.cta")}>
-        <div className="ct-panel p-8 sm:p-10 text-center ct-reveal">
-          <div className="relative z-[1]">
-            <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">{t("contact.final.title")}</h2>
-            <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">{t("contact.final.subtitle")}</p>
+      <section className="pb-20" aria-label={t("contact.aria.cta")}>
+        <div className="ct-container">
+          <div className="ct-panel p-8 sm:p-10 text-center ct-reveal">
+            <div className="relative z-[1]">
+              <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">{t("contact.final.title")}</h2>
+              <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">{t("contact.final.subtitle")}</p>
 
-            <a
-              href={WHATSAPP_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ct-btn ct-btn--primary"
-              style={{ marginTop: 16, paddingInline: 18 }}
-              aria-label={t("contact.final.cta_aria")}
-            >
-              <CalendarDays className="h-5 w-5" />
-              {t("contact.final.cta")}
-            </a>
+              <a
+                href={WHATSAPP_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ct-btn ct-btn--primary"
+                style={{ marginTop: 16, paddingInline: 18 }}
+                aria-label={t("contact.final.cta_aria")}
+              >
+                <CalendarDays className="h-5 w-5" />
+                {t("contact.final.cta")}
+              </a>
+            </div>
           </div>
         </div>
       </section>
