@@ -1,5 +1,5 @@
 // src/pages/About.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, memo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -126,6 +126,65 @@ function useRevealWithinBatched(
   }, [containerRef, rootMargin, ...deps]);
 }
 
+/* ------------------ Rotator (3s, yuxarıdan-aşağı) ------------------ */
+type RotatorProps = {
+  items: string[];
+  intervalMs?: number; // default 3000
+  className?: string;
+  variant?: "heroWord" | "kicker" | "headingWord";
+  ariaLabel?: string;
+};
+
+const Rotator = memo(function Rotator({
+  items,
+  intervalMs = 3000,
+  className,
+  variant = "heroWord",
+  ariaLabel,
+}: RotatorProps) {
+  const reduced = usePrefersReducedMotion();
+  const [index, setIndex] = useState(0);
+  const [phase, setPhase] = useState<"in" | "out">("in");
+  const tA = useRef<number | null>(null);
+  const tB = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+
+    const OUT_MS = reduced ? 0 : 650;
+    const HOLD_MS = Math.max(0, intervalMs - OUT_MS);
+
+    const schedule = () => {
+      if (tA.current) window.clearTimeout(tA.current);
+      if (tB.current) window.clearTimeout(tB.current);
+
+      tA.current = window.setTimeout(() => {
+        setPhase("out");
+        tB.current = window.setTimeout(() => {
+          setIndex((v) => (v + 1) % items.length);
+          setPhase("in");
+          schedule();
+        }, OUT_MS);
+      }, HOLD_MS);
+    };
+
+    schedule();
+    return () => {
+      if (tA.current) window.clearTimeout(tA.current);
+      if (tB.current) window.clearTimeout(tB.current);
+    };
+  }, [items, intervalMs, reduced]);
+
+  const motionCls = reduced ? "ab-rtNoMotion" : phase === "in" ? "ab-rtIn" : "ab-rtOut";
+  const current = items[index] ?? "";
+
+  return (
+    <span className={cx("ab-rtWrap", `ab-rtVar-${variant}`, className)} aria-label={ariaLabel}>
+      <span className={cx("ab-rtItem", motionCls)}>{current}</span>
+    </span>
+  );
+});
+
 type Pill = { icon: any; title: string; desc: string; bullets: string[] };
 type Step = { n: string; title: string; desc: string; points: string[] };
 
@@ -166,6 +225,20 @@ export default function About() {
   // Strip words (i18n)
   const stripWords = useMemo(() => STRIP_WORDS_KEYS.map((k) => t(`about.strip.${k}`)), [t]);
   const marquee = useMemo(() => [...stripWords, ...stripWords], [stripWords]);
+
+  // Hero rotators (AZ hardcoded — sənin istədiyin mətn)
+  const heroWords = useMemo(() => ["işləyən", "ölçülən", "nəzarətli"], []);
+  const heroKickerLines = useMemo(
+    () => [
+      "NEOX — AI avtomasiya və agent sistemləri studiyası.",
+      "Inbox → intent → routing → CRM → ölçüm.",
+      "Məqsəd: daha az manual iş, daha sürətli cavab, daha çox satış.",
+    ],
+    []
+  );
+
+  // Foundation heading rotator (AZ)
+  const basisWords = useMemo(() => ["sistem", "nəzarət", "nəticə"], []);
 
   // Foundation (i18n)
   const foundation: Pill[] = useMemo(
@@ -495,17 +568,22 @@ export default function About() {
           .ab-title{ font-size: 30px; line-height: 1.06; }
         }
 
-        /* “gözəl görünsün” parçalanmasın */
-        .ab-quoteWrap{
-          display:inline-flex;
-          align-items: baseline;
-          gap: .06em;
-          white-space: nowrap;
+        /* Rotator lines in hero */
+        .ab-heroLine{
+          margin: 14px auto 0;
+          text-align:center;
+          font-size: 16px;
+          line-height: 1.6;
+          color: rgba(255,255,255,.84);
+          font-weight: 650;
         }
-        .ab-quote{
-          display:inline-block;
-          opacity:.92;
-          transform: translateY(-.02em);
+        .ab-heroKickerRot{
+          margin: 10px auto 0;
+          text-align:center;
+          color: rgba(255,255,255,.72);
+          font-size: 13px;
+          line-height: 1.55;
+          min-height: 20px;
         }
 
         .ab-sub{
@@ -1059,6 +1137,84 @@ export default function About() {
           .ab-pop:hover{ transform:none; filter:none; }
           .ab-btn:hover{ transform:none; box-shadow:none; }
         }
+
+        /* ---------------- Rotator CSS ---------------- */
+        .ab-rtWrap{
+          display:inline-block;
+          position: relative;
+          vertical-align: baseline;
+          min-width: 1ch;
+        }
+        .ab-rtItem{
+          display:inline-block;
+          will-change: transform, opacity;
+        }
+        .ab-rtIn{
+          animation: abRtIn 650ms cubic-bezier(.2,.9,.2,1) both;
+        }
+        .ab-rtOut{
+          animation: abRtOut 650ms cubic-bezier(.2,.9,.2,1) both;
+        }
+        .ab-rtNoMotion{
+          animation: none !important;
+          transform: none !important;
+          opacity: 1 !important;
+          filter: none !important;
+        }
+        @keyframes abRtIn{
+          from{ opacity: 0; transform: translateY(-18px); filter: blur(6px); }
+          to  { opacity: 1; transform: translateY(0);    filter: blur(0); }
+        }
+        @keyframes abRtOut{
+          from{ opacity: 1; transform: translateY(0);    filter: blur(0); }
+          to  { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+        }
+
+        .ab-rtVar-heroWord .ab-rtItem,
+        .ab-rtVar-headingWord .ab-rtItem{
+          color: transparent;
+          background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
+          -webkit-background-clip:text;
+          background-clip:text;
+          padding: 0 .10em;
+        }
+        .ab-rtVar-kicker .ab-rtItem{
+          color: rgba(255,255,255,.72);
+        }
+
+        /* Foundation başlıq üçün badge */
+        .ab-basisRow{
+          display:inline-flex;
+          align-items:center;
+          gap: 12px;
+          flex-wrap: wrap;
+          justify-content:center;
+        }
+        .ab-basisBadge{
+          display:inline-flex;
+          align-items:center;
+          gap:10px;
+          padding: 10px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.22);
+          box-shadow: 0 14px 52px rgba(0,0,0,.40);
+        }
+        .ab-basisIcon{
+          width: 26px;
+          height: 26px;
+          border-radius: 999px;
+          display:grid;
+          place-items:center;
+          background: radial-gradient(circle at 30% 30%, rgba(170,225,255,.26), rgba(47,184,255,.12));
+          border: 1px solid rgba(47,184,255,.22);
+        }
+        .ab-basisIcon::before{
+          content:"↘";
+          font-size: 14px;
+          color: rgba(255,255,255,.92);
+          transform: translateY(-1px);
+        }
       `}</style>
 
       {/* ✅ premium background layers (tam ekran, sağdakı qara band yoxdur) */}
@@ -1073,7 +1229,7 @@ export default function About() {
         <div className="ab-heroFade" aria-hidden="true" />
 
         <div className="ab-container">
-          {/* Kicker pill (✅ bir az aşağı, daha balanslı) */}
+          {/* Kicker pill */}
           <div
             style={{
               display: "flex",
@@ -1089,32 +1245,29 @@ export default function About() {
             </div>
           </div>
 
-          {/* Title (✅ forced break yoxdur, normal axır) */}
+          {/* ✅ Title: sabit cümlə, dirnaq YOX */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            {t("about.hero.title.0")}{" "}
-            <span className="ab-quoteWrap" aria-label="gözəl görünsün">
-              <span className="ab-quote" aria-hidden="true">
-                “
-              </span>
-              <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowNice")}</span>
-              <span className="ab-quote" aria-hidden="true">
-                ”
-              </span>
-            </span>{" "}
-            {t("about.hero.title.1")} {t("about.hero.title.2")}{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowWorking")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowMeasurable")}</span>,{" "}
-            <span className="ab-glowWord ab-gradient">{t("about.hero.title.glowControlled")}</span>{" "}
-            {t("about.hero.title.3")}
+            AI-ni sadəcə <span className="ab-glowWord ab-gradient">gözəl görünsün</span> deyə qurmuruq.
           </h1>
 
-          {/* Sub */}
-          <p style={d(180)} className={cx("ab-sub", "ab-enter", enter && "ab-in")}>
+          {/* ✅ 3 saniyə rotasiya (yuxarıdan-aşağı) */}
+          <div style={d(140)} className={cx("ab-heroLine", "ab-enter", enter && "ab-in")}>
+            Biz{" "}
+            <Rotator items={heroWords} intervalMs={3000} variant="heroWord" ariaLabel="NEOX yanaşması" /> sistem qururuq.
+          </div>
+
+          {/* ✅ Aşağı rotasiya (3 saniyə) */}
+          <div style={d(190)} className={cx("ab-heroKickerRot", "ab-enter", enter && "ab-in")}>
+            <Rotator items={heroKickerLines} intervalMs={3000} variant="kicker" ariaLabel="NEOX xətti" />
+          </div>
+
+          {/* Sub (səndə qalsın) */}
+          <p style={d(230)} className={cx("ab-sub", "ab-enter", enter && "ab-in")}>
             {t("about.hero.sub")}
           </p>
 
           {/* Buttons */}
-          <div style={d(270)} className={cx("ab-actions", "ab-enter", enter && "ab-in")}>
+          <div style={d(310)} className={cx("ab-actions", "ab-enter", enter && "ab-in")}>
             <Link to="/contact" className="ab-btn ab-btn--primary">
               {t("about.hero.ctaPrimary")} <ArrowRight size={18} />
             </Link>
@@ -1124,7 +1277,7 @@ export default function About() {
           </div>
 
           {/* Chips */}
-          <div style={d(350)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
+          <div style={d(380)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
             <span className="ab-chip ab-chip--soft">
               <Cpu size={14} /> {t("about.hero.chips.0")}
             </span>
@@ -1156,13 +1309,18 @@ export default function About() {
         <div className="ab-container">
           <header className="ab-head">
             <div className={cx("ab-kicker", "ab-reveal", "ab-reveal-top")}>{t("about.foundation.kicker")}</div>
+
+            {/* ✅ 2-ci şəkil başlıq: sabit + badge rotator (no colon) */}
             <h2 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")}>
-              {t("about.foundation.title.0")}{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowSystem")}</span>,{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowControl")}</span>{" "}
-              {t("about.foundation.title.1")}{" "}
-              <span className="ab-glowWord ab-gradient">{t("about.foundation.title.glowResult")}</span>
+              <span className="ab-basisRow">
+                <span>İşimizin əsası</span>
+                <span className="ab-basisBadge" aria-label="dəyişən fokus">
+                  <span className="ab-basisIcon" aria-hidden="true" />
+                  <Rotator items={basisWords} intervalMs={3000} variant="headingWord" ariaLabel="əsas söz" />
+                </span>
+              </span>
             </h2>
+
             <p className={cx("ab-p", "ab-reveal", "ab-reveal-top")} style={{ maxWidth: 920 }}>
               {t("about.foundation.sub")}
             </p>
