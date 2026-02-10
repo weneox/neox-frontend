@@ -123,9 +123,9 @@ function PillRotator({
 
     const textW = Math.ceil(el.getBoundingClientRect().width);
 
-    const PAD = 38;   // ✅ daha rahat padding
-    const FUDGE = 10; // ✅ son hərf kəsilməsin (subpixel/border)
-    const MIN = 64;   // ✅ "SEO" üçün daha kiçik min
+    const PAD = 40;   // rahat padding
+    const FUDGE = 10; // son hərf kəsilməsin
+    const MIN = 60;   // "SEO" üçün daha kiçik
     const MAX = 420;
 
     const next = Math.max(MIN, Math.min(MAX, textW + PAD + FUDGE));
@@ -175,7 +175,7 @@ function PillRotator({
       aria-label={safe[curIdx]}
       style={w ? ({ width: `${w}px` } as any) : undefined}
     >
-      {/* hidden measure (plain text) */}
+      {/* hidden measure */}
       <span className="svc-pillMeasure" aria-hidden="true">
         {safe.map((t, idx) => (
           <span
@@ -296,7 +296,6 @@ function ServicePage({
           overflow-x:hidden;
           background:#000;
           color: rgba(255,255,255,.92);
-          text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
         }
@@ -309,12 +308,7 @@ function ServicePage({
         .svc{ opacity: 0.01; transform: translate3d(0,6px,0); transition: opacity .55s ease, transform .55s ease; }
         .svc.svc--in{ opacity: 1; transform: translate3d(0,0,0); }
 
-        [data-reveal]{
-          opacity: 0;
-          transform: translate3d(0,10px,0);
-          transition: opacity .55s ease, transform .55s ease;
-          will-change: opacity, transform;
-        }
+        [data-reveal]{ opacity:0; transform: translate3d(0,10px,0); transition: opacity .55s ease, transform .55s ease; will-change: opacity, transform; }
         .svc--in [data-reveal].is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         .svc--in .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
@@ -363,7 +357,7 @@ function ServicePage({
         .svc-hero__inner{
           position:relative;
           z-index:1;
-          padding: 30px 22px; /* ✅ azca artırdım ki pill yuxarı qalxsın, amma kəsilməsin */
+          padding: 30px 22px;
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
@@ -376,7 +370,7 @@ function ServicePage({
 
         .svc-left{ min-width:0; }
 
-        /* ✅ SERVICES pill — kəsilmə YOX */
+        /* ✅ SERVICES pill — heç vaxt kəsilmir */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -390,9 +384,11 @@ function ServicePage({
           letter-spacing:.14em;
           text-transform: uppercase;
 
-          transform: translate3d(0,-6px,0); /* ✅ az yuxarı, artıq kəsmir */
+          /* az yuxarı, amma təhlükəsiz */
+          transform: translate3d(0,-8px,0);
+
           position: relative;
-          z-index: 30; /* ✅ lent nə olursa-olsun bunun üstündə qalacaq */
+          z-index: 50; /* ✅ lentadan həmişə yuxarı */
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }
@@ -400,24 +396,21 @@ function ServicePage({
           width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
+          flex: 0 0 auto;
         }
 
-        /* ✅ IMPORTANT: səndə globalda qalan ribbon varsa — BURDA SÖNDÜRÜRÜK */
-        .svc-grad::before,
-        .svc-grad::after{
-          content: none !important;
-          display: none !important;
-        }
+        /* ✅ Globalda qalan .svc-grad::before/after varsa — burada söndürürük (amma lentanı başqa siniflə veririk) */
+        .svc-grad::before, .svc-grad::after{ content:none !important; display:none !important; }
 
+        /* title */
         .svc-title{
           margin-top: 10px;
           font-size: 40px;
           line-height: 1.05;
           font-weight: 600;
           letter-spacing: -0.02em;
-          color: rgba(255,255,255,.94);
           position: relative;
-          z-index: 2;
+          z-index: 5;
         }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
@@ -429,64 +422,122 @@ function ServicePage({
           position: relative;
           display: inline-block;
           isolation: isolate;
-          z-index: 2;
+          z-index: 6;
         }
 
-        /* ✅ LENTA/SHINE yalnız title üzərində (pillə yox) */
-        .svc-shimmer{
+        /* ✅ LENTA — title arxasında (pillə DƏYMİR) */
+        .svc-lenta{
           position: relative;
           display: inline-block;
           isolation: isolate;
         }
-        .svc-shimmer::after{
+        .svc-lenta::before{
           content:"";
           position:absolute;
-          inset: -12% -60%;
+
+          /* sola çıxıb panel kənarından başlasın */
+          left: -34px;
+          right: -22px;
+
+          top: 62%;
+          height: 56px;
+          border-radius: 18px;
+          transform: translate3d(-52%, -50%, 0);
+
+          background: linear-gradient(90deg,
+            rgba(255,255,255,.12) 0%,
+            rgba(170,225,255,.26) 28%,
+            rgba(47,184,255,.32) 55%,
+            rgba(42,125,255,.28) 100%
+          );
+          box-shadow:
+            0 14px 60px rgba(0,0,0,.36),
+            0 0 0 1px rgba(255,255,255,.06) inset;
+          opacity: .95;
           pointer-events:none;
+
+          /* videoya girəndə tez itir */
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+
+          will-change: transform, opacity;
+          ${reduced ? "" : "animation: svcRibbonLoop 3.2s linear infinite;"}
+          z-index: 1;
+        }
+        .svc-lenta::after{
+          content:"";
+          position:absolute;
+          left: -34px;
+          right: -22px;
+          top: 62%;
+          height: 56px;
+          border-radius: 18px;
+          transform: translate3d(-62%, -50%, 0);
+
           background: linear-gradient(
             110deg,
             transparent 0%,
             transparent 35%,
-            rgba(255,255,255,.30) 45%,
+            rgba(255,255,255,.22) 45%,
             rgba(170,225,255,.55) 50%,
             rgba(47,184,255,.45) 55%,
             transparent 65%,
             transparent 100%
           );
+          opacity: .85;
           mix-blend-mode: screen;
-          opacity: .9;
-          transform: translate3d(-40%,0,0);
-          will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+          pointer-events:none;
+
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+
+          will-change: transform, opacity;
+          ${reduced ? "" : "animation: svcRibbonShine 3.2s linear infinite;"}
+          z-index: 2;
         }
-        @keyframes svcShine{
-          0%{ transform: translate3d(-55%,0,0); }
-          100%{ transform: translate3d(55%,0,0); }
+        @keyframes svcRibbonLoop{
+          0%   { transform: translate3d(-52%, -50%, 0); opacity: .92; }
+          62%  { transform: translate3d(-6%,  -50%, 0); opacity: .92; }
+          76%  { transform: translate3d(  2%,  -50%, 0); opacity: .00; }
+          100% { transform: translate3d(-52%, -50%, 0); opacity: .92; }
+        }
+        @keyframes svcRibbonShine{
+          0%   { transform: translate3d(-62%, -50%, 0); opacity: .86; }
+          62%  { transform: translate3d(-6%,  -50%, 0); opacity: .86; }
+          76%  { transform: translate3d(  2%,  -50%, 0); opacity: .00; }
+          100% { transform: translate3d(-62%, -50%, 0); opacity: .86; }
         }
         @media (prefers-reduced-motion: reduce){
-          .svc-shimmer::after{ animation:none !important; display:none; }
+          .svc-lenta::before, .svc-lenta::after{ animation:none !important; }
+          .svc-lenta::after{ display:none; }
         }
 
+        /* subtitle */
         .svc-sub{
           margin-top: 14px;
           color: rgba(255,255,255,.70);
           font-size: 16px;
           line-height: 1.7;
           max-width: 68ch;
+          position: relative;
+          z-index: 6;
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
+        /* pills */
         .svc-pills{
           margin-top: 14px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
           align-items:center;
+          position: relative;
+          z-index: 6;
         }
         .svc-pill{
           display:inline-flex; align-items:center; justify-content:center;
           height: 34px;
-          padding: 0 16px; /* ✅ daha rahat */
+          padding: 0 16px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
@@ -521,12 +572,14 @@ function ServicePage({
           padding: 0 2px;
         }
 
-        /* buttons (dəymə) */
+        /* CTA (dəymirəm) */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
+          position: relative;
+          z-index: 6;
         }
         .svc-cta{
           position: relative;
@@ -601,6 +654,7 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
+          z-index: 3;
         }
         .svc-videoWrap{
           position: relative;
@@ -660,10 +714,7 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
-        @keyframes svcBreath{
-          0%,100%{ transform: scale(1); opacity:.95; }
-          50%{ transform: scale(1.18); opacity:.80; }
-        }
+        @keyframes svcBreath{ 0%,100%{transform:scale(1);opacity:.95} 50%{transform:scale(1.18);opacity:.80} }
 
         /* section */
         .svc-section{
@@ -715,12 +766,6 @@ function ServicePage({
           background: var(--tC);
           color: rgba(170,225,255,.98);
           flex: 0 0 auto;
-          ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
-          will-change: transform, filter;
-        }
-        @keyframes svcTickBreath{
-          0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
-          50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
@@ -738,7 +783,9 @@ function ServicePage({
               </div>
 
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+                <span className="svc-lenta">
+                  <span className="svc-grad">{title}</span>
+                </span>
               </div>
 
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
@@ -804,7 +851,7 @@ function ServicePage({
             </div>
             <div style={{ marginTop: 12 }}>
               {featuresRight.map((f) => (
-                <Feature key={f.title} title={f.desc} desc={f.desc} />
+                <Feature key={f.title} title={f.title} desc={f.desc} />
               ))}
             </div>
           </div>
