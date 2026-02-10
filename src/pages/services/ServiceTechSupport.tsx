@@ -87,7 +87,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
       <div className="svc-feat__tick" aria-hidden="true">
-        <CheckCircle2 size={18} strokeWidth={2.6} />
+        <CheckCircle2 size={18} strokeWidth={2.8} />
       </div>
       <div className="svc-feat__body">
         <div className="svc-feat__t">{title}</div>
@@ -237,31 +237,35 @@ function ServicePage({
       }
     >
       <style>{`
-        /* =========================
-           Palette = BusinessWorkflows style (not dark)
-           Text sweep left->right on words + buttons
-        ========================= */
-
-        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; background:#000; color: rgba(255,255,255,.92); }
+        .svc{
+          padding: calc(var(--hdrh,72px) + 28px) 0 84px;
+          overflow-x:hidden;
+          background:#000;
+          color: rgba(255,255,255,.92);
+          text-rendering: geometricPrecision;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
         /* reveal */
         [data-reveal]{
           opacity: 0;
-          transform: translateY(10px);
+          transform: translate3d(0,10px,0);
           transition: opacity .55s ease, transform .55s ease;
           will-change: opacity, transform;
         }
-        .is-in{ opacity: 1 !important; transform: translateY(0) !important; }
+        .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
         /* =========================
-           ✅ TEXT SWEEP (left -> right)
-           - only inside text (no background ambiyans)
-           - your palette: white -> 170/225/255 -> 47/184/255 -> 42/125/255
+           ✅ STRONG TEXT SWEEP (LEFT -> RIGHT)
+           - much brighter
+           - visible band
+           - ONLY inside text
         ========================= */
         .svc-sweepText{
           display:inline-block;
@@ -269,31 +273,32 @@ function ServicePage({
             linear-gradient(
               90deg,
               #ffffff 0%,
-              rgba(170,225,255,.96) 34%,
-              rgba(47,184,255,.95) 68%,
-              rgba(42,125,255,.95) 100%
+              rgba(170,225,255,.98) 34%,
+              rgba(47,184,255,1) 68%,
+              rgba(42,125,255,1) 100%
             ),
             linear-gradient(
               110deg,
               transparent 0%,
-              transparent 40%,
-              rgba(255,255,255,.18) 47%,
-              rgba(255,255,255,.55) 50%,
-              rgba(255,255,255,.18) 53%,
-              transparent 60%,
+              transparent 34%,
+              rgba(255,255,255,.30) 44%,
+              rgba(255,255,255,.92) 50%,
+              rgba(170,225,255,.70) 53%,
+              rgba(47,184,255,.45) 56%,
+              transparent 66%,
               transparent 100%
             );
-          background-size: 100% 100%, 260% 100%;
-          background-position: 0 0, -160% 0; /* start LEFT */
+          background-size: 100% 100%, 360% 100%;
+          background-position: 0 0, -220% 0; /* START LEFT */
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
           will-change: background-position;
-          ${reduced ? "" : "animation: svcTextSweep 2.9s linear infinite;"}
+          ${reduced ? "" : "animation: svcTextSweep 2.2s linear infinite;"}
         }
         @keyframes svcTextSweep{
-          0%   { background-position: 0 0, -160% 0; }
-          100% { background-position: 0 0,  160% 0; } /* go RIGHT */
+          0%   { background-position: 0 0, -220% 0; }
+          100% { background-position: 0 0,  220% 0; } /* GO RIGHT */
         }
         @media (prefers-reduced-motion: reduce){
           .svc-sweepText{ animation:none !important; }
@@ -310,6 +315,7 @@ function ServicePage({
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
+          contain: layout paint style;
         }
         .svc-hero::after{
           content:"";
@@ -336,33 +342,42 @@ function ServicePage({
         .svc-left{ min-width:0; }
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
-          font-weight:900; letter-spacing:.18em; font-size:11px;
+          font-weight: 900;
+          letter-spacing:.18em;
+          font-size: 11px;
           color: rgba(255,255,255,.70);
           text-transform:uppercase;
         }
         .svc-kdot{
-          width:10px; height:10px; border-radius:999px;
+          width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
+        /* ✅ BusinessWorkflows title sizing + weight */
         .svc-title{
-          margin-top: 10px;
-          font-size: clamp(28px, 3.2vw, 44px);
-          line-height: 1.06;
-          font-weight: 900;
+          margin-top: 14px;
+          font-size: 40px;
+          line-height: 1.05;
+          font-weight: 600;
           letter-spacing: -0.02em;
-          color: rgba(255,255,255,.94);
         }
-        .svc-sub{
-          margin-top: 10px;
-          color: rgba(255,255,255,.72);
-          font-size: 15px;
-          line-height: 1.65;
-          max-width: 72ch;
+        @media (min-width: 640px){
+          .svc-title{ font-size: 60px; }
         }
 
-        /* pills */
+        /* ✅ BusinessWorkflows subtitle sizing */
+        .svc-sub{
+          margin-top: 14px;
+          color: rgba(255,255,255,.70);
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 68ch;
+        }
+        @media (min-width: 640px){
+          .svc-sub{ font-size: 18px; }
+        }
+
         .svc-pills{
           margin-top: 14px;
           display:flex;
@@ -378,7 +393,7 @@ function ServicePage({
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
           color: rgba(255,255,255,.86);
-          font-weight: 900;
+          font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
         }
@@ -386,15 +401,8 @@ function ServicePage({
           min-width: 170px;
           padding: 0 14px;
         }
-        .svc-pillRot-clip{
-          height: 34px;
-          overflow:hidden;
-          display:block;
-        }
-        .svc-pillRot-track{
-          display:block;
-          will-change: transform;
-        }
+        .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; }
+        .svc-pillRot-track{ display:block; will-change: transform; }
         .svc-pillRot-item{
           height: 34px;
           line-height: 34px;
@@ -402,16 +410,13 @@ function ServicePage({
           align-items:center;
           justify-content:center;
         }
-        /* make sweep fill pill nicely */
         .svc-pillRot-item .svc-sweepText{
-          background-size: 100% 100%, 340% 100%;
-          background-position: 0 0, -190% 0;
-          ${reduced ? "" : "animation-duration: 2.6s;"}
+          background-size: 100% 100%, 420% 100%;
+          background-position: 0 0, -240% 0;
+          ${reduced ? "" : "animation-duration: 2.0s;"}
         }
 
-        /* =========================
-           ✅ BUTTON sweep on hover
-        ========================= */
+        /* CTA */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -441,34 +446,35 @@ function ServicePage({
         .svc-cta::before{
           content:"";
           position:absolute;
-          inset:-40% -60%;
+          inset:-55% -70%;
           background: linear-gradient(
             110deg,
             transparent 0%,
-            transparent 38%,
-            rgba(255,255,255,.18) 46%,
-            rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.32) 54%,
-            transparent 62%,
+            transparent 34%,
+            rgba(255,255,255,.30) 44%,
+            rgba(255,255,255,.95) 50%,
+            rgba(170,225,255,.72) 54%,
+            rgba(47,184,255,.45) 58%,
+            transparent 68%,
             transparent 100%
           );
-          transform: translate3d(-60%,0,0);
+          transform: translate3d(-70%,0,0); /* START LEFT */
           opacity: 0;
           will-change: transform, opacity;
           pointer-events:none;
         }
         .svc-cta:hover{
-          transform: translateY(-1px);
-          border-color: rgba(47,184,255,.22);
+          transform: translate3d(0,-1px,0);
+          border-color: rgba(47,184,255,.24);
           background: rgba(255,255,255,.08);
         }
         .svc-cta:hover::before{
-          opacity: .95;
-          ${reduced ? "transform: translate3d(60%,0,0);" : "animation: svcBtnSweep 900ms linear 1;"}
+          opacity: .98;
+          ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
         }
         @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-60%,0,0); }
-          100%{ transform: translate3d(60%,0,0); }
+          0%{ transform: translate3d(-70%,0,0); }
+          100%{ transform: translate3d(70%,0,0); } /* GO RIGHT */
         }
         @media (hover: none){
           .svc-cta:hover{ transform:none; }
@@ -476,9 +482,7 @@ function ServicePage({
         }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
-        /* =========================
-           ✅ VIDEO fully inside frame
-        ========================= */
+        /* VIDEO fully inside frame */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -486,6 +490,7 @@ function ServicePage({
           overflow:hidden;
           position:relative;
           background: rgba(0,0,0,.22);
+          contain: layout paint style;
         }
         .svc-videoWrap{
           position: relative;
@@ -568,21 +573,29 @@ function ServicePage({
           background: rgba(255,255,255,.03);
           padding: 16px 16px;
           box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          contain: layout paint style;
         }
+
+        /* ✅ section heading like BusinessWorkflows: 22/26 + fw 600 */
         .svc-card__title{
           display:flex; align-items:center; gap:10px;
-          font-weight: 900;
-          color: rgba(255,255,255,.90);
-          letter-spacing: -.01em;
+          font-weight: 600;
+          color: rgba(255,255,255,.92);
+          letter-spacing: -0.01em;
+          font-size: 22px;
+          line-height: 1.2;
         }
+        @media (min-width: 640px){
+          .svc-card__title{ font-size: 26px; }
+        }
+
         .svc-card__desc{
-          margin-top: 8px;
-          color: rgba(255,255,255,.68);
+          margin-top: 10px;
+          color: rgba(255,255,255,.70);
           line-height: 1.7;
           font-size: 14px;
         }
 
-        /* feature list */
         .svc-feat{
           display:flex; gap:10px; align-items:flex-start;
           padding:10px 10px;
@@ -591,22 +604,29 @@ function ServicePage({
           background: rgba(0,0,0,.18);
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
+
+        /* ✅ check = thicker + breathing */
         .svc-feat__tick{
-          width:30px; height:30px; border-radius: 12px;
+          width:30px; height:30px; border-radius:12px;
           display:flex; align-items:center; justify-content:center;
           border: 1px solid rgba(255,255,255,.12);
           background: var(--tC);
-          color: rgba(255,255,255,.95);
+          color: rgba(170,225,255,.98);
           flex: 0 0 auto;
           ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
           will-change: transform, filter;
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
-          50%{ transform: translateZ(0) scale(1.10); filter: drop-shadow(0 0 10px rgba(47,184,255,.55)); }
+          50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
-        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.92); }
+
+        /* ✅ feature title weight like BW (600) */
+        .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
+
+        /* safety */
+        .svc, .svc .container, .svc-hero, .svc-card { overflow-wrap:anywhere; }
       `}</style>
 
       <div className="container">
@@ -618,13 +638,13 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
+              <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
                 <span className="svc-sweepText">{title}</span>
-              </div>
+              </h1>
 
-              <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
+              <p className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
-              </div>
+              </p>
 
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
                 <PillRotator items={pills} disabled={reduced} />
