@@ -6222,20 +6222,6 @@ html, body, #root{
   }
 }
 
-/* =========================
-   HEADER — PREMIUM STABLE
-========================= */
-.site-header{
-  position:fixed;
-  top:0; left:0; right:0;
-  height:var(--neo-header-h);
-  z-index:1200;
-  background:rgba(0,0,0,.6);
-  backdrop-filter:blur(14px);
-  border-bottom:1px solid rgba(255,255,255,.08);
-}
- 
-
  .neo-title--stack{
   display: flex;               /* ✅ inline-block YOX */
   flex-direction: column;      /* ✅ alt sətir */
