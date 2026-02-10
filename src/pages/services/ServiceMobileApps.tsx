@@ -1,8 +1,15 @@
 // src/pages/services/ServiceMobileApps.tsx
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Smartphone, ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Smartphone, ShieldCheck, ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -82,11 +89,7 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="svc-pill">{children}</span>;
-}
-
-/** Single pill that swaps texts (vertical wipe) and resizes to content width */
+/** ✅ Single pill that swaps texts (vertical wipe) AND truly resizes to the visible text width */
 function RotatingPill({
   items,
   reduced,
@@ -98,31 +101,54 @@ function RotatingPill({
 }) {
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
-  const measureRef = useRef<HTMLSpanElement | null>(null);
   const [w, setW] = useState<number | null>(null);
+
+  const aRef = useRef<HTMLSpanElement | null>(null);
+  const viewportRef = useRef<HTMLSpanElement | null>(null);
 
   const current = items[idx % items.length] || "";
   const next = items[(idx + 1) % items.length] || "";
 
-  // Measure current text width (so pill shrinks/grows naturally)
-  useEffect(() => {
-    const el = measureRef.current;
-    if (!el) return;
-    // measure after paint
-    const raf = requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect();
-      const nextW = Math.ceil(rect.width);
-      setW(nextW);
+  // Measure the *actual visible line width* precisely, including font rendering.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = aRef.current;
+      if (!el) return;
+      const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
+      if (!raw) return;
+      // 24 = left+right padding (12+12)
+      setW(raw + 24);
+    };
+
+    // Measure twice (font load / paint)
+    const r1 = requestAnimationFrame(() => {
+      measure();
+      const r2 = requestAnimationFrame(measure);
+      // also try after a tiny delay (helps when fonts swap late)
+      const t = window.setTimeout(measure, 60);
+      (measure as any)._cleanup = () => {
+        cancelAnimationFrame(r2);
+        clearTimeout(t);
+      };
     });
-    return () => cancelAnimationFrame(raf);
+
+    // ResizeObserver to keep perfect width (window resize, font swap)
+    const ro = "ResizeObserver" in window ? new ResizeObserver(measure) : null;
+    if (ro && viewportRef.current) ro.observe(viewportRef.current);
+
+    return () => {
+      cancelAnimationFrame(r1);
+      const c = (measure as any)._cleanup;
+      if (typeof c === "function") c();
+      ro?.disconnect();
+    };
   }, [current]);
 
   useEffect(() => {
     if (reduced) return;
     if (!items.length) return;
 
-    const t = setInterval(() => {
-      // out -> switch -> in
+    const t = window.setInterval(() => {
       setPhase("out");
       window.setTimeout(() => {
         setIdx((v) => (v + 1) % items.length);
@@ -131,32 +157,28 @@ function RotatingPill({
       }, 420);
     }, intervalMs);
 
-    return () => clearInterval(t);
+    return () => window.clearInterval(t);
   }, [items.length, intervalMs, reduced]);
 
-  // Reduced motion: just show first item
   if (reduced) {
     const first = items[0] || "";
     return (
-      <span className="svc-rotPill" style={{ width: undefined }}>
+      <span className="svc-rotPill">
         <span className="svc-rotText">{first}</span>
       </span>
     );
   }
 
-  // width = measured text + padding budget (left/right = 12+12)
-  const width = w != null ? w + 24 : undefined;
-
   return (
-    <span className="svc-rotPill" style={{ width }}>
-      {/* hidden measurer (same font/weight) */}
-      <span className="svc-rotMeasure" ref={measureRef} aria-hidden="true">
-        {current}
-      </span>
-
-      <span className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}>
+    <span className="svc-rotPill" style={{ width: w ?? undefined }}>
+      <span
+        ref={viewportRef}
+        className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}
+      >
         <span className="svc-rotStack">
-          <span className="svc-rotLine is-a">{current}</span>
+          <span ref={aRef} className="svc-rotLine is-a">
+            {current}
+          </span>
           <span className="svc-rotLine is-b">{next}</span>
         </span>
       </span>
@@ -178,6 +200,8 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
+type ServiceLink = { id: string; title: (lang: Lang) => string; path: string; desc?: (lang: Lang) => string };
+
 function ServicePage({
   tint = "cyan",
   kicker,
@@ -185,8 +209,6 @@ function ServicePage({
   subtitle,
   icon: Icon,
   pills,
-  featuresLeft,
-  featuresRight,
   videoUrl,
 }: {
   tint?: keyof typeof TINTS;
@@ -195,8 +217,6 @@ function ServicePage({
   subtitle: string;
   icon: any;
   pills: string[];
-  featuresLeft: Array<{ title: string; desc: string }>;
-  featuresRight: Array<{ title: string; desc: string }>;
   videoUrl: string;
 }) {
   const location = useLocation();
@@ -229,16 +249,159 @@ function ServicePage({
       ? "Contacto"
       : "Contact";
 
-  const pricing =
+  // ✅ Replace pricing button with “Other services” dropdown
+  const otherServicesLabel =
     lang === "az"
-      ? "Qiymətlər"
+      ? "Digər xidmətlər"
       : lang === "tr"
-      ? "Fiyatlar"
+      ? "Diğer hizmetler"
       : lang === "ru"
-      ? "Цены"
+      ? "Другие услуги"
       : lang === "es"
-      ? "Precios"
-      : "Pricing";
+      ? "Otros servicios"
+      : "Other services";
+
+  const services: ServiceLink[] = useMemo(
+    () => [
+      {
+        id: "chatbot-24-7",
+        path: "/services/chatbot-24-7",
+        title: (l) =>
+          l === "az" ? "Chatbot 24/7" : l === "ru" ? "Чатбот 24/7" : l === "tr" ? "Chatbot 24/7" : l === "es" ? "Chatbot 24/7" : "Chatbot 24/7",
+        desc: (l) =>
+          l === "az"
+            ? "Always-on satış chat"
+            : l === "ru"
+            ? "Постоянный чат продаж"
+            : l === "tr"
+            ? "7/24 satış sohbeti"
+            : l === "es"
+            ? "Chat de ventas 24/7"
+            : "Always-on sales chat",
+      },
+      {
+        id: "business-workflows",
+        path: "/services/business-workflows",
+        title: (l) =>
+          l === "az"
+            ? "Business Workflows"
+            : l === "ru"
+            ? "Бизнес-воркфлоу"
+            : l === "tr"
+            ? "İş Akışları"
+            : l === "es"
+            ? "Workflows"
+            : "Business Workflows",
+        desc: (l) =>
+          l === "az"
+            ? "Trigger → route → act"
+            : l === "ru"
+            ? "Триггер → маршрут → действие"
+            : l === "tr"
+            ? "Tetikle → yönlendir → çalıştır"
+            : l === "es"
+            ? "Dispara → enruta → ejecuta"
+            : "Trigger → route → act",
+      },
+      {
+        id: "websites",
+        path: "/services/websites",
+        title: (l) =>
+          l === "az" ? "Websaytlar" : l === "ru" ? "Сайты" : l === "tr" ? "Web Siteleri" : l === "es" ? "Websites" : "Websites",
+        desc: (l) =>
+          l === "az"
+            ? "Premium UX & sürət"
+            : l === "ru"
+            ? "Премиум UX и скорость"
+            : l === "tr"
+            ? "Premium UX & hız"
+            : l === "es"
+            ? "UX premium y velocidad"
+            : "Premium UX & speed",
+      },
+      {
+        id: "mobile-apps",
+        path: "/services/mobile-apps",
+        title: (l) =>
+          l === "az" ? "Mobil tətbiqlər" : l === "ru" ? "Мобильные приложения" : l === "tr" ? "Mobil Uygulamalar" : l === "es" ? "Apps móviles" : "Mobile Apps",
+        desc: (l) =>
+          l === "az"
+            ? "iOS/Android — clean UI"
+            : l === "ru"
+            ? "iOS/Android — чистый UI"
+            : l === "tr"
+            ? "iOS/Android — temiz UI"
+            : l === "es"
+            ? "iOS/Android — UI limpio"
+            : "iOS/Android — clean UI",
+      },
+      {
+        id: "smm-automation",
+        path: "/services/smm-automation",
+        title: (l) =>
+          l === "az" ? "SMM Automation" : l === "ru" ? "SMM Автоматизация" : l === "tr" ? "SMM Otomasyon" : l === "es" ? "Automatización SMM" : "SMM Automation",
+        desc: (l) =>
+          l === "az"
+            ? "Kontent, funnel, schedule"
+            : l === "ru"
+            ? "Контент, воронки, расписание"
+            : l === "tr"
+            ? "İçerik, funnel, plan"
+            : l === "es"
+            ? "Contenido, funnel, agenda"
+            : "Content, funnel, scheduling",
+      },
+      {
+        id: "technical-support",
+        path: "/services/technical-support",
+        title: (l) =>
+          l === "az" ? "Technical Support" : l === "ru" ? "Техподдержка" : l === "tr" ? "Teknik Destek" : l === "es" ? "Soporte técnico" : "Technical Support",
+        desc: (l) =>
+          l === "az"
+            ? "Monitoring, fixes, deploy"
+            : l === "ru"
+            ? "Мониторинг, исправления, деплой"
+            : l === "tr"
+            ? "İzleme, düzeltme, deploy"
+            : l === "es"
+            ? "Monitoreo, arreglos, deploy"
+            : "Monitoring, fixes, deploy",
+      },
+    ],
+    []
+  );
+
+  // Current page is /services/mobile-apps, so dropdown shows other 5
+  const dropdownItems = useMemo(
+    () => services.filter((s) => !location.pathname.includes(s.path)),
+    [services, location.pathname]
+  );
+
+  const [svcOpen, setSvcOpen] = useState(false);
+  const svcBtnRef = useRef<HTMLButtonElement | null>(null);
+  const svcPanelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSvcOpen(false);
+    };
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (!svcOpen) return;
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (svcBtnRef.current?.contains(t)) return;
+      if (svcPanelRef.current?.contains(t)) return;
+      setSvcOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown, { passive: true } as any);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown as any);
+    };
+  }, [svcOpen]);
 
   return (
     <section className="svc">
@@ -275,11 +438,7 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer / Shine =====
-           We provide 2 variants:
-           - .svc-shimmer--cut: disappears earlier (feels like it goes behind the video panel)
-           - .svc-shimmer--into: keeps going to the end, fades only at the very edge (feels like it “enters”)
-        */
+        /* ===== Shimmer / Shine — “blockdan cixir, sonda blokun icine girir” ===== */
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -295,36 +454,28 @@ function ServicePage({
             110deg,
             transparent 0%,
             transparent 35%,
-            rgba(255,255,255,.26) 45%,
+            rgba(255,255,255,.22) 45%,
             rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.45) 55%,
+            rgba(47,184,255,.42) 55%,
             transparent 65%,
             transparent 100%
           );
 
           mix-blend-mode: screen;
           opacity: .9;
-          transform: translate3d(-40%,0,0);
+
+          transform: translate3d(-55%,0,0);
           will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
-        }
 
-        /* CUT variant: fade-out earlier to simulate “goes behind the video panel” */
-        .svc-shimmer--cut::after{
-          /* mask fades earlier (before the right edge) */
-          -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 78%, transparent 100%);
-          mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 78%, transparent 100%);
-        }
+          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
 
-        /* INTO variant: fade only at very end (feels like it enters) */
-        .svc-shimmer--into::after{
-          -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 86%, rgba(0,0,0,.9) 92%, transparent 100%);
-          mask-image: linear-gradient(90deg, #000 0%, #000 86%, rgba(0,0,0,.9) 92%, transparent 100%);
+          /* IMPORTANT: fade-in at start + fade-out at end (enter/exit inside block) */
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
         }
-
         @keyframes svcShine{
-          0%{ transform: translate3d(-55%,0,0); }
-          100%{ transform: translate3d(55%,0,0); }
+          0%{ transform: translate3d(-62%,0,0); }
+          100%{ transform: translate3d(62%,0,0); }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-shimmer::after{ animation:none !important; display:none; }
@@ -350,6 +501,23 @@ function ServicePage({
           filter: blur(14px);
           pointer-events:none;
         }
+
+        /* ✅ This “seam mask” creates the feeling the shimmer goes behind the video panel (for title area)
+           It sits on top of the left content near the seam, blending into the right card. */
+        .svc-seamMask{
+          position:absolute;
+          top: 0; bottom: 0;
+          left: calc(50% - 22px);
+          width: 64px;
+          pointer-events:none;
+          background: linear-gradient(90deg, rgba(10,12,18,0) 0%, rgba(10,12,18,.62) 55%, rgba(10,12,18,0) 100%);
+          opacity: .9;
+          filter: blur(0px);
+        }
+        @media (max-width: 980px){
+          .svc-seamMask{ display:none; }
+        }
+
         .svc-hero__inner{
           position:relative;
           padding: 28px 22px;
@@ -381,7 +549,6 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
-        /* Title */
         .svc-title{
           margin-top: 14px;
           font-size: 40px;
@@ -405,25 +572,13 @@ function ServicePage({
           .svc-sub{ font-size: 18px; }
         }
 
-        /* ===== Rotating pill row (single pill) ===== */
+        /* Rotating pill */
         .svc-pills{
           margin-top: 14px;
           display:flex;
-          flex-wrap: wrap;
           gap: 10px;
           align-items: center;
-        }
-
-        .svc-pill{
-          display:inline-flex; align-items:center;
-          height: 34px; padding: 0 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.05);
-          color: rgba(255,255,255,.86);
-          font-weight: 800;
-          font-size: 12px;
-          white-space: nowrap;
+          flex-wrap: wrap;
         }
 
         .svc-rotPill{
@@ -432,30 +587,20 @@ function ServicePage({
           align-items:center;
           justify-content:center;
           height: 34px;
-          padding: 0 12px;
+          padding: 0 12px; /* kept for fallback; width is set precisely by JS */
           border-radius: 999px;
           border: 1px solid rgba(47,184,255,.22);
           background:
             radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
             rgba(255,255,255,.04);
           box-shadow: 0 10px 40px rgba(0,0,0,.35);
-          color: rgba(255,255,255,.92);
           font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
           transition: width .26s ease;
           transform: translateZ(0);
           overflow: hidden;
-        }
-
-        .svc-rotMeasure{
-          position:absolute;
-          left:-9999px; top:-9999px;
-          font-weight: 900;
-          font-size: 12px;
-          white-space: nowrap;
-          padding: 0;
-          visibility: hidden;
+          min-width: 0;
         }
 
         .svc-rotViewport{
@@ -476,9 +621,15 @@ function ServicePage({
           height: 18px;
           line-height: 18px;
           text-align:center;
+          background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(170,225,255,.96), rgba(47,184,255,.95));
+          -webkit-background-clip:text;
+          background-clip:text;
+          color: transparent;
+          font-weight: 900;
+          font-size: 12px;
+          white-space: nowrap;
         }
 
-        /* wipe: current goes up, next comes from below */
         .svc-rotViewport.is-out .svc-rotStack{
           transform: translate3d(0,-18px,0);
           opacity: .92;
@@ -490,21 +641,19 @@ function ServicePage({
           filter: none;
         }
 
-        /* Make rotating pill text tinted (same palette) */
-        .svc-rotLine{
-          background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(170,225,255,.96), rgba(47,184,255,.95));
-          -webkit-background-clip:text;
-          background-clip:text;
-          color: transparent;
-        }
-
+        /* CTAs */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
+          align-items: center;
+          position: relative;
         }
+
+        /* ✅ Buttons: remove underline/arrow styling; on hover a gradient band sweeps over the button */
         .svc-cta{
+          position: relative;
           display:inline-flex;
           align-items:center;
           justify-content:center;
@@ -519,12 +668,127 @@ function ServicePage({
           color: rgba(255,255,255,.92);
           font-weight: 900;
           text-decoration:none;
-          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
           transform: translateZ(0);
+          overflow: hidden;
         }
-        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.08); }
-        @media (hover: none){ .svc-cta:hover{ transform:none; } }
-        .svc-cta--ghost{ background: rgba(255,255,255,.04); }
+        .svc-cta::before{
+          content:"";
+          position:absolute;
+          inset: -2px -40%;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            rgba(255,255,255,.00) 35%,
+            rgba(170,225,255,.22) 45%,
+            rgba(47,184,255,.38) 50%,
+            rgba(170,225,255,.22) 55%,
+            transparent 70%,
+            transparent 100%
+          );
+          transform: translate3d(-40%,0,0);
+          opacity: 0;
+          transition: opacity .18s ease;
+          pointer-events:none;
+          mix-blend-mode: screen;
+          will-change: transform, opacity;
+        }
+        .svc-cta:hover{
+          transform: translate3d(0,-1px,0);
+          border-color: rgba(47,184,255,.22);
+          background: rgba(255,255,255,.08);
+        }
+        .svc-cta:hover::before{
+          opacity: .95;
+          ${reduced ? "" : "animation: svcBtnSweep .85s ease-out 1;"}
+        }
+        @keyframes svcBtnSweep{
+          0%{ transform: translate3d(-50%,0,0); }
+          100%{ transform: translate3d(50%,0,0); }
+        }
+        @media (hover:none){
+          .svc-cta:hover{ transform:none; }
+          .svc-cta:hover::before{ animation:none; }
+        }
+
+        .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
+
+        /* Services dropdown button */
+        .svc-ctaBtn{
+          cursor:pointer;
+          appearance:none;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+        }
+
+        /* Dropdown panel (like your screenshot list) */
+        .svc-dd{
+          position: absolute;
+          top: calc(44px + 10px);
+          left: 0;
+          width: min(460px, 92vw);
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(10,12,18,.72);
+          box-shadow: 0 26px 120px rgba(0,0,0,.65);
+          overflow:hidden;
+          backdrop-filter: blur(10px);
+          z-index: 20;
+        }
+        .svc-ddHead{
+          padding: 12px 14px;
+          color: rgba(255,255,255,.72);
+          font-size: 12px;
+          letter-spacing: .14em;
+          text-transform: uppercase;
+          border-bottom: 1px solid rgba(255,255,255,.08);
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .svc-ddList{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+        .svc-ddItem{
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,.08);
+          background:
+            radial-gradient(120% 120% at 18% 10%, rgba(47,184,255,.10), transparent 60%),
+            rgba(255,255,255,.03);
+          text-decoration:none;
+          color: rgba(255,255,255,.90);
+          transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
+        }
+        .svc-ddItem:hover{
+          transform: translate3d(0,-1px,0);
+          border-color: rgba(47,184,255,.22);
+          background: rgba(255,255,255,.05);
+        }
+        @media (hover:none){
+          .svc-ddItem:hover{ transform:none; }
+        }
+        .svc-ddLeft{
+          display:flex; flex-direction:column; gap: 4px;
+          min-width: 0;
+        }
+        .svc-ddTitle{
+          font-weight: 900;
+          font-size: 14px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .svc-ddDesc{
+          font-size: 12px;
+          color: rgba(255,255,255,.66);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
 
         /* RIGHT = CLEAN VIDEO */
         .svc-right{
@@ -683,48 +947,75 @@ function ServicePage({
       <div className="container">
         <div className="svc-hero">
           <div className="svc-hero__inner">
+            {/* seam mask for “goes behind panel” feel */}
+            <div className="svc-seamMask" aria-hidden="true" />
+
             <div className="svc-left">
               <div className="svc-kicker" data-reveal>
                 <span className="svc-kdot" aria-hidden="true" />
                 <span>{kicker}</span>
               </div>
 
-              {/* ✅ Title shimmer: CUT (feels like it goes behind the video panel) */}
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer svc-shimmer--cut">{title}</span>
+                <span className="svc-grad svc-shimmer">{title}</span>
               </div>
 
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
-              {/* ✅ One pill that swaps texts + resizes */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
                 <RotatingPill items={pills} reduced={reduced} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
                 <Link to={withLang("/contact", lang)} className="svc-cta">
-                  {contact} <ArrowRight size={16} />
+                  {contact}
+                  <ArrowRight className="svc-ctaIcon" size={16} />
                 </Link>
-                <Link to={withLang("/pricing", lang)} className="svc-cta svc-cta--ghost">
-                  {pricing}
-                </Link>
+
+                <button
+                  ref={svcBtnRef}
+                  type="button"
+                  className={cx("svc-cta svc-ctaBtn")}
+                  onClick={() => setSvcOpen((v) => !v)}
+                  aria-expanded={svcOpen ? "true" : "false"}
+                  aria-haspopup="menu"
+                >
+                  {otherServicesLabel}
+                  <ChevronDown className="svc-ctaIcon" size={16} />
+                </button>
+
+                {svcOpen && (
+                  <div ref={svcPanelRef} className="svc-dd" role="menu" aria-label="Services">
+                    <div className="svc-ddHead">
+                      <span>{lang === "az" ? "SERVICES" : "SERVICES"}</span>
+                      <span style={{ opacity: 0.75 }}>{lang === "az" ? "Seç və keçid et" : "Select & switch"}</span>
+                    </div>
+                    <div className="svc-ddList">
+                      {dropdownItems.map((s) => (
+                        <Link
+                          key={s.id}
+                          to={withLang(s.path, lang)}
+                          className="svc-ddItem"
+                          onClick={() => setSvcOpen(false)}
+                        >
+                          <div className="svc-ddLeft">
+                            <div className="svc-ddTitle">{s.title(lang)}</div>
+                            <div className="svc-ddDesc">{s.desc ? s.desc(lang) : ""}</div>
+                          </div>
+                          <ArrowRight size={16} style={{ opacity: 0.8, flex: "0 0 auto" }} />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video
-                  ref={vidRef}
-                  className="svc-video"
-                  src={videoUrl}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                />
+                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -746,10 +1037,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Smartphone size={18} />
-              {/* ✅ cards shimmer: INTO (goes to the end, feels like it “enters”) */}
-              <span className="svc-grad svc-shimmer svc-shimmer--into">
-                {lang === "az" ? "UX & Performans" : "UX & Performance"}
-              </span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -779,10 +1067,7 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              {/* ✅ cards shimmer: INTO */}
-              <span className="svc-grad svc-shimmer svc-shimmer--into">
-                {lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}
-              </span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -823,8 +1108,6 @@ export default memo(function ServiceMobileApps() {
       }
       icon={Smartphone}
       pills={["iOS/Android", "Premium UX", "Fast", "Secure API", "Push/Events"]}
-      featuresLeft={[]}
-      featuresRight={[]}
       videoUrl={VIDEO_URL}
     />
   );
