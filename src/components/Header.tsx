@@ -57,15 +57,7 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const closeT = useRef<number | null>(null);
 
   const nameOf = (c: Lang) =>
-    c === "az"
-      ? "Azərbaycan"
-      : c === "tr"
-      ? "Türk"
-      : c === "en"
-      ? "English"
-      : c === "ru"
-      ? "Русский"
-      : "Español";
+    c === "az" ? "Azərbaycan" : c === "tr" ? "Türk" : c === "en" ? "English" : c === "ru" ? "Русский" : "Español";
 
   const openDrop = () => {
     if (closeT.current) {
@@ -173,7 +165,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const ucRef = useRef<HTMLDivElement | null>(null);
   const resRef = useRef<HTMLDivElement | null>(null);
 
-  // hover active item (for right panel)
+  // hover active item
   const [svcActive, setSvcActive] = useState<string>("chatbot-24-7");
   const [ucActive, setUcActive] = useState<string>("finance");
 
@@ -423,7 +415,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, []);
 
-  // scroll -> blur (pro, calmer)
+  // scroll -> blur
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
@@ -545,13 +537,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const MobileOverlay = (
     <div className={cx("hMOv", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
       <button className="hMOv__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
-      <div
-        id={panelId}
-        className={cx("hSheet", softOpen && "is-open")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menyu"
-      >
+      <div id={panelId} className={cx("hSheet", softOpen && "is-open")} role="dialog" aria-modal="true" aria-label="Menyu">
         <div className="hSheet__bg" aria-hidden="true" />
         <div className="hSheet__head">
           <div className="hSheet__brand">
@@ -827,7 +813,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
     );
   };
 
-  return (
+  // ===== IMPORTANT: render Header into document.body so it can't be affected by parent transforms =====
+  const HeaderUI = (
     <header
       ref={headerRef}
       style={headerInlineStyle}
@@ -837,24 +824,22 @@ export default function Header({ introReady }: { introReady: boolean }) {
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        /* ==============================
-           SCOPE RESET (header only)
-        ============================== */
+        /* SCOPE RESET (header only) */
         .h, .h *{ box-sizing:border-box; }
         .h a, .h a:hover, .h a:focus, .h a:active{ text-decoration:none !important; }
         .h a{ color: inherit; }
         .h button{ font: inherit; }
         .h :focus-visible{ outline: none; box-shadow: 0 0 0 3px rgba(120,170,255,.18); border-radius: 14px; }
 
-        /* ===== Header shell (FIXED: never drifts) ===== */
+        /* Header shell (hard-fixed, independent) */
         .h{
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
-          z-index: 1100;
+          z-index: 2147482000;
           width: 100%;
-          transform: translateZ(0);
+          transform: translate3d(0,0,0);
           will-change: backdrop-filter, background-color, border-color;
           background: rgba(10,12,18,0.01);
           border-bottom: 1px solid rgba(255,255,255,0.03);
@@ -880,7 +865,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hM{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .hR{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
 
-        /* ===== Brand (clean, no heavy glow) ===== */
         .hBrand{ display:inline-flex; align-items:center; gap: 10px; min-width:0; }
         .hLogoWrap{ position: relative; display:flex; align-items:center; }
         .hLogoAura{
@@ -893,7 +877,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
         }
 
-        /* ===== Desktop links ===== */
         .hLink{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
@@ -905,7 +888,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hLink:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.05); }
         .hLink.is-active{ color: rgba(255,255,255,.95); background: rgba(255,255,255,.08); }
 
-        /* ===== Dropdown root ===== */
         .hDD{ position: relative; display:inline-flex; }
         .hDD__btn{
           position: relative; display:inline-flex; align-items:center; gap: 8px;
@@ -943,7 +925,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateY(0) scale(1);
         }
 
-        /* ===== Mega layout ===== */
         .hMega{ display:grid; grid-template-columns: 320px 1fr; min-height: 360px; }
         .hMega__left{
           padding: 14px 12px;
@@ -999,7 +980,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hCard__desc{ margin-top: 8px; font-size: 12.5px; color: rgba(255,255,255,.66); line-height: 1.3; }
         .hCard__cta{ margin-top: 10px; font-weight: 900; letter-spacing: .14em; font-size: 11px; color: rgba(255,255,255,.72); }
 
-        /* Terminal */
         .hTerm{
           margin-top: 12px;
           border-radius: 14px;
@@ -1037,7 +1017,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hLine.is-reduced .hText{ clip-path: none; animation: none; }
         @keyframes hReveal{ from{ clip-path: inset(0 0 0 100%);} to{ clip-path: inset(0 0 0 0%);} }
 
-        /* Resources list */
         .hList{ padding: 12px; display:grid; gap: 10px; }
         .hRow{
           display:flex; align-items:center;
@@ -1052,7 +1031,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hRow:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
         .hRow.is-active{ border-color: rgba(120,170,255,.22); background: rgba(120,170,255,.08); }
 
-        /* ===== CTA + toggle ===== */
         .hCTA{
           display:inline-flex; align-items:center; justify-content:center;
           height: 38px; padding: 0 14px; border-radius: 999px;
@@ -1076,7 +1054,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hTgl:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .hTgl__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
 
-        /* ===== Lang ===== */
         .hLang{ position: relative; }
         .hLang__btn{
           display:inline-flex; align-items:center; gap: 8px;
@@ -1157,8 +1134,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 18px 60px rgba(0,0,0,.55);
         }
 
-        /* ===== Mobile overlay ===== */
-        .hMOv{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+        .hMOv{ position: fixed; inset: 0; z-index: 2147483000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .hMOv.is-mounted{ display:block; }
         .hMOv.is-open{ opacity: 1; pointer-events: auto; }
         .hMOv__backdrop{
@@ -1330,7 +1306,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </Link>
         </div>
 
-        {/* ===== Desktop nav ===== */}
+        {/* Desktop nav */}
         <nav className="hM" aria-label="Əsas menyu">
           <NavLink to={withLang("/")} end className={navItem}>
             {t("nav.home")}
@@ -1463,4 +1439,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
       {createPortal(MobileOverlay, document.body)}
     </header>
   );
+
+  // If SSR, just return.
+  if (typeof document === "undefined") return HeaderUI;
+
+  // Portal header into <body> => parent transforms can't move it
+  return createPortal(HeaderUI, document.body);
 }
