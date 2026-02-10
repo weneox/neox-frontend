@@ -82,38 +82,34 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/* ---------------- Rotating pill (correct timing: show 1s, then switch) ---------------- */
+/* ---------------- Clean rotating pill (NO overlap, 1s hold, then switch) ---------------- */
 function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean }) {
   const [idx, setIdx] = useState(0);
-  const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   const [w, setW] = useState<number | null>(null);
-  const activeRef = useRef<HTMLSpanElement | null>(null);
+  const spanRef = useRef<HTMLSpanElement | null>(null);
 
   const current = items[idx % items.length] || "";
-  const next = items[(idx + 1) % items.length] || "";
 
+  // measure width for current word (never clip)
   useLayoutEffect(() => {
     const measure = () => {
-      const el = activeRef.current;
+      const el = spanRef.current;
       if (!el) return;
       const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
       if (!raw) return;
-
-      const pad = 40; // ✅ extra safety (never clips)
-      const max = Math.min(window.innerWidth * 0.86, 600);
+      const pad = 44; // ✅ safe padding
+      const max = Math.min(window.innerWidth * 0.86, 620);
       const min = 96;
       setW(Math.max(min, Math.min(max, raw + pad)));
     };
-
-    const r1 = requestAnimationFrame(() => {
+    const r = requestAnimationFrame(() => {
       measure();
       requestAnimationFrame(measure);
     });
-
     const onResize = () => measure();
     window.addEventListener("resize", onResize);
     return () => {
-      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r);
       window.removeEventListener("resize", onResize);
     };
   }, [current]);
@@ -123,61 +119,46 @@ function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean })
     if (!items.length) return;
 
     let alive = true;
-    let t: number | null = null;
+    let t1: number | null = null;
+    let t2: number | null = null;
 
-    const loop = () => {
+    const step = () => {
       if (!alive) return;
-
-      // ✅ show current word for 1 second
-      t = window.setTimeout(() => {
+      // ✅ hold 1 second, then animate out -> change -> animate in
+      t1 = window.setTimeout(() => {
         if (!alive) return;
+        const el = spanRef.current;
+        if (el) el.classList.add("is-out");
 
-        // animate out
-        setPhase("out");
-
-        // small out duration
-        t = window.setTimeout(() => {
+        t2 = window.setTimeout(() => {
           if (!alive) return;
-
-          // switch word
           setIdx((v) => (v + 1) % items.length);
-          setPhase("in");
-
-          // finish in
-          t = window.setTimeout(() => {
-            if (!alive) return;
-            setPhase("idle");
-            loop();
-          }, 260);
+          // next frame: animate in
+          requestAnimationFrame(() => {
+            const el2 = spanRef.current;
+            if (el2) {
+              el2.classList.remove("is-out");
+              el2.classList.add("is-in");
+              window.setTimeout(() => el2.classList.remove("is-in"), 220);
+            }
+          });
+          step();
         }, 220);
       }, 1000);
     };
 
-    loop();
-
+    step();
     return () => {
       alive = false;
-      if (t) window.clearTimeout(t);
+      if (t1) window.clearTimeout(t1);
+      if (t2) window.clearTimeout(t2);
     };
   }, [items.length, reduced]);
 
-  if (reduced) {
-    return (
-      <span className="svc-rotPill">
-        <span className="svc-rotText">{items[0] || ""}</span>
-      </span>
-    );
-  }
-
   return (
     <span className="svc-rotPill" style={{ width: w ?? undefined }}>
-      <span className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}>
-        <span className="svc-rotStack">
-          <span ref={activeRef} className="svc-rotLine is-a">
-            {current}
-          </span>
-          <span className="svc-rotLine is-b">{next}</span>
-        </span>
+      <span ref={spanRef} className="svc-rotText">
+        {current}
       </span>
     </span>
   );
@@ -320,7 +301,7 @@ function ServicePage({
 
   const [svcOpen, setSvcOpen] = useState(false);
 
-  // ✅ sequential “light up” open
+  // sequential open
   const [openSeq, setOpenSeq] = useState(0);
   useEffect(() => {
     if (!svcOpen) {
@@ -338,7 +319,7 @@ function ServicePage({
     return () => window.clearInterval(t);
   }, [svcOpen, dropdownItems.length]);
 
-  // ✅ dropdown height animation (in NEW section below hero)
+  // height
   const ddInnerRef = useRef<HTMLDivElement | null>(null);
   const [ddH, setDdH] = useState(0);
   useLayoutEffect(() => {
@@ -352,25 +333,39 @@ function ServicePage({
     setDdH(h);
   }, [svcOpen, openSeq, dropdownItems.length]);
 
-  // ✅ anchor dropdown directly under the button (same left, same width)
+  // width + LEFT OFFSET (so it opens directly under the button, not left)
   const otherBtnRef = useRef<HTMLButtonElement | null>(null);
   const [ddW, setDdW] = useState<number | null>(null);
+  const [ddX, setDdX] = useState<number>(0);
 
   useLayoutEffect(() => {
     const measure = () => {
       const btn = otherBtnRef.current;
       if (!btn) return;
       const r = btn.getBoundingClientRect();
-      const w = Math.ceil(r.width);
-      setDdW(Math.max(220, Math.min(520, w))); // panel is compact; >= button width
+      const container = btn.closest(".container") as HTMLElement | null;
+      const cR = container?.getBoundingClientRect();
+
+      setDdW(Math.max(240, Math.min(520, Math.ceil(r.width))));
+
+      // ✅ set left offset relative to container so panel appears right under button
+      if (cR) {
+        const left = Math.max(0, Math.round(r.left - cR.left));
+        setDdX(left);
+      } else {
+        setDdX(0);
+      }
     };
 
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
   }, []);
 
-  // close dropdown on route change
   useEffect(() => {
     setSvcOpen(false);
   }, [location.pathname]);
@@ -396,9 +391,8 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== SHIMMER SYNC (same start, same duration everywhere) ===== */
+        /* shimmer */
         :root{ --svcShineDur: 2.9s; }
-
         .svc-grad{
           background: linear-gradient(
             90deg,
@@ -411,7 +405,6 @@ function ServicePage({
           background-clip:text;
           color:transparent;
         }
-
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -422,7 +415,6 @@ function ServicePage({
           position:absolute;
           inset: -12% -70%;
           pointer-events:none;
-
           background: linear-gradient(
             110deg,
             transparent 0%,
@@ -433,16 +425,12 @@ function ServicePage({
             transparent 65%,
             transparent 100%
           );
-
           mix-blend-mode: screen;
           opacity: .92;
-
           transform: translate3d(-86%,0,0);
           will-change: transform;
-
           -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
           mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
-
           ${reduced ? "" : "animation: svcShine var(--svcShineDur) linear infinite;"}
         }
         @keyframes svcShine{
@@ -453,6 +441,7 @@ function ServicePage({
           .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
+        /* hero */
         .svc-hero{
           position: relative;
           border-radius: 26px;
@@ -480,11 +469,11 @@ function ServicePage({
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
-          align-items: start; /* ✅ hero NEVER grows with dropdown now */
+          align-items: stretch; /* ✅ make left & right same height (fix symmetry) */
           min-width:0;
         }
         @media (max-width: 980px){
-          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; align-items: start; }
         }
 
         .svc-left{ min-width:0; }
@@ -496,12 +485,12 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
-          align-self: start;
+          height: 100%; /* ✅ match left height */
         }
         .svc-videoWrap{
           position: relative;
           width: 100%;
-          height: 100%;
+          height: 100%; /* ✅ fill right panel vertically */
           min-height: 320px;
           border-radius: 22px;
           overflow:hidden;
@@ -509,7 +498,7 @@ function ServicePage({
           backface-visibility:hidden;
         }
         @media (max-width: 980px){
-          .svc-videoWrap{ min-height: 260px; }
+          .svc-videoWrap{ min-height: 260px; height: auto; }
         }
         .svc-video{
           position:absolute; inset:0;
@@ -542,7 +531,6 @@ function ServicePage({
           background: rgba(47,184,255,1);
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
-
         .svc-title{
           margin-top: 14px;
           font-size: 40px;
@@ -554,7 +542,6 @@ function ServicePage({
         @media (min-width: 640px){
           .svc-title{ font-size: 60px; }
         }
-
         .svc-sub{
           margin-top: 14px;
           color: rgba(255,255,255,.70);
@@ -566,7 +553,7 @@ function ServicePage({
           .svc-sub{ font-size: 18px; }
         }
 
-        /* Rotating pill */
+        /* ✅ Clean pill (no overlap) */
         .svc-pills{
           margin-top: 14px;
           display:flex;
@@ -595,19 +582,8 @@ function ServicePage({
           padding: 0 16px;
           min-width: 96px;
         }
-        .svc-rotViewport{ position: relative; height: 18px; overflow: hidden; display:block; }
-        .svc-rotStack{
-          position: relative;
+        .svc-rotText{
           display:block;
-          transform: translate3d(0,0,0);
-          transition: transform .22s ease, opacity .22s ease;
-          will-change: transform, opacity;
-        }
-        .svc-rotLine{
-          display:block;
-          height: 18px;
-          line-height: 18px;
-          text-align:center;
           background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(170,225,255,.96), rgba(47,184,255,.95));
           -webkit-background-clip:text;
           background-clip:text;
@@ -615,10 +591,19 @@ function ServicePage({
           font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
-          padding: 0 4px;
+          will-change: transform, opacity, filter;
+          transition: transform .22s ease, opacity .22s ease, filter .22s ease;
         }
-        .svc-rotViewport.is-out .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: .92; }
-        .svc-rotViewport.is-in .svc-rotStack{ transform: translate3d(0,-18px,0); opacity: 1; }
+        .svc-rotText.is-out{
+          opacity: 0;
+          transform: translate3d(0,8px,0);
+          filter: blur(1px);
+        }
+        .svc-rotText.is-in{
+          opacity: 1;
+          transform: translate3d(0,0,0);
+          filter: blur(0px);
+        }
 
         /* CTAs */
         .svc-ctaRow{
@@ -628,7 +613,6 @@ function ServicePage({
           gap: 10px;
           align-items: flex-start;
         }
-
         .svc-cta{
           position: relative;
           display:inline-flex;
@@ -654,7 +638,6 @@ function ServicePage({
         .svc-cta *{ text-decoration:none !important; }
         .svc a, .svc a:hover{ text-decoration:none !important; }
         .svc a::after{ display:none !important; }
-
         .svc-cta::before{
           content:"";
           position:absolute;
@@ -694,10 +677,7 @@ function ServicePage({
           background: rgba(255,255,255,.04);
         }
 
-        /* ✅ NEW: below-hero “split” area:
-           left column contains ONLY dropdown + UX card (so only UX gets pushed),
-           right column contains backend card (stays).
-        */
+        /* BELOW grid */
         .svc-below{
           margin-top: 18px;
           display:grid;
@@ -709,13 +689,18 @@ function ServicePage({
           .svc-below{ grid-template-columns: 1fr; }
         }
 
-        /* Dropdown below hero — opens under the button area, not left, not growing hero */
+        /* ✅ Dropdown opens EXACTLY under button (no left drift)
+           We offset it by ddX inside container.
+        */
         .svc-ddSlot{
+          position: relative;
           width: 100%;
-          display:flex;
-          justify-content: flex-start;
+          height: auto;
+          margin-top: 12px;
         }
         .svc-ddFrame{
+          position: relative;
+          left: var(--ddx, 0px);
           width: var(--ddw, 260px);
           max-width: min(92vw, 520px);
           border-radius: 16px;
@@ -759,16 +744,12 @@ function ServicePage({
           font-size: 14px;
           overflow: hidden;
           white-space: nowrap;
-          transform: translateZ(0);
 
           opacity: 0;
           transform: translate3d(0,8px,0);
           transition: opacity .24s ease, transform .24s ease, border-color .14s ease, background-color .14s ease;
         }
-        .svc-ddItem.is-on{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-        }
+        .svc-ddItem.is-on{ opacity: 1; transform: translate3d(0,0,0); }
         .svc-ddItem::before{
           content:"";
           position:absolute;
@@ -789,10 +770,7 @@ function ServicePage({
           mix-blend-mode: screen;
           will-change: transform, opacity;
         }
-        .svc-ddItem:hover{
-          border-color: rgba(47,184,255,.22);
-          background: rgba(255,255,255,.05);
-        }
+        .svc-ddItem:hover{ border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.05); }
         .svc-ddItem:hover::before{
           opacity: .95;
           ${reduced ? "" : "animation: svcItemSweep .85s ease-out 1;"}
@@ -802,7 +780,7 @@ function ServicePage({
           100%{ transform: translate3d(70%,0,0); }
         }
 
-        /* Cards */
+        /* cards */
         .svc-card{
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.08);
@@ -836,7 +814,6 @@ function ServicePage({
           background: rgba(0,0,0,.18);
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
-
         .svc-feat__tick{
           width: 30px; height: 30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
@@ -844,16 +821,13 @@ function ServicePage({
           background: ${T.c};
           color: rgba(170,225,255,.95);
           flex: 0 0 auto;
-          transform: translateZ(0);
           ${reduced ? "" : "animation: svcTickBreath 1.35s ease-in-out infinite;"}
         }
         @keyframes svcTickBreath{
-          0%,100%{ transform: translateZ(0) scale(1); box-shadow:none; opacity:.98; }
-          50%{ transform: translateZ(0) scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
+          0%,100%{ transform: scale(1); box-shadow:none; opacity:.98; }
+          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
         }
-        @media (prefers-reduced-motion: reduce){
-          .svc-feat__tick{ animation:none !important; }
-        }
+        @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
 
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
@@ -898,7 +872,6 @@ function ServicePage({
       `}</style>
 
       <div className="container">
-        {/* HERO (never grows) */}
         <div className="svc-hero">
           <div className="svc-hero__inner">
             <div className="svc-left">
@@ -958,21 +931,17 @@ function ServicePage({
           </div>
         </div>
 
-        {/* BELOW HERO:
-            ✅ dropdown is here (NOT inside hero) so hero/video never grows
-            ✅ dropdown is in LEFT COLUMN only, so it pushes ONLY UX card
-            ✅ backend card stays in right column, untouched
-        */}
         <div className="svc-below">
-          {/* LEFT column: dropdown + UX card */}
+          {/* LEFT: dropdown + UX card */}
           <div>
-            <div className="svc-ddSlot" style={{ marginTop: 12 }}>
+            <div className="svc-ddSlot">
               <div
                 className={cx("svc-ddFrame", svcOpen && "is-open")}
                 style={
                   {
                     ["--ddh" as any]: `${Math.max(0, ddH + 20)}px`,
                     ["--ddw" as any]: ddW ? `${ddW}px` : undefined,
+                    ["--ddx" as any]: `${ddX}px`,
                   } as any
                 }
               >
@@ -1022,7 +991,7 @@ function ServicePage({
             </div>
           </div>
 
-          {/* RIGHT column: backend card (stays) */}
+          {/* RIGHT: backend card stays aligned */}
           <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
