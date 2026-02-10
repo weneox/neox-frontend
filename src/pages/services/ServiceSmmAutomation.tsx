@@ -1,8 +1,8 @@
 // src/pages/services/ServiceSmmAutomation.tsx
-import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Megaphone, CalendarClock, BarChart3, CheckCircle2, ChevronDown } from "lucide-react";
+import { Megaphone, CalendarClock, BarChart3, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -11,7 +11,6 @@ function cx(...xs: Array<string | false | null | undefined>) {
 const RAW_VIDEO =
   "https://res.cloudinary.com/dppoomunj/video/upload/v1770677383/neox/media/asset_1770677379623_8928b0b249907.mp4";
 
-// Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
   try {
     if (!url.includes("/upload/")) return url;
@@ -24,12 +23,11 @@ function cloudinaryAuto(url: string) {
 const VIDEO_URL = cloudinaryAuto(RAW_VIDEO);
 
 const TINTS = {
-  cyan: {
-    a: "rgba(47,184,255,.22)",
-    b: "rgba(47,184,255,.10)",
-    c: "rgba(47,184,255,.06)",
-    d: "rgba(47,184,255,.28)",
-    edge: "rgba(47,184,255,.22)",
+  amber: {
+    a: "rgba(255,184,47,.22)",
+    b: "rgba(255,184,47,.10)",
+    c: "rgba(255,184,47,.06)",
+    d: "rgba(255,184,47,.28)",
   },
 } as const;
 
@@ -60,14 +58,10 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/** super light reveal: 1 observer, once */
+/** Smooth reveal-on-scroll (slower + smoother) */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
-    if (disabled) {
-      const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
-      els.forEach((el) => el.classList.add("is-in"));
-      return;
-    }
+    if (disabled) return;
 
     const els = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (!els.length) return;
@@ -89,90 +83,18 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/* ---------------- Rotating pill: NO overlap, 1s hold between words ---------------- */
-function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean }) {
-  const [idx, setIdx] = useState(0);
-  const [w, setW] = useState<number | null>(null);
-  const spanRef = useRef<HTMLSpanElement | null>(null);
-
-  const current = items[idx % items.length] || "";
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = spanRef.current;
-      if (!el) return;
-      const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
-      if (!raw) return;
-      const pad = 44;
-      const max = Math.min(window.innerWidth * 0.86, 620);
-      const min = 96;
-      setW(Math.max(min, Math.min(max, raw + pad)));
-    };
-    const r = requestAnimationFrame(() => {
-      measure();
-      requestAnimationFrame(measure);
-    });
-    const onResize = () => measure();
-    window.addEventListener("resize", onResize);
-    return () => {
-      cancelAnimationFrame(r);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [current]);
-
-  useEffect(() => {
-    if (reduced) return;
-    if (!items.length) return;
-
-    let alive = true;
-    let t1: number | null = null;
-    let t2: number | null = null;
-
-    const step = () => {
-      if (!alive) return;
-
-      t1 = window.setTimeout(() => {
-        if (!alive) return;
-        const el = spanRef.current;
-        if (el) el.classList.add("is-out");
-
-        t2 = window.setTimeout(() => {
-          if (!alive) return;
-          setIdx((v) => (v + 1) % items.length);
-          requestAnimationFrame(() => {
-            const el2 = spanRef.current;
-            if (el2) {
-              el2.classList.remove("is-out");
-              el2.classList.add("is-in");
-              window.setTimeout(() => el2.classList.remove("is-in"), 240);
-            }
-          });
-          step();
-        }, 240);
-      }, 1000);
-    };
-
-    step();
-    return () => {
-      alive = false;
-      if (t1) window.clearTimeout(t1);
-      if (t2) window.clearTimeout(t2);
-    };
-  }, [items.length, reduced]);
-
-  return (
-    <span className="svc-rotPill" style={{ width: w ?? undefined }}>
-      <span ref={spanRef} className="svc-rotText">
-        {current}
-      </span>
-    </span>
-  );
-}
-
-function Feature({ title, desc }: { title: string; desc: string }) {
+function Feature({
+  title,
+  desc,
+  reduced,
+}: {
+  title: string;
+  desc: string;
+  reduced: boolean;
+}) {
   return (
     <div className="svc-feat" data-reveal>
-      <div className="svc-feat__tick" aria-hidden="true">
+      <div className={cx("svc-feat__tick", !reduced && "svc-feat__tick--breath")} aria-hidden="true">
         <CheckCircle2 size={16} />
       </div>
       <div className="svc-feat__body">
@@ -183,16 +105,128 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-type ServiceLink = { id: string; path: string; title: (lang: Lang) => string };
+/**
+ * ✅ Adaptive Rotator (pill width fits current text)
+ * - 1s hold per item
+ * - smooth vertical slide
+ * - width animates to match text
+ */
+function PillRotator({
+  items,
+  disabled,
+  holdMs = 1000,
+  animMs = 520,
+}: {
+  items: string[];
+  disabled: boolean;
+  holdMs?: number;
+  animMs?: number;
+}) {
+  const safe = items.length ? items : [""];
+  const [i, setI] = useState(0);
+
+  const measureRef = useRef<HTMLSpanElement | null>(null);
+  const [w, setW] = useState<number | null>(null);
+
+  // measure width of current label
+  useEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+
+    const doMeasure = () => {
+      const r = el.getBoundingClientRect();
+      const next = Math.ceil(r.width);
+      if (next > 0) setW(next);
+    };
+
+    const raf = requestAnimationFrame(doMeasure);
+    const ro = new ResizeObserver(doMeasure);
+    ro.observe(el);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [i]);
+
+  // change item with “hold” cadence
+  useEffect(() => {
+    if (disabled) return;
+    if (safe.length <= 1) return;
+
+    let alive = true;
+    let t1: number | null = null;
+
+    const loop = () => {
+      // hold
+      t1 = window.setTimeout(() => {
+        if (!alive) return;
+        setI((p) => (p + 1) % safe.length);
+        loop();
+      }, holdMs + animMs); // hold + time to animate out/in
+    };
+
+    loop();
+    return () => {
+      alive = false;
+      if (t1) window.clearTimeout(t1);
+    };
+  }, [disabled, safe.length, holdMs, animMs]);
+
+  const step = 34;
+  const y = -i * step;
+
+  return (
+    <span
+      className="svc-pill svc-pill--rot"
+      aria-label={safe[i]}
+      style={
+        w
+          ? {
+              width: `calc(${w}px + 32px)`, // text width + padding
+            }
+          : undefined
+      }
+    >
+      {/* hidden measurer */}
+      <span className="svc-pillMeasure" aria-hidden="true">
+        <span ref={measureRef} className="svc-pillMeasureText">
+          {safe[i]}
+        </span>
+      </span>
+
+      <span className="svc-pillRot-clip">
+        <span
+          className="svc-pillRot-track"
+          style={{
+            transform: `translate3d(0, ${y}px, 0)`,
+            transition: disabled ? "none" : `transform ${animMs}ms cubic-bezier(.2,.8,.2,1)`,
+          }}
+        >
+          {safe.map((t, idx) => (
+            <span className="svc-pillRot-item" key={`${t}-${idx}`}>
+              {t}
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+type OtherService = { label: string; path: string };
 
 function ServicePage({
-  tint = "cyan",
+  tint = "amber",
   kicker,
   title,
   subtitle,
   icon: Icon,
   pills,
+  featuresLeft,
+  featuresRight,
   videoUrl,
+  otherServices,
 }: {
   tint?: keyof typeof TINTS;
   kicker: string;
@@ -200,30 +234,60 @@ function ServicePage({
   subtitle: string;
   icon: any;
   pills: string[];
+  featuresLeft: Array<{ title: string; desc: string }>;
+  featuresRight: Array<{ title: string; desc: string }>;
   videoUrl: string;
+  otherServices: OtherService[];
 }) {
   const location = useLocation();
   const lang = useMemo(() => getLangFromPath(location.pathname), [location.pathname]);
-
-  // ✅ we DO NOT force reduced motion here; user asked slower but smooth.
   const reduced = usePrefersReducedMotion();
   useRevealOnScroll(reduced);
 
   const T = TINTS[tint];
 
-  // ✅ FPS: only play when ready; avoid heavy preload
+  /** ✅ video plays only when visible */
   const vidRef = useRef<HTMLVideoElement | null>(null);
+  const rightRef = useRef<HTMLDivElement | null>(null);
+  const [canPlay, setCanPlay] = useState(false);
+
   useEffect(() => {
-    const v = vidRef.current;
-    if (!v) return;
+    const el = rightRef.current;
+    if (!el) return;
 
-    const onCanPlay = () => {
-      // play a bit later so layout settles (less jank)
-      window.setTimeout(() => v.play().catch(() => {}), 220);
+    let started = false;
+    let startTimer: number | null = null;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.some((e) => e.isIntersecting);
+        const v = vidRef.current;
+
+        if (vis) {
+          if (!started) {
+            if (startTimer) window.clearTimeout(startTimer);
+            startTimer = window.setTimeout(() => {
+              started = true;
+              setCanPlay(true);
+              if (v) v.play().catch(() => {});
+            }, 520);
+          } else {
+            setCanPlay(true);
+            if (v) v.play().catch(() => {});
+          }
+        } else {
+          setCanPlay(false);
+          if (v) v.pause();
+        }
+      },
+      { threshold: 0.25, rootMargin: "0px 0px -10% 0px" }
+    );
+
+    io.observe(el);
+    return () => {
+      if (startTimer) window.clearTimeout(startTimer);
+      io.disconnect();
     };
-
-    v.addEventListener("canplay", onCanPlay);
-    return () => v.removeEventListener("canplay", onCanPlay);
   }, []);
 
   const contact =
@@ -237,7 +301,7 @@ function ServicePage({
       ? "Contacto"
       : "Contact";
 
-  const otherServicesLabel =
+  const other =
     lang === "az"
       ? "Digər xidmətlər"
       : lang === "tr"
@@ -248,165 +312,19 @@ function ServicePage({
       ? "Otros servicios"
       : "Other services";
 
-  const services: ServiceLink[] = useMemo(
-    () => [
-      { id: "chatbot-24-7", path: "/services/chatbot-24-7", title: () => "Chatbot 24/7" },
-      {
-        id: "business-workflows",
-        path: "/services/business-workflows",
-        title: (l) =>
-          l === "az"
-            ? "Business Workflows"
-            : l === "ru"
-            ? "Бизнес-воркфлоу"
-            : l === "tr"
-            ? "İş Akışları"
-            : l === "es"
-            ? "Workflows"
-            : "Business Workflows",
-      },
-      {
-        id: "websites",
-        path: "/services/websites",
-        title: (l) =>
-          l === "az"
-            ? "Websaytlar"
-            : l === "ru"
-            ? "Сайты"
-            : l === "tr"
-            ? "Web Siteleri"
-            : l === "es"
-            ? "Websites"
-            : "Websites",
-      },
-      {
-        id: "mobile-apps",
-        path: "/services/mobile-apps",
-        title: (l) =>
-          l === "az"
-            ? "Mobil tətbiqlər"
-            : l === "ru"
-            ? "Мобильные приложения"
-            : l === "tr"
-            ? "Mobil Uygulamalar"
-            : l === "es"
-            ? "Apps móviles"
-            : "Mobile Apps",
-      },
-      {
-        id: "smm-automation",
-        path: "/services/smm-automation",
-        title: (l) =>
-          l === "az"
-            ? "SMM Automation"
-            : l === "ru"
-            ? "SMM Автоматизация"
-            : l === "tr"
-            ? "SMM Otomasyon"
-            : l === "es"
-            ? "Automatización SMM"
-            : "SMM Automation",
-      },
-      {
-        id: "technical-support",
-        path: "/services/technical-support",
-        title: (l) =>
-          l === "az"
-            ? "Technical Support"
-            : l === "ru"
-            ? "Техподдержка"
-            : l === "tr"
-            ? "Teknik Destek"
-            : l === "es"
-            ? "Soporte técnico"
-            : "Technical Support",
-      },
-    ],
-    []
-  );
+  const [open, setOpen] = useState(false);
 
-  const dropdownItems = useMemo(
-    () =>
-      services
-        .filter((s) => s.path !== "/services/smm-automation")
-        .filter((s) => !location.pathname.includes(s.path)),
-    [services, location.pathname]
-  );
-
-  const [svcOpen, setSvcOpen] = useState(false);
-
-  // sequential open
-  const [openSeq, setOpenSeq] = useState(0);
+  // close on outside click
+  const dropRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!svcOpen) {
-      setOpenSeq(0);
-      return;
-    }
-    const total = dropdownItems.length;
-    let i = 0;
-    setOpenSeq(0);
-    const t = window.setInterval(() => {
-      i += 1;
-      setOpenSeq(i);
-      if (i >= total) window.clearInterval(t);
-    }, 95);
-    return () => window.clearInterval(t);
-  }, [svcOpen, dropdownItems.length]);
-
-  // height
-  const ddInnerRef = useRef<HTMLDivElement | null>(null);
-  const [ddH, setDdH] = useState(0);
-  useLayoutEffect(() => {
-    if (!svcOpen) {
-      setDdH(0);
-      return;
-    }
-    const el = ddInnerRef.current;
-    if (!el) return;
-    const h = Math.ceil(el.scrollHeight || 0);
-    setDdH(h);
-  }, [svcOpen, openSeq, dropdownItems.length]);
-
-  // ✅ open EXACTLY under button (desktop + mobile)
-  const otherBtnRef = useRef<HTMLButtonElement | null>(null);
-  const ddSlotRef = useRef<HTMLDivElement | null>(null);
-
-  const [ddW, setDdW] = useState<number | null>(null);
-  const [ddX, setDdX] = useState<number>(0);
-
-  const measureDD = () => {
-    const btn = otherBtnRef.current;
-    const slot = ddSlotRef.current;
-    if (!btn || !slot) return;
-
-    const b = btn.getBoundingClientRect();
-    const s = slot.getBoundingClientRect();
-
-    setDdW(Math.max(240, Math.min(520, Math.ceil(b.width))));
-    setDdX(Math.max(0, Math.round(b.left - s.left)));
-  };
-
-  useLayoutEffect(() => {
-    measureDD();
-    window.addEventListener("resize", measureDD);
-    window.addEventListener("scroll", measureDD, true);
-    return () => {
-      window.removeEventListener("resize", measureDD);
-      window.removeEventListener("scroll", measureDD, true);
+    const onDown = (e: MouseEvent) => {
+      const root = dropRef.current;
+      if (!root) return;
+      if (!root.contains(e.target as any)) setOpen(false);
     };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, []);
-
-  useEffect(() => {
-    setSvcOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!svcOpen) return;
-    requestAnimationFrame(() => {
-      measureDD();
-      requestAnimationFrame(measureDD);
-    });
-  }, [svcOpen]);
 
   return (
     <section
@@ -417,8 +335,8 @@ function ServicePage({
           ["--tB" as any]: T.b,
           ["--tC" as any]: T.c,
           ["--tD" as any]: T.d,
-          ["--tEdge" as any]: T.edge,
-        } as any
+          ["--revealD" as any]: "720ms",
+        } as React.CSSProperties
       }
     >
       <style>{`
@@ -429,25 +347,28 @@ function ServicePage({
           overflow-x:hidden;
           color: rgba(255,255,255,.92);
           background:#000;
+          text-rendering: geometricPrecision;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
+        .svc a{ text-decoration:none !important; }
+        .svc a:hover{ text-decoration:none !important; }
 
-        /* ✅ slower but smooth (no fps drop feeling) */
+        /* reveal (slower) */
         [data-reveal]{
           opacity: 0;
           transform: translate3d(0,12px,0);
-          transition: opacity .92s cubic-bezier(.2,.8,.2,1), transform .92s cubic-bezier(.2,.8,.2,1);
+          transition: opacity var(--revealD) ease, transform var(--revealD) ease;
           will-change: opacity, transform;
-          contain: paint;
         }
         .is-in{ opacity: 1 !important; transform: translate3d(0,0,0) !important; }
         @media (prefers-reduced-motion: reduce){
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* shimmer */
-        :root{ --svcShineDur: 2.95s; }
+        /* title gradient */
         .svc-grad{
           background: linear-gradient(
             90deg,
@@ -460,50 +381,44 @@ function ServicePage({
           background-clip:text;
           color:transparent;
         }
-        .svc-shimmer{
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
+
+        /* micro shimmer */
+        .svc-shimmer{ position: relative; display:inline-block; isolation:isolate; }
         .svc-shimmer::after{
           content:"";
-          position:absolute;
-          inset: -12% -70%;
+          position:absolute; inset: -12% -60%;
           pointer-events:none;
           background: linear-gradient(
             110deg,
             transparent 0%,
             transparent 35%,
-            rgba(255,255,255,.22) 45%,
+            rgba(255,255,255,.30) 45%,
             rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.42) 55%,
+            rgba(47,184,255,.45) 55%,
             transparent 65%,
             transparent 100%
           );
           mix-blend-mode: screen;
-          opacity: .92;
-          transform: translate3d(-86%,0,0);
+          opacity: .9;
+          transform: translate3d(-40%,0,0);
           will-change: transform;
-          -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
-          ${reduced ? "" : "animation: svcShine var(--svcShineDur) linear infinite;"}
+          ${reduced ? "" : "animation: svcShine 3.0s linear infinite;"}
         }
         @keyframes svcShine{
-          0%{ transform: translate3d(-86%,0,0); }
-          100%{ transform: translate3d(86%,0,0); }
+          0%{ transform: translate3d(-55%,0,0); }
+          100%{ transform: translate3d(55%,0,0); }
         }
         @media (prefers-reduced-motion: reduce){
           .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
-        /* hero (✅ remove yellow tint completely; keep NEOX blue) */
         .svc-hero{
           position: relative;
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.18), transparent 55%),
-            radial-gradient(120% 90% at 86% 10%, rgba(47,184,255,.08), transparent 60%),
+            radial-gradient(120% 90% at 18% 10%, var(--tA), transparent 55%),
+            radial-gradient(120% 90% at 86% 10%, rgba(47,184,255,.12), transparent 60%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
@@ -512,63 +427,27 @@ function ServicePage({
         .svc-hero::before{
           content:"";
           position:absolute; inset:-2px;
-          background: radial-gradient(600px 260px at 22% 18%, rgba(47,184,255,.10), transparent 60%);
+          background: radial-gradient(620px 260px at 22% 18%, var(--tB), transparent 60%);
           opacity:.85;
           filter: blur(14px);
           pointer-events:none;
         }
 
+        /* IMPORTANT: align-items: start => dropdown won’t resize the video panel */
         .svc-hero__inner{
           position:relative;
           padding: 28px 22px;
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
-          align-items: stretch;
+          align-items: start;
           min-width:0;
         }
         @media (max-width: 980px){
-          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; align-items: start; }
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
         }
 
         .svc-left{ min-width:0; }
-        .svc-right{
-          min-width:0;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.08);
-          overflow:hidden;
-          position:relative;
-          background: rgba(0,0,0,.22);
-          contain: layout paint style;
-          height: 100%;
-        }
-        .svc-videoWrap{
-          position: relative;
-          width: 100%;
-          height: 100%;
-          min-height: 320px;
-          border-radius: 22px;
-          overflow:hidden;
-          transform: translateZ(0);
-          backface-visibility:hidden;
-        }
-        @media (max-width: 980px){
-          .svc-videoWrap{ min-height: 260px; height: 260px; }
-        }
-        .svc-video{
-          position:absolute; inset:0;
-          width: 100%; height: 100%;
-          object-fit: cover;
-          display:block;
-          transform: translateZ(0);
-        }
-        .svc-videoScrim{
-          position:absolute; inset:0;
-          background:
-            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.10), transparent 58%),
-            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.52) 92%);
-          pointer-events:none;
-        }
 
         .svc-kicker{
           display:inline-flex; align-items:center; gap:10px;
@@ -587,249 +466,439 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
+        /* title + ribbon band (same behavior as your Mobile Apps page) */
         .svc-title{
+          position: relative;
           margin-top: 14px;
           font-size: 40px;
           line-height: 1.05;
           color: rgba(255,255,255,.94);
           font-weight: 600;
           letter-spacing: -0.02em;
+          z-index: 2;
         }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
+
+        .svc-titleText{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+          z-index: 2;
+        }
+
+        .svc-titleText::before{
+          content:"";
+          position:absolute;
+          left: calc(-1 * (22px + 18px));
+          right: -22px;
+          top: 58%;
+          height: 56px;
+          border-radius: 18px;
+          transform: translate3d(0,-50%,0);
+          background: linear-gradient(90deg,
+            rgba(255,255,255,.12) 0%,
+            rgba(170,225,255,.26) 28%,
+            rgba(47,184,255,.32) 55%,
+            rgba(42,125,255,.28) 100%
+          );
+          box-shadow:
+            0 14px 60px rgba(0,0,0,.36),
+            0 0 0 1px rgba(255,255,255,.06) inset;
+          opacity: .95;
+          pointer-events:none;
+
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+
+          will-change: transform, opacity;
+          ${reduced ? "" : "animation: svcRibbonLoop 3.2s linear infinite;"}
+          z-index: 1;
+        }
+        .svc-titleText::after{
+          content:"";
+          position:absolute;
+          left: calc(-1 * (22px + 18px));
+          right: -22px;
+          top: 58%;
+          height: 56px;
+          border-radius: 18px;
+          transform: translate3d(-60%, -50%, 0);
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.22) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.45) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          opacity: .85;
+          mix-blend-mode: screen;
+          pointer-events:none;
+
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+
+          will-change: transform;
+          ${reduced ? "" : "animation: svcRibbonShine 3.2s linear infinite;"}
+          z-index: 1;
+        }
+        @keyframes svcRibbonLoop{
+          0%   { transform: translate3d(-52%, -50%, 0); opacity: .92; }
+          62%  { transform: translate3d(-6%,  -50%, 0); opacity: .92; }
+          76%  { transform: translate3d(  2%,  -50%, 0); opacity: .00; }
+          100% { transform: translate3d(-52%, -50%, 0); opacity: .92; }
+        }
+        @keyframes svcRibbonShine{
+          0%   { transform: translate3d(-62%, -50%, 0); }
+          62%  { transform: translate3d(-6%,  -50%, 0); }
+          76%  { transform: translate3d(  2%,  -50%, 0); }
+          100% { transform: translate3d(-62%, -50%, 0); }
+        }
+        @media (max-width: 980px){
+          .svc-titleText::before, .svc-titleText::after{ left: -16px; }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-titleText::before, .svc-titleText::after{ animation:none !important; }
+          .svc-titleText::after{ display:none; }
+        }
 
         .svc-sub{
           margin-top: 14px;
           color: rgba(255,255,255,.70);
           font-size: 16px;
           line-height: 1.7;
-          max-width: 70ch;
+          max-width: 72ch;
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
-        /* pill */
-        .svc-pills{ margin-top: 14px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
-        .svc-rotPill{
-          position: relative;
-          display:inline-flex;
+        .svc-pills{
+          margin-top: 14px;
+          display:flex;
+          flex-wrap: wrap;
+          gap: 10px;
           align-items:center;
-          justify-content:center;
+        }
+
+        .svc-pill{
+          display:inline-flex; align-items:center; justify-content:center;
           height: 34px;
+          padding: 0 12px;
           border-radius: 999px;
-          border: 1px solid var(--tEdge);
-          background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.18), transparent 60%),
-            rgba(255,255,255,.04);
-          box-shadow: 0 10px 40px rgba(0,0,0,.35);
-          font-weight: 900;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.05);
+          color: rgba(255,255,255,.90);
+          font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
           transition: width .26s ease;
-          transform: translateZ(0);
-          overflow: hidden;
-          padding: 0 16px;
-          min-width: 96px;
+          overflow: hidden; /* never cut text with overflow in track */
         }
-        .svc-rotText{
-          display:block;
-          background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(170,225,255,.96), rgba(47,184,255,.95));
-          -webkit-background-clip:text;
-          background-clip:text;
-          color: transparent;
-          font-weight: 900;
-          font-size: 12px;
-          white-space: nowrap;
-          will-change: transform, opacity, filter;
-          transition: transform .24s ease, opacity .24s ease, filter .24s ease;
-        }
-        .svc-rotText.is-out{ opacity: 0; transform: translate3d(0,8px,0); filter: blur(1px); }
-        .svc-rotText.is-in{ opacity: 1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-        /* CTAs */
-        .svc-ctaRow{ margin-top: 18px; display:flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+        .svc-pill--rot{
+          padding: 0 14px;
+          max-width: min(360px, 92vw);
+          background:
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.18), transparent 60%),
+            rgba(255,255,255,.05);
+          border-color: rgba(47,184,255,.18);
+        }
+
+        .svc-pillMeasure{
+          position:absolute;
+          left:-9999px; top:-9999px;
+          opacity:0;
+          pointer-events:none;
+          white-space:nowrap;
+          font-weight: 800;
+          font-size: 12px;
+        }
+        .svc-pillMeasureText{ display:inline-block; }
+
+        .svc-pillRot-clip{
+          height: 34px;
+          overflow:hidden;
+          display:block;
+          width: 100%;
+        }
+        .svc-pillRot-track{
+          display:block;
+          will-change: transform;
+        }
+        .svc-pillRot-item{
+          height: 34px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding: 0 6px;
+        }
+
+        /* CTA row + hover “light sweep” (no underline, no arrow) */
+        .svc-ctaRow{
+          margin-top: 18px;
+          display:flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items:center;
+        }
+
         .svc-cta{
           position: relative;
           display:inline-flex;
           align-items:center;
           justify-content:center;
-          gap: 10px;
           height: 44px;
           padding: 0 16px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.18), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 900;
-          text-decoration:none !important;
-          outline: none;
-          transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
+          overflow:hidden;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
           transform: translateZ(0);
-          overflow: hidden;
         }
-        .svc-cta:visited{ color: rgba(255,255,255,.92); }
-        .svc-cta *{ text-decoration:none !important; }
-        .svc a, .svc a:hover{ text-decoration:none !important; }
-        .svc a::after{ display:none !important; }
-
         .svc-cta::before{
           content:"";
           position:absolute;
-          inset: -2px -45%;
+          inset:-2px;
           background: linear-gradient(
             110deg,
             transparent 0%,
-            rgba(255,255,255,.00) 35%,
-            rgba(170,225,255,.22) 45%,
-            rgba(47,184,255,.38) 50%,
-            rgba(170,225,255,.22) 55%,
-            transparent 70%,
+            transparent 35%,
+            rgba(255,255,255,.18) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.42) 55%,
+            transparent 65%,
             transparent 100%
           );
-          transform: translate3d(-60%,0,0);
-          opacity: 0;
-          transition: opacity .18s ease;
-          pointer-events:none;
+          transform: translate3d(-65%,0,0);
+          opacity: .9;
           mix-blend-mode: screen;
-          will-change: transform, opacity;
+          pointer-events:none;
+          will-change: transform;
         }
-        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.08); }
+        .svc-cta:hover{
+          transform: translate3d(0,-1px,0);
+          border-color: rgba(47,184,255,.24);
+          background: rgba(255,255,255,.08);
+        }
         .svc-cta:hover::before{
-          opacity: .95;
-          ${reduced ? "" : "animation: svcBtnSweep .85s ease-out 1;"}
+          ${reduced ? "" : "animation: svcBtnSweep 820ms ease-out 1;"}
         }
-        @keyframes svcBtnSweep{ 0%{ transform: translate3d(-70%,0,0);} 100%{ transform: translate3d(70%,0,0);} }
+        @keyframes svcBtnSweep{
+          0%{ transform: translate3d(-65%,0,0); }
+          100%{ transform: translate3d(65%,0,0); }
+        }
         @media (hover:none){
           .svc-cta:hover{ transform:none; }
-          .svc-cta:hover::before{ animation:none; }
+          .svc-cta:hover::before{ animation:none !important; }
         }
 
-        .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
-        .svc-ctaBtn{ cursor:pointer; appearance:none; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); }
-
-        /* BELOW grid */
-        .svc-below{
-          margin-top: 18px;
-          display:grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 18px;
-          align-items: start;
-        }
-        @media (max-width: 980px){
-          .svc-below{ grid-template-columns: 1fr; }
+        .svc-cta--ghost{
+          background: rgba(255,255,255,.04);
         }
 
-        /* dropdown */
-        .svc-ddSlot{ position: relative; width: 100%; height: auto; margin-top: 0; }
-        .svc-ddFrame{
+        /* Other services dropdown (normal flow under button => pushes ONLY the section below) */
+        .svc-drop{
           position: relative;
-          left: 0;
-          width: var(--ddw, 260px);
-          max-width: min(92vw, 520px);
-          margin-left: var(--ddx, 0px);
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(10,12,18,.72);
-          box-shadow: 0 26px 120px rgba(0,0,0,.65);
-          overflow: hidden;
-          backdrop-filter: blur(10px);
-
-          max-height: 0;
-          opacity: 0;
-          transform: translate3d(0,-6px,0);
-          margin-top: 0;
-          transition: max-height .34s ease, opacity .22s ease, transform .22s ease, margin-top .22s ease;
-          will-change: max-height, opacity, transform;
+          display:inline-block;
         }
-        .svc-ddFrame.is-open{
-          opacity: 1;
-          transform: translate3d(0,0,0);
-          max-height: var(--ddh, 360px);
-          margin-top: 12px;
-        }
-        .svc-ddInner{
-          padding: 10px;
-          display:flex;
-          flex-direction:column;
-          gap: 10px;
-        }
-        .svc-ddItem{
-          position: relative;
+        .svc-dropBtn{
           display:inline-flex;
           align-items:center;
-          justify-content:flex-start;
-          padding: 12px 12px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.08);
-          background:
-            radial-gradient(120% 120% at 18% 10%, rgba(47,184,255,.10), transparent 60%),
-            rgba(255,255,255,.03);
-          text-decoration:none !important;
+          justify-content:center;
+          gap: 8px;
+          height: 44px;
+          padding: 0 16px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
           color: rgba(255,255,255,.92);
           font-weight: 900;
-          font-size: 14px;
-          overflow: hidden;
-          white-space: nowrap;
+          cursor: pointer;
+          user-select:none;
+          position: relative;
+          overflow:hidden;
+        }
+        .svc-dropBtn::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.18) 45%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.42) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          transform: translate3d(-65%,0,0);
+          opacity: .9;
+          mix-blend-mode: screen;
+          pointer-events:none;
+          will-change: transform;
+        }
+        .svc-dropBtn:hover{ border-color: rgba(47,184,255,.24); background: rgba(255,255,255,.06); }
+        .svc-dropBtn:hover::before{ ${reduced ? "" : "animation: svcBtnSweep 820ms ease-out 1;"} }
 
+        .svc-caret{
+          width: 10px; height: 10px;
+          border-right: 2px solid rgba(255,255,255,.70);
+          border-bottom: 2px solid rgba(255,255,255,.70);
+          transform: rotate(45deg) translateY(-1px);
+          opacity:.9;
+          transition: transform .18s ease;
+        }
+        .svc-caret.is-open{ transform: rotate(225deg) translateY(1px); }
+
+        .svc-dropPanel{
+          width: 100%;
+          margin-top: 10px;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(12,14,20,.72);
+          box-shadow: 0 20px 80px rgba(0,0,0,.55);
+          overflow:hidden;
+
+          /* animation */
+          max-height: 0px;
+          opacity: 0;
+          transform: translate3d(0,-6px,0);
+          transition: max-height 420ms cubic-bezier(.2,.8,.2,1), opacity 240ms ease, transform 240ms ease;
+        }
+        .svc-dropPanel.is-open{
+          max-height: 420px; /* enough for 5 items */
+          opacity: 1;
+          transform: translate3d(0,0,0);
+        }
+
+        .svc-dropList{
+          padding: 10px;
+          display:flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .svc-dropItem{
+          position: relative;
+          display:flex;
+          align-items:center;
+          justify-content:flex-start;
+          width: 100%;
+          min-height: 46px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(0,0,0,.18);
+          color: rgba(255,255,255,.92);
+          font-weight: 900;
+          overflow:hidden;
+          transform: translateZ(0);
+        }
+        .svc-dropItem::before{
+          content:"";
+          position:absolute;
+          inset:-2px;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.14) 45%,
+            rgba(170,225,255,.48) 50%,
+            rgba(47,184,255,.38) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          transform: translate3d(-70%,0,0);
+          opacity: .9;
+          mix-blend-mode: screen;
+          pointer-events:none;
+          will-change: transform;
+        }
+        .svc-dropItem:hover{
+          border-color: rgba(47,184,255,.22);
+          background: rgba(255,255,255,.04);
+        }
+        .svc-dropItem:hover::before{
+          ${reduced ? "" : "animation: svcItemSweep 920ms ease-out 1;"}
+        }
+        @keyframes svcItemSweep{
+          0%{ transform: translate3d(-70%,0,0); }
+          100%{ transform: translate3d(70%,0,0); }
+        }
+
+        /* stagger “light up” on open */
+        .svc-dropPanel.is-open .svc-dropItem{
           opacity: 0;
           transform: translate3d(0,8px,0);
-          transition: opacity .24s ease, transform .24s ease, border-color .14s ease, background-color .14s ease;
+          animation: svcItemIn 420ms cubic-bezier(.2,.8,.2,1) forwards;
         }
-        .svc-ddItem.is-on{ opacity: 1; transform: translate3d(0,0,0); }
-        .svc-ddItem:hover{ border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.05); }
+        .svc-dropPanel.is-open .svc-dropItem:nth-child(1){ animation-delay: 40ms; }
+        .svc-dropPanel.is-open .svc-dropItem:nth-child(2){ animation-delay: 90ms; }
+        .svc-dropPanel.is-open .svc-dropItem:nth-child(3){ animation-delay: 140ms; }
+        .svc-dropPanel.is-open .svc-dropItem:nth-child(4){ animation-delay: 190ms; }
+        .svc-dropPanel.is-open .svc-dropItem:nth-child(5){ animation-delay: 240ms; }
 
-        /* cards */
-        .svc-card{
+        @keyframes svcItemIn{
+          to { opacity: 1; transform: translate3d(0,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-dropPanel, .svc-dropItem{ transition:none !important; animation:none !important; opacity:1 !important; transform:none !important; }
+        }
+
+        /* RIGHT VIDEO PANEL (fixed height so it won’t grow when dropdown opens) */
+        .svc-right{
+          min-width:0;
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.03);
-          padding: 16px 16px;
-          box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          overflow:hidden;
+          position:relative;
+          background: rgba(0,0,0,.22);
           contain: layout paint style;
+          height: 380px; /* fixed desktop */
         }
-        .svc-card__title{
-          display:flex; align-items:center; gap: 10px;
-          font-weight: 600;
-          color: rgba(255,255,255,.92);
-          letter-spacing: -.01em;
-          font-size: 22px;
+        @media (max-width: 980px){
+          .svc-right{ height: 280px; }
         }
-        @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
-        .svc-card__desc{ margin-top: 10px; color: rgba(255,255,255,.70); line-height: 1.7; font-size: 14px; }
+        .svc-videoWrap{
+          position: relative;
+          width: 100%;
+          height: 100%;
+          border-radius: 22px;
+          overflow:hidden;
+          transform: translateZ(0);
+          backface-visibility:hidden;
+        }
+        .svc-video{
+          position:absolute; inset:0;
+          width:100%; height:100%;
+          object-fit: cover;
+          display:block;
+          transform: translateZ(0);
+        }
 
-        .svc-feat{
-          display:flex; gap: 10px; align-items:flex-start;
-          padding: 10px 10px;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.07);
-          background: rgba(0,0,0,.18);
+        /* remove any “yellow tint” feel: keep scrim neutral */
+        .svc-videoScrim{
+          position:absolute; inset:0;
+          background:
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.48) 92%);
+          pointer-events:none;
         }
-        .svc-feat + .svc-feat{ margin-top: 10px; }
-        .svc-feat__tick{
-          width: 30px; height: 30px; border-radius: 12px;
-          display:flex; align-items:center; justify-content:center;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(47,184,255,.06);
-          color: rgba(170,225,255,.95);
-          flex: 0 0 auto;
-          ${reduced ? "" : "animation: svcTickBreath 1.35s ease-in-out infinite;"}
-        }
-        @keyframes svcTickBreath{
-          0%,100%{ transform: scale(1); box-shadow:none; opacity:.98; }
-          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
-        }
-        @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
-        .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
-        .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
-        /* badge */
         .svc-badge{
-          position:absolute; top: 12px; left: 12px; right: 12px;
-          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+          position:absolute; top:12px; left:12px; right:12px;
+          display:flex; align-items:center; justify-content: space-between; gap:10px;
           pointer-events:none;
         }
         .svc-badgeLeft{
-          display:inline-flex; align-items:center; gap: 10px;
+          display:inline-flex; align-items:center; gap:10px;
           padding: 9px 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
@@ -840,7 +909,7 @@ function ServicePage({
           font-size: 11px;
         }
         .svc-badgeRight{
-          display:inline-flex; align-items:center; gap: 8px;
+          display:inline-flex; align-items:center; gap:8px;
           padding: 9px 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
@@ -851,14 +920,77 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.28));
-          box-shadow: 0 0 0 4px rgba(47,184,255,.06);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.9));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
           0%,100%{ transform: scale(1); opacity:.95; }
           50%{ transform: scale(1.18); opacity:.80; }
         }
+
+        /* section cards */
+        .svc-section{
+          margin-top: 26px;
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+          align-items: start;
+        }
+        @media (max-width: 980px){
+          .svc-section{ grid-template-columns: 1fr; }
+        }
+        .svc-card{
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+          padding: 16px 16px;
+          box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          contain: layout paint style;
+        }
+        .svc-card__title{
+          display:flex; align-items:center; gap:10px;
+          font-weight: 600;
+          color: rgba(255,255,255,.92);
+          letter-spacing: -.01em;
+          font-size: 22px;
+        }
+        @media (min-width: 640px){
+          .svc-card__title{ font-size: 26px; }
+        }
+        .svc-card__desc{
+          margin-top: 10px;
+          color: rgba(255,255,255,.70);
+          line-height: 1.7;
+          font-size: 14px;
+        }
+
+        .svc-feat{
+          display:flex; gap:10px; align-items:flex-start;
+          padding:10px 10px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.07);
+          background: rgba(0,0,0,.18);
+        }
+        .svc-feat + .svc-feat{ margin-top: 10px; }
+        .svc-feat__tick{
+          width:30px; height:30px; border-radius:12px;
+          display:flex; align-items:center; justify-content:center;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(47,184,255,.10);
+          color: rgba(255,255,255,.92);
+          flex: 0 0 auto;
+        }
+        .svc-feat__tick--breath{
+          animation: svcTickBreath 1.6s ease-in-out infinite;
+          box-shadow: 0 0 0 4px rgba(47,184,255,.10);
+        }
+        @keyframes svcTickBreath{
+          0%,100%{ transform: scale(1); filter: saturate(1); }
+          50%{ transform: scale(1.08); filter: saturate(1.25); }
+        }
+        .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
+        .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
 
       <div className="container">
@@ -870,38 +1002,56 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              <div className="svc-title" data-reveal style={{ transitionDelay: "90ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+              <div className="svc-title" data-reveal style={{ transitionDelay: "60ms" }}>
+                <span className="svc-titleText">
+                  <span className="svc-grad svc-shimmer">{title}</span>
+                </span>
               </div>
 
-              <div className="svc-sub" data-reveal style={{ transitionDelay: "180ms" }}>
+              <div className="svc-sub" data-reveal style={{ transitionDelay: "140ms" }}>
                 {subtitle}
               </div>
 
-              <div className="svc-pills" data-reveal style={{ transitionDelay: "260ms" }}>
-                <RotatingPill items={pills} reduced={reduced} />
+              <div className="svc-pills" data-reveal style={{ transitionDelay: "210ms" }}>
+                <PillRotator items={pills} disabled={reduced} holdMs={1000} animMs={520} />
               </div>
 
-              <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "330ms" }}>
+              <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "280ms" }}>
                 <Link to={withLang("/contact", lang)} className="svc-cta">
                   {contact}
                 </Link>
 
-                <button
-                  ref={otherBtnRef}
-                  type="button"
-                  className="svc-cta svc-ctaBtn"
-                  onClick={() => setSvcOpen((v) => !v)}
-                  aria-expanded={svcOpen ? "true" : "false"}
-                  aria-haspopup="menu"
-                >
-                  {otherServicesLabel}
-                  <ChevronDown className="svc-ctaIcon" size={16} />
-                </button>
+                <div className="svc-drop" ref={dropRef}>
+                  <button
+                    type="button"
+                    className="svc-dropBtn"
+                    onClick={() => setOpen((v) => !v)}
+                    aria-expanded={open}
+                    aria-haspopup="true"
+                  >
+                    {other}
+                    <span className={cx("svc-caret", open && "is-open")} aria-hidden="true" />
+                  </button>
+
+                  <div className={cx("svc-dropPanel", open && "is-open")}>
+                    <div className="svc-dropList">
+                      {otherServices.map((s) => (
+                        <Link
+                          key={s.path}
+                          to={withLang(s.path, lang)}
+                          className="svc-dropItem"
+                          onClick={() => setOpen(false)}
+                        >
+                          {s.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="svc-right" data-reveal style={{ transitionDelay: "170ms" }}>
+            <div ref={rightRef} className="svc-right" data-reveal style={{ transitionDelay: "170ms" }}>
               <div className="svc-videoWrap">
                 <video
                   ref={vidRef}
@@ -911,7 +1061,7 @@ function ServicePage({
                   muted
                   loop
                   playsInline
-                  preload="metadata"
+                  preload="none"
                 />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
@@ -922,7 +1072,7 @@ function ServicePage({
                   </div>
                   <div className="svc-badgeRight">
                     <span className="svc-dot" />
-                    <span>SMM</span>
+                    <span>{canPlay ? "LIVE" : "READY"}</span>
                   </div>
                 </div>
               </div>
@@ -930,68 +1080,42 @@ function ServicePage({
           </div>
         </div>
 
-        <div className="svc-below">
-          <div>
-            <div ref={ddSlotRef} className="svc-ddSlot">
-              <div
-                className={cx("svc-ddFrame", svcOpen && "is-open")}
-                style={
-                  {
-                    ["--ddh" as any]: `${Math.max(0, ddH + 20)}px`,
-                    ["--ddw" as any]: ddW ? `${ddW}px` : undefined,
-                    ["--ddx" as any]: `${ddX}px`,
-                  } as any
-                }
-              >
-                <div ref={ddInnerRef} className="svc-ddInner" role="menu" aria-label="Services">
-                  {dropdownItems.map((s, i) => (
-                    <Link
-                      key={s.id}
-                      to={withLang(s.path, lang)}
-                      className={cx("svc-ddItem", svcOpen && i < openSeq && "is-on")}
-                      onClick={() => setSvcOpen(false)}
-                    >
-                      {s.title(lang)}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+        <div className="svc-section">
+          <div className="svc-card" data-reveal>
+            <div className="svc-card__title">
+              <CalendarClock size={18} />
+              <span className="svc-grad svc-shimmer">
+                {lang === "az" ? "Plan & Paylaşım" : "Plan & Publish"}
+              </span>
             </div>
-
-            <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
-              <div className="svc-card__title">
-                <CalendarClock size={18} />
-                <span className="svc-grad svc-shimmer">{lang === "az" ? "Plan & Publish" : "Plan & Publish"}</span>
-              </div>
-              <div className="svc-card__desc">
-                {lang === "az"
-                  ? "Kontent təqvimi, avtomatik paylaşım, təkrarlanan kampaniyalar və ardıcıl post axınları — hamısı bir yerdə."
-                  : "Content calendar, automated publishing and recurring campaigns in one flow."}
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <Feature title={lang === "az" ? "Automation" : "Automation"} desc={lang === "az" ? "Schedule, repost, multi-channel publishing." : "Schedule, repost, multi-channel publishing."} />
-                <Feature title={lang === "az" ? "Campaigns" : "Campaigns"} desc={lang === "az" ? "Funnel üçün ardıcıl post axınları və təkrarlanan kampaniyalar." : "Sequenced funnel campaigns and recurring flows."} />
-                <Feature title={lang === "az" ? "Content system" : "Content system"} desc={lang === "az" ? "Kontent bankı, şablonlar, həftəlik plan və təsdiq prosesi." : "Content bank, templates, weekly plans and approvals."} />
-              </div>
+            <div className="svc-card__desc">
+              {lang === "az"
+                ? "Kontent təqvimi, avtomatik paylaşım, təkrarlanan kampaniyalar və ardıcıl post axınları — hamısı bir yerdə."
+                : "Content calendar, automated publishing and recurring campaigns in one flow."}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              {featuresLeft.map((f) => (
+                <Feature key={f.title} title={f.title} desc={f.desc} reduced={reduced} />
+              ))}
             </div>
           </div>
 
-          <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
+          <div className="svc-card" data-reveal style={{ transitionDelay: "90ms" }}>
             <div className="svc-card__title">
               <BarChart3 size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "Analytics & Growth" : "Analytics & Growth"}</span>
+              <span className="svc-grad svc-shimmer">
+                {lang === "az" ? "Analitika & Growth" : "Analytics & Growth"}
+              </span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
                 ? "Post performansı, lead dönüşümü, DM cavab sürəti — ölç, artır və optimallaşdır."
                 : "Measure post performance, lead conversion and DM response speed — then optimize."}
             </div>
-
             <div style={{ marginTop: 12 }}>
-              <Feature title={lang === "az" ? "Metrics" : "Metrics"} desc={lang === "az" ? "Engagement, CTR, conversion, cost və trend izləmə." : "Engagement, CTR, conversion, cost and trends."} />
-              <Feature title={lang === "az" ? "Optimize" : "Optimize"} desc={lang === "az" ? "A/B test, audit, təkmilləşdirmə və təkliflər." : "A/B tests, audits, improvements and suggestions."} />
-              <Feature title={lang === "az" ? "DM → Lead" : "DM → Lead"} desc={lang === "az" ? "DM-lərdən lead çıxarma, etiketləmə və sürətli cavab axını." : "Turn DMs into leads with tags and fast reply flows."} />
+              {featuresRight.map((f) => (
+                <Feature key={f.title} title={f.title} desc={f.desc} reduced={reduced} />
+              ))}
             </div>
           </div>
         </div>
@@ -1003,15 +1127,37 @@ function ServicePage({
 export default memo(function ServiceSmmAutomation() {
   useTranslation();
 
+  // labels in AZ (like your menu screenshot)
+  const otherServices: OtherService[] = [
+    { label: "Chatbot 24/7", path: "/services/chatbot-24-7" },
+    { label: "Business Workflows", path: "/services/business-workflows" },
+    { label: "Websaytlar", path: "/services/websites" },
+    { label: "Mobile Apps", path: "/services/mobile-apps" },
+    { label: "Technical Support", path: "/services/technical-support" },
+  ];
+
   return (
     <ServicePage
-      tint="cyan" /* ✅ NEOX blue (no yellow) */
+      tint="amber"
       kicker={"SERVICES"}
       title={"SMM avtomatlaşdırılması"}
-      subtitle={"Kontent planı, paylaşım avtomatikası, DM/lead axını, analitika və müştəri suallarını AI ilə cavablandırma — hamısı bir sistemdə."}
+      subtitle={
+        "Kontent planı, paylaşım avtomatikası, DM/lead axını, analitika və müştəri suallarını AI ilə cavablandırma — hamısı bir sistemdə."
+      }
       icon={Megaphone}
-      pills={["DM/Leads", "Auto publish", "Analytics", "Campaigns", "AI replies"]}
+      pills={["Plan", "Auto publish", "DM/Leads", "Analytics", "AI replies"]}
+      featuresLeft={[
+        { title: "Automation", desc: "Schedule, repost, multi-channel publishing." },
+        { title: "Campaigns", desc: "Funnel üçün ardıcıl post axınları və təkrarlanan kampaniyalar." },
+        { title: "Content system", desc: "Kontent bankı, şablonlar, həftəlik plan və təsdiq prosesi." },
+      ]}
+      featuresRight={[
+        { title: "Metrics", desc: "Engagement, CTR, conversion, cost və trend izləmə." },
+        { title: "Optimize", desc: "A/B test, audit, təkmilləşdirmə və təkliflər." },
+        { title: "DM → Lead", desc: "DM-lərdən lead çıxarma, etiketləmə və sürətli cavab axını." },
+      ]}
       videoUrl={VIDEO_URL}
+      otherServices={otherServices}
     />
   );
 });
