@@ -65,7 +65,7 @@ function langFullName(c: Lang) {
   }
 }
 
-/** ✅ Sənin əlavə etdiyin 5 ikon (public/social/*) — hələlik yalnız Chatbot 24/7 üçün */
+/** ✅ Sənin public/social içindəki 5 ikon — yalnız Chatbot 24/7 üçün */
 const CHATBOT_SOCIAL_LOGOS = [
   "/social/whatsapp.svg",
   "/social/telegram.svg",
@@ -74,34 +74,25 @@ const CHATBOT_SOCIAL_LOGOS = [
   "/social/linkedin.svg",
 ];
 
-/** Row-level holo marquee: yalnız hover olunan sətirdə çalışır (FPS safe). */
-function RowHolo({
-  logos,
-  active,
-  reduced,
-}: {
-  logos: string[];
-  active: boolean;
-  reduced: boolean;
-}) {
+/** Row-level holo trail: pill YOX, sadəcə hover olanda sağda axır (FPS-safe). */
+function RowHolo({ logos, active, reduced }: { logos: string[]; active: boolean; reduced: boolean }) {
   const list = logos?.length ? logos : [];
   const doubled = useMemo(() => (list.length ? [...list, ...list] : []), [list]);
 
   if (!list.length) return null;
 
   return (
-    <div className={cx("svcHolo", active && "is-on")} aria-hidden={!active}>
-      <div className={cx("svcHolo__track", reduced && "is-reduced", active && "is-run")}>
+    <div className={cx("svcHoloFloat", active && "is-on")} aria-hidden={!active}>
+      <div className={cx("svcHoloFloat__track", reduced && "is-reduced", active && "is-run")}>
         {doubled.map((src, i) => {
           const isLinkedIn = src.includes("/linkedin.svg");
           return (
-            <span className={cx("svcHolo__cell", isLinkedIn && "is-li")} key={`${src}-${i}`}>
-              <img className="svcHolo__img" src={src} alt="" loading="lazy" decoding="async" />
+            <span className={cx("svcHoloFloat__cell", isLinkedIn && "is-li")} key={`${src}-${i}`}>
+              <img className="svcHoloFloat__img" src={src} alt="" loading="lazy" decoding="async" />
             </span>
           );
         })}
       </div>
-      <span className="svcHolo__glow" />
     </div>
   );
 }
@@ -137,33 +128,25 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const navigate = useNavigate();
   const panelId = useId();
 
-  // portal mount
   const [mounted, setMounted] = useState(false);
-
-  // responsive
   const [isMobile, setIsMobile] = useState(false);
 
-  // header blur on scroll (no loop)
   const headerRef = useRef<HTMLElement | null>(null);
   const [scrolled, setScrolled] = useState(false);
 
-  // desktop dropdown open state (single)
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
 
-  // active hovered item inside dropdowns
   const [svcActive, setSvcActive] = useState<ServiceId>("chatbot-24-7");
   const [ucActive, setUcActive] = useState<ScenarioId>("finance");
 
-  // mobile overlay
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSoft, setMobileSoft] = useState(false);
   const [mSvc, setMSvc] = useState(false);
   const [mUc, setMUc] = useState(false);
   const [mRes, setMRes] = useState(false);
 
-  // refs for click-outside desktop
   const svcRef = useRef<HTMLDivElement | null>(null);
   const ucRef = useRef<HTMLDivElement | null>(null);
   const resRef = useRef<HTMLDivElement | null>(null);
@@ -215,10 +198,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  /**
-   * Use Cases: səndə hazırda query-lidir
-   *   /:lang/use-cases?scenario=finance
-   */
   const USECASES: ItemDef[] = useMemo(
     () => [
       { id: "finance", label: "Finance", sub: "KYC-safe routing • demo funnel • handoff", to: "/use-cases?scenario=finance" },
@@ -239,7 +218,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // scroll blur with css var --hdrp
   useEffect(() => {
     let raf = 0;
     let prevOn = false;
@@ -269,7 +247,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, []);
 
-  // set --hdrh
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -292,7 +269,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, []);
 
-  // close on route change
   useEffect(() => {
     setOpenMenu(null);
     setMobileOpen(false);
@@ -302,7 +278,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setMRes(false);
   }, [location.pathname, location.search]);
 
-  // lock body scroll for mobile overlay
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
@@ -322,7 +297,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => cancelAnimationFrame(r);
   }, [mobileOpen]);
 
-  // click outside desktop dropdowns
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!openMenu) return;
@@ -370,12 +344,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const isActivePath = (needle: string) => location.pathname.toLowerCase().includes(needle);
 
-  /**
-   * ✅ SERVICES PANEL (YENİ):
-   * - Böyük sağ panel YOX
-   * - Dropdown list qalır
-   * - Yalnız Chatbot 24/7 hover olanda, həmin sətirdə sağda holo logo axını çıxır
-   */
+  /** ✅ SERVICES (only list + chatbot row holo) */
   const ServicesPanel = (
     <div className="hPanel hPanel--svcSimple" role="menu" aria-label="Services menu" aria-hidden={openMenu !== "services"}>
       <div className="svcList" role="presentation">
@@ -410,7 +379,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </div>
   );
 
-  // ✅ Hələlik toxunmuruq (sonra istəyə görə eyni sistemə salarıq)
   const UseCasesPanel = (
     <div className="hPanel" role="menu" aria-label="Use cases menu" aria-hidden={openMenu !== "usecases"}>
       <div className="hPanel__grid">
@@ -429,9 +397,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               >
                 <span className="hItem__top">
                   <span className="hItem__label">{u.label}</span>
-                  <span className="hItem__arrow" aria-hidden="true">
-                    →
-                  </span>
+                  <span className="hItem__arrow" aria-hidden="true">→</span>
                 </span>
                 <span className="hItem__sub">{u.sub}</span>
               </NavLink>
@@ -466,7 +432,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* əvvəlki kimi qalır (sonra istəsən HOLO_LOGOS-ları da düzəldərik) */}
           <HoloStrip logos={[]} reduced={prefersReduced} />
 
           <div className="hDetailCTA">
@@ -496,9 +461,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             >
               <span className="hItem__top">
                 <span className="hItem__label">{r.label}</span>
-                <span className="hItem__arrow" aria-hidden="true">
-                  →
-                </span>
+                <span className="hItem__arrow" aria-hidden="true">→</span>
               </span>
               <span className="hItem__sub">{r.sub}</span>
             </NavLink>
@@ -552,13 +515,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        /* hard rules */
         .hX, .hX *{ box-sizing:border-box; }
         .hX a, .hX a:hover, .hX a:focus, .hX a:active{ text-decoration:none !important; }
         .hX a{ color: inherit; }
         .hX :focus-visible{ outline: none; box-shadow: 0 0 0 3px rgba(120,170,255,.18); border-radius: 14px; }
 
-        /* fixed, portal-safe */
         .hX{
           position: fixed;
           top: 0; left: 0; right: 0;
@@ -609,7 +570,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
         }
 
-        /* top links / titles */
         .hTop{
           position: relative;
           display:inline-flex;
@@ -662,25 +622,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateX(-50%) translateY(0) scale(1);
         }
 
-        /* ✅ Services dropdown: daha dar, “mega panel” hissi yox */
-        .hDD__panelWrap--svc{ width: 520px; }
+        /* Services: smaller dropdown */
+        .hDD__panelWrap--svc{ width: 560px; }
 
-        /* panel layout (default) */
         .hPanel{ width: 100%; }
-        .hPanel__grid{ display:grid; grid-template-columns: 360px 1fr; min-height: 360px; }
-        .hPanel__list{
-          padding: 14px 12px;
-          border-right: 1px solid rgba(255,255,255,.08);
-          background: rgba(255,255,255,.02);
-        }
-        .hPanel__detail{ padding: 16px 16px 14px; position: relative; overflow:hidden; }
 
-        .hPanel--small .hPanel__grid{ min-height: 260px; }
-        .hPanel__grid--small{ grid-template-columns: 380px 1fr; }
-        .hPanel__list--small{ padding: 14px 12px; }
-        .hPanel__detail--small{ padding: 16px 16px 14px; }
-
-        /* ✅ Services simple list */
+        /* ✅ Services list only */
         .hPanel--svcSimple{ padding: 12px; }
         .svcList{ display:flex; flex-direction:column; gap: 10px; }
 
@@ -706,86 +653,93 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
 
         .svcRow__left{ min-width: 0; display:flex; flex-direction:column; }
-        .svcRow__top{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
         .svcRow__label{ font-weight: 950; font-size: 13px; color: rgba(255,255,255,.95); }
         .svcRow__sub{ display:block; margin-top: 6px; font-size: 12px; line-height: 1.25; color: rgba(255,255,255,.62); }
 
         .svcRow__right{
+          position: relative;
           flex: 0 0 auto;
           display:flex;
           align-items:center;
           gap: 10px;
           min-width: 0;
         }
+
+        /* ✅ OX düyməsi */
         .svcRow__arrow{
-          opacity:.78;
+          opacity:.82;
           font-weight: 950;
-          padding: 8px 10px;
+          padding: 10px 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(0,0,0,.18);
         }
 
-        /* Row holo marquee (only on active row => FPS) */
-        .svcHolo{
-          width: 180px;
-          height: 36px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(0,0,0,.16);
-          overflow:hidden;
-          position:relative;
+        /* ✅ HOLO TRAIL (NO PILL) */
+        .svcHoloFloat{
+          width: 280px;
+          height: 32px;
+          position: relative;
           opacity: 0;
-          transform: translateX(6px);
+          transform: translateX(10px);
           transition: opacity .14s ease, transform .14s ease;
           pointer-events:none;
         }
-        .svcHolo.is-on{ opacity: 1; transform: translateX(0); }
-        .svcHolo__glow{
-          position:absolute; inset:-40px -70px;
-          background:
-            radial-gradient(220px 80px at 20% 30%, rgba(120,170,255,.18), transparent 60%),
-            radial-gradient(220px 80px at 78% 60%, rgba(63,227,196,.12), transparent 65%);
-          filter: blur(12px);
-          opacity: .75;
-          pointer-events:none;
-        }
+        .svcHoloFloat.is-on{ opacity: 1; transform: translateX(0); }
 
-        .svcHolo__track{
+        .svcHoloFloat__track{
           position:absolute; inset:0;
           display:flex;
-          gap: 10px;
-          padding: 8px 10px;
+          gap: 14px;
           align-items:center;
           will-change: transform;
           transform: translate3d(0,0,0);
+          animation: none;
         }
-        /* default: no animation unless active */
-        .svcHolo__track{ animation: none; }
-        .svcHolo__track.is-run{ animation: svcMove 6.5s linear infinite; }
-        .svcHolo__track.is-reduced{ animation: none !important; }
+        .svcHoloFloat__track.is-run{ animation: svcFloatMove 6.2s linear infinite; }
+        .svcHoloFloat__track.is-reduced{ animation: none !important; }
 
-        @keyframes svcMove{
+        @keyframes svcFloatMove{
           from{ transform: translate3d(0,0,0); }
           to{ transform: translate3d(-50%,0,0); }
         }
 
-        .svcHolo__cell{
-          width: 22px; height: 22px;
-          display:flex; align-items:center; justify-content:center;
-          border-radius: 10px;
+        .svcHoloFloat__cell{
+          width: 28px;
+          height: 28px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          border-radius: 999px;
+          box-shadow:
+            0 0 0 1px rgba(120,170,255,.10) inset,
+            0 10px 28px rgba(0,0,0,.32);
         }
-        /* hamısı eyni ölçü */
-        .svcHolo__img{
-          width: 22px;
-          height: 22px;
+        .svcHoloFloat__img{
+          width: 28px;
+          height: 28px;
           display:block;
           object-fit: contain;
           opacity: .98;
-          filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
         }
-        /* LinkedIn optik kompensasiya */
-        .svcHolo__cell.is-li .svcHolo__img{ transform: scale(1.08); transform-origin:center; }
+        .svcHoloFloat__cell.is-li .svcHoloFloat__img{
+          transform: scale(1.10);
+          transform-origin:center;
+        }
+
+        /* ====== OLD PANELS (usecases/resources) keep as-is ====== */
+        .hPanel__grid{ display:grid; grid-template-columns: 360px 1fr; min-height: 360px; }
+        .hPanel__list{
+          padding: 14px 12px;
+          border-right: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.02);
+        }
+        .hPanel__detail{ padding: 16px 16px 14px; position: relative; overflow:hidden; }
+
+        .hPanel--small .hPanel__grid{ min-height: 260px; }
+        .hPanel__grid--small{ grid-template-columns: 380px 1fr; }
+        .hPanel__list--small{ padding: 14px 12px; }
+        .hPanel__detail--small{ padding: 16px 16px 14px; }
 
         .hItem{
           display:block;
@@ -830,7 +784,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           max-width: 520px;
         }
 
-        /* premium buttons */
         .hBtn{
           display:inline-flex; align-items:center; justify-content:center;
           height: 40px;
@@ -848,7 +801,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hBtn__arr{ margin-left: 8px; opacity: .85; }
         .hDetailCTA{ margin-top: 14px; display:flex; gap: 10px; flex-wrap: wrap; }
 
-        /* hologram logo marquee (existing) */
         .hHolo{
           position: relative;
           margin-top: 12px;
@@ -895,7 +847,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           filter: blur(10px);
         }
 
-        /* Usecases “terminal strip” */
         .hTermLite{
           margin-top: 12px;
           border-radius: 16px;
@@ -925,7 +876,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hTermLite__prompt{ color: rgba(120,170,255,.82); font-weight: 900; }
         .hTermLite__txt{ opacity:.92; }
 
-        /* right side */
         .hLangWrap{ position: relative; display:inline-flex; }
         .hLangBtn{
           display:inline-flex; align-items:center; gap: 8px;
@@ -947,6 +897,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 0 0 3px rgba(120,170,255,.10);
         }
         .hLangCode{ letter-spacing: .12em; }
+
         .hLangPanel{
           position:absolute;
           top: calc(100% + 12px);
@@ -986,7 +937,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .hLangItem.is-active{ background: rgba(120,170,255,.10); border-color: rgba(120,170,255,.22); }
         .hLangItem__code{ font-weight: 950; letter-spacing: .12em; width: 34px; text-align:left; }
 
-        /* hover reveal pill to the LEFT */
         .hLangItem__reveal{
           position:absolute;
           right: calc(100% + 10px);
@@ -1012,7 +962,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 18px 60px rgba(0,0,0,.55);
         }
 
-        /* mobile */
         .hBurger{
           width: 46px; height: 40px;
           border-radius: 14px;
@@ -1128,7 +1077,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
         @media (max-width: 1060px){
           .hDD__panelWrap{ width: 780px; }
-          .hDD__panelWrap--svc{ width: 500px; }
+          .hDD__panelWrap--svc{ width: 520px; }
           .hPanel__grid{ grid-template-columns: 340px 1fr; }
         }
         @media (max-width: 920px){
@@ -1171,7 +1120,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </Link>
           </div>
 
-          {/* DESKTOP TITLES */}
           <nav className="hX__m" aria-label="Primary navigation">
             <NavLink to={withLang("/")} end className={({ isActive }) => cx("hTop", isActive && "is-active")}>
               {t("nav.home")}
@@ -1196,7 +1144,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 </span>
               </button>
 
-              {/* ✅ Services: small panel (no big detail) */}
               <div className="hDD__panelWrap hDD__panelWrap--svc">{ServicesPanel}</div>
             </div>
 
@@ -1255,9 +1202,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </NavLink>
           </nav>
 
-          {/* RIGHT */}
           <div className="hX__r">
-            {/* LANG (hover open) */}
             <div
               ref={langRef}
               className={cx("hDD", "hLangWrap", openMenu === "lang" && "is-open")}
@@ -1282,7 +1227,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
               {LangPanel}
             </div>
 
-            {/* MOBILE BUTTON */}
             <button
               className="hBurger"
               type="button"
@@ -1300,7 +1244,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </div>
       </div>
 
-      {/* MOBILE OVERLAY (same links, same structure) */}
       {createPortal(
         <div className={cx("hMOv", mobileOpen && "is-mounted", mobileSoft && "is-open")} aria-hidden={!mobileOpen}>
           <button className="hMOv__bg" type="button" aria-label="Close" onClick={closeMobile} />
@@ -1369,7 +1312,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 {t("nav.contact")} <span aria-hidden="true">→</span>
               </NavLink>
 
-              {/* Lang quick row (desktop hover; mobile click) */}
               <div className="hAcc">
                 <button className="hAcc__head" type="button" onClick={() => setOpenMenu((v) => (v === "lang" ? null : "lang"))}>
                   Language ({lang.toUpperCase()}) <span aria-hidden="true">+</span>
