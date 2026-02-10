@@ -22,7 +22,6 @@ function cloudinaryAuto(url: string) {
 }
 const VIDEO_URL = cloudinaryAuto(RAW_VIDEO);
 
-/** ✅ CYAN palette */
 const TINTS = {
   cyan: {
     a: "rgba(47,184,255,.22)",
@@ -59,7 +58,6 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/** Smooth reveal-on-scroll */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
@@ -98,9 +96,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-/**
- * ✅ Pill Rotator — adaptive width (and SEO can shrink more)
- */
+/** ✅ Rotator pill — width hugs text (SEO daha da kiçik) */
 function PillRotator({
   items,
   intervalMs = 2200,
@@ -127,8 +123,8 @@ function PillRotator({
 
     const textW = Math.ceil(el.getBoundingClientRect().width);
 
-    const PAD = 28; // same as visible pill (14+14)
-    const MIN = 82; // ✅ smaller so "SEO" becomes tighter
+    const PAD = 28; // 14 + 14
+    const MIN = 76; // ✅ SEO üçün daha “tight”
     const MAX = 420;
 
     const next = Math.max(MIN, Math.min(MAX, textW + PAD));
@@ -138,9 +134,7 @@ function PillRotator({
   useLayoutEffect(() => {
     doMeasure();
     const fonts = (document as any).fonts;
-    if (fonts?.ready?.then) {
-      fonts.ready.then(() => doMeasure()).catch(() => {});
-    }
+    if (fonts?.ready?.then) fonts.ready.then(() => doMeasure()).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curIdx]);
 
@@ -176,7 +170,6 @@ function PillRotator({
 
   return (
     <span className="svc-pill svc-pill--rot" aria-label={safe[curIdx]} style={w ? ({ width: `${w}px` } as any) : undefined}>
-      {/* hidden measurer */}
       <span className="svc-pillMeasure" aria-hidden="true">
         {safe.map((t, idx) => (
           <span
@@ -307,11 +300,9 @@ function ServicePage({
         .svc a{ text-decoration:none !important; }
         .svc a:hover{ text-decoration:none !important; }
 
-        /* soft enter */
         .svc{ opacity: 0.01; transform: translate3d(0,6px,0); transition: opacity .55s ease, transform .55s ease; }
         .svc.svc--in{ opacity: 1; transform: translate3d(0,0,0); }
 
-        /* reveal */
         [data-reveal]{
           opacity: 0;
           transform: translate3d(0,10px,0);
@@ -325,28 +316,12 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* TEXT SWEEP */
+        /* sweep text */
         .svc-sweepText{
           display:inline-block;
           background-image:
-            linear-gradient(
-              90deg,
-              #ffffff 0%,
-              rgba(170,225,255,.98) 34%,
-              rgba(47,184,255,1) 68%,
-              rgba(42,125,255,1) 100%
-            ),
-            linear-gradient(
-              110deg,
-              transparent 0%,
-              transparent 34%,
-              rgba(255,255,255,.30) 44%,
-              rgba(255,255,255,.92) 50%,
-              rgba(170,225,255,.70) 53%,
-              rgba(47,184,255,.45) 56%,
-              transparent 66%,
-              transparent 100%
-            );
+            linear-gradient(90deg,#fff 0%, rgba(170,225,255,.98) 34%, rgba(47,184,255,1) 68%, rgba(42,125,255,1) 100%),
+            linear-gradient(110deg, transparent 0%, transparent 34%, rgba(255,255,255,.30) 44%, rgba(255,255,255,.92) 50%, rgba(170,225,255,.70) 53%, rgba(47,184,255,.45) 56%, transparent 66%, transparent 100%);
           background-size: 100% 100%, 360% 100%;
           background-position: 0 0, -220% 0;
           -webkit-background-clip: text;
@@ -355,17 +330,76 @@ function ServicePage({
           will-change: background-position;
           ${reduced ? "" : "animation: svcTextSweep 2.2s linear infinite;"}
         }
-        @keyframes svcTextSweep{
-          0%   { background-position: 0 0, -220% 0; }
-          100% { background-position: 0 0,  220% 0; }
+        @keyframes svcTextSweep{ 0%{background-position:0 0,-220% 0} 100%{background-position:0 0,220% 0} }
+        @media (prefers-reduced-motion: reduce){ .svc-sweepText{ animation:none !important; } }
+
+        .svc-hero{
+          position: relative;
+          border-radius: 26px;
+          border: 1px solid rgba(255,255,255,.08);
+          background:
+            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.08), transparent 62%),
+            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
+            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
+            rgba(10,12,18,.55);
+          box-shadow: 0 26px 120px rgba(0,0,0,.55);
+          overflow:hidden; /* ✅ ölçünü sabit saxlayır */
+          contain: layout paint style;
         }
-        @media (prefers-reduced-motion: reduce){
-          .svc-sweepText{ animation:none !important; }
+        .svc-hero::after{
+          content:"";
+          position:absolute; inset:0;
+          pointer-events:none;
+          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
+          opacity:.9;
         }
 
-        /* ===== TITLE (MobileApps style) ===== */
+        .svc-hero__inner{
+          position:relative;
+          z-index:1;
+          padding: 28px 22px;  /* ✅ əvvəlki ölçü */
+          display:grid;
+          grid-template-columns: 1.02fr .98fr;
+          gap: 18px;
+          align-items: stretch;
+          min-width:0;
+        }
+        @media (max-width: 980px){
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
+        }
+
+        .svc-left{ min-width:0; }
+
+        /* ✅ SERVICES pill — bir az yuxarı, amma hero içində, LENT onu kəsmir */
+        .svc-kicker{
+          display:inline-flex;
+          align-items:center;
+          gap:10px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.42); /* glow bleed olmasın */
+          color: rgba(255,255,255,.76);
+          font-size: 12px;
+          letter-spacing:.14em;
+          text-transform: uppercase;
+
+          /* ✅ sadəcə azca yuxarı */
+          transform: translate3d(0,-8px,0);
+          position: relative;
+          z-index: 10; /* ✅ title shimmer layer-dən yuxarı */
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+        .svc-kdot{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
+        }
+
+        /* title */
         .svc-title{
-          margin-top: 14px;
+          margin-top: 10px; /* ✅ kicker yuxarı qalxdığı üçün balans */
           font-size: 40px;
           line-height: 1.05;
           font-weight: 600;
@@ -375,22 +409,17 @@ function ServicePage({
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
         .svc-grad{
-          background: linear-gradient(
-            90deg,
-            #ffffff 0%,
-            rgba(170,225,255,.96) 34%,
-            rgba(47,184,255,.95) 68%,
-            rgba(42,125,255,.95) 100%
-          );
+          background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
           -webkit-background-clip:text;
           background-clip:text;
           color:transparent;
-
           position: relative;
           display: inline-block;
           isolation: isolate;
+          z-index: 2;
         }
 
+        /* ✅ shimmer band ONLY on title, and always under kicker (kicker z=10) */
         .svc-grad.svc-shimmer::after{
           content:"";
           position:absolute;
@@ -411,6 +440,7 @@ function ServicePage({
           transform: translate3d(-40%,0,0);
           will-change: transform;
           ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+          z-index: 1;
         }
         @keyframes svcShine{
           0%{ transform: translate3d(-55%,0,0); }
@@ -429,74 +459,6 @@ function ServicePage({
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
-        .svc-hero{
-          position: relative;
-          border-radius: 26px;
-          border: 1px solid rgba(255,255,255,.08);
-          background:
-            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.08), transparent 62%),
-            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
-            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
-            rgba(10,12,18,.55);
-          box-shadow: 0 26px 120px rgba(0,0,0,.55);
-
-          /* ✅ IMPORTANT: allow kicker to sit “above” without being covered */
-          overflow: visible;
-          contain: layout paint style;
-        }
-        .svc-hero::after{
-          content:"";
-          position:absolute; inset:0;
-          pointer-events:none;
-          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
-          opacity:.9;
-          border-radius: 26px;
-        }
-
-        .svc-hero__inner{
-          position:relative;
-          z-index:1;
-          padding: 28px 22px;
-          display:grid;
-          grid-template-columns: 1.02fr .98fr;
-          gap: 18px;
-          align-items: stretch;
-          min-width:0;
-        }
-        @media (max-width: 980px){
-          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
-        }
-
-        .svc-left{ min-width:0; position: relative; }
-
-        /* ✅ SERVICES PILL — out of glow zone (absolute on top-left of hero) */
-        .svc-kicker{
-          position: absolute;
-          top: -18px;   /* ✅ lifts above hero so glow never crosses it */
-          left: 14px;
-
-          display:inline-flex; align-items:center; gap:10px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.55);  /* ✅ solid chip, prevents glow bleed */
-          padding: 10px 14px;
-          border-radius: 999px;
-          font-size: 12px;
-          letter-spacing: .14em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,.78);
-
-          z-index: 20;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          box-shadow: 0 18px 60px rgba(0,0,0,.45);
-        }
-        .svc-kdot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: rgba(47,184,255,1);
-          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
-        }
-
-        /* pills */
         .svc-pills{
           margin-top: 14px;
           display:flex;
@@ -517,13 +479,11 @@ function ServicePage({
           white-space: nowrap;
           position: relative;
         }
-
         .svc-pill--rot{
           width: auto;
           max-width: min(420px, 92vw);
-          transition: width 240ms cubic-bezier(.2,.8,.2,1);
+          transition: width 220ms cubic-bezier(.2,.8,.2,1);
         }
-
         .svc-pillMeasure{
           position:absolute;
           left:-9999px; top:-9999px;
@@ -533,7 +493,6 @@ function ServicePage({
           font-weight: 800;
         }
         .svc-pillMeasureItem{ display:inline-block; }
-
         .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; width:100%; }
         .svc-pillRot-track{ display:block; will-change: transform; }
         .svc-pillRot-item{
@@ -546,7 +505,7 @@ function ServicePage({
           padding: 0 2px;
         }
 
-        /* CTA (unchanged — you said buttons are perfect) */
+        /* buttons (unchanged) */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -610,20 +569,14 @@ function ServicePage({
           opacity: .98;
           ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
         }
-        @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-70%,0,0); }
-          100%{ transform: translate3d(70%,0,0); }
-        }
+        @keyframes svcBtnSweep{ 0%{transform:translate3d(-70%,0,0)} 100%{transform:translate3d(70%,0,0)} }
         @media (hover: none){
           .svc-cta:hover{ transform:none; }
           .svc-cta:hover::before{ opacity:0; animation:none; }
         }
-        .svc-cta--ghost{
-          background: rgba(255,255,255,.04);
-          border-color: rgba(255,255,255,.10);
-        }
+        .svc-cta--ghost{ background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
 
-        /* VIDEO */
+        /* video */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -739,7 +692,6 @@ function ServicePage({
           background: rgba(0,0,0,.18);
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
-
         .svc-feat__tick{
           width:30px; height:30px; border-radius:12px;
           display:flex; align-items:center; justify-content:center;
@@ -754,7 +706,6 @@ function ServicePage({
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
           50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
-
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
