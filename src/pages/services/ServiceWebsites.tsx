@@ -189,7 +189,7 @@ function ServicePage({
 
   const T = TINTS[tint];
 
-  // ✅ Websites: video loops (user asked)
+  // ✅ Websites: video loops
   const vidRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const v = vidRef.current;
@@ -308,7 +308,10 @@ function ServicePage({
         }
 
         /* =========================
-           ✅ TITLE LENTA (ONLY H1) — TechSupport palette
+           ✅ TITLE LENTA (ONLY H1)
+           - comes from left
+           - fades out while "entering" the video side
+           - restarts again (loop)
         ========================= */
         .svc-grad{
           background: linear-gradient(
@@ -322,6 +325,7 @@ function ServicePage({
           background-clip:text;
           color:transparent;
         }
+
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -330,28 +334,57 @@ function ServicePage({
         .svc-shimmer::after{
           content:"";
           position:absolute;
-          inset:-12% -60%;
+          inset:-12% -70%;
           pointer-events:none;
+
+          /* ribbon */
           background: linear-gradient(
             110deg,
             transparent 0%,
             transparent 35%,
             rgba(255,255,255,.30) 45%,
-            rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.45) 55%,
+            rgba(170,225,255,.60) 50%,
+            rgba(47,184,255,.52) 55%,
             transparent 65%,
             transparent 100%
           );
+
           mix-blend-mode: screen;
-          opacity: .9;
-          transform: translate3d(-55%,0,0);
-          will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
+
+          /* ✅ fade-out when approaching the video side */
+          mask-image: linear-gradient(
+            90deg,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,1) 58%,
+            rgba(0,0,0,.70) 70%,
+            rgba(0,0,0,.25) 80%,
+            rgba(0,0,0,0) 92%,
+            rgba(0,0,0,0) 100%
+          );
+          -webkit-mask-image: linear-gradient(
+            90deg,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,1) 58%,
+            rgba(0,0,0,.70) 70%,
+            rgba(0,0,0,.25) 80%,
+            rgba(0,0,0,0) 92%,
+            rgba(0,0,0,0) 100%
+          );
+
+          opacity: .92;
+          transform: translate3d(-60%,0,0);
+          will-change: transform, opacity;
+
+          /* ✅ shorter distance (doesn't travel until end of panel) */
+          ${reduced ? "" : "animation: svcRibbon 2.35s linear infinite;"}
         }
-        @keyframes svcShine{
-          0%{ transform: translate3d(-55%,0,0); }
-          100%{ transform: translate3d(55%,0,0); }
+
+        @keyframes svcRibbon{
+          0%   { transform: translate3d(-60%,0,0); opacity: .92; }
+          72%  { transform: translate3d(22%,0,0); opacity: .92; }
+          100% { transform: translate3d(34%,0,0); opacity: 0; }
         }
+
         @media (prefers-reduced-motion: reduce){
           .svc-shimmer::after{ animation:none !important; display:none; }
         }
@@ -393,7 +426,7 @@ function ServicePage({
 
         .svc-left{ min-width:0; }
 
-        /* ✅ pill up a bit so it doesn't touch the title ribbon */
+        /* ✅ SERVICES pill: higher + dot symmetric + dot cyan */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -407,13 +440,19 @@ function ServicePage({
           font-size: 11px;
           color: rgba(255,255,255,.72);
           text-transform:uppercase;
-          margin-top: -4px;
-          transform: translate3d(0,-6px,0);
+
+          /* stronger lift */
+          margin-top: -10px;
+          transform: translate3d(0,-12px,0);
         }
         .svc-kdot{
-          width: 10px; height: 10px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
-          box-shadow: 0 0 0 4px var(--tC);
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+
+          /* ✅ force cyan dot */
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,1));
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 14px rgba(47,184,255,.42);
           flex: 0 0 auto;
         }
 
@@ -568,13 +607,18 @@ function ServicePage({
           overflow:hidden;
           transform: translateZ(0);
           backface-visibility:hidden;
+
+          /* ✅ ensures video never bleeds outside */
+          contain: paint;
         }
         @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; } }
 
         .svc-video{
           position:absolute; inset:0;
-          width:100%; height:100%;
+          width:100%;
+          height:100%;
           object-fit: cover;
+          object-position: center;
           display:block;
           border-radius: inherit;
           transform: translateZ(0);
@@ -698,7 +742,6 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              {/* ✅ ONLY title has the ribbon shimmer */}
               <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
                 <span className="svc-grad svc-shimmer">{title}</span>
               </h1>
