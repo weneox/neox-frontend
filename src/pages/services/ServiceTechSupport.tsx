@@ -58,7 +58,6 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/** Smooth reveal-on-scroll (very light, FPS-friendly) */
 function useRevealOnScroll(disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
@@ -98,9 +97,9 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 }
 
 /**
- * ✅ Robust rotator:
- * - uses "ghost" last item == first item
- * - when it reaches ghost, instantly jump to 0 with transition off
+ * Rotator (ghost last = first)
+ * NOTE: this version keeps the same "premium sweep" look.
+ * If you want the "NO width jump" rotator like Websites, say it and I'll swap it in.
  */
 function PillRotator({
   items,
@@ -201,13 +200,10 @@ function ServicePage({
     const tryPlay = async () => {
       try {
         await v.play();
-      } catch {
-        // ignore
-      }
+      } catch {}
     };
 
     const onEnded = () => {
-      // keep the last frame visible
       try {
         v.pause();
         v.currentTime = Math.max(0, (v.duration || 0) - 0.03);
@@ -217,9 +213,7 @@ function ServicePage({
     v.addEventListener("ended", onEnded);
     tryPlay();
 
-    return () => {
-      v.removeEventListener("ended", onEnded);
-    };
+    return () => v.removeEventListener("ended", onEnded);
   }, []);
 
   const contact =
@@ -257,25 +251,25 @@ function ServicePage({
       }
     >
       <style>{`
+        html, body { background:#000 !important; }
+
         .svc{
           padding: calc(var(--hdrh,72px) + 28px) 0 84px;
           overflow-x:hidden;
           background:#000;
           color: rgba(255,255,255,.92);
-          text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
         }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
-        /* ✅ kill any underlines anywhere */
-        .svc a{ text-decoration: none !important; }
-        .svc a:hover{ text-decoration: none !important; }
+        .svc a{ text-decoration:none !important; }
+        .svc a:hover{ text-decoration:none !important; }
+        .svc a::after{ display:none !important; }
 
-        /* reveal */
         [data-reveal]{
-          opacity: 0;
+          opacity:0;
           transform: translate3d(0,10px,0);
           transition: opacity .55s ease, transform .55s ease;
           will-change: opacity, transform;
@@ -285,28 +279,12 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== For general sweep usage (pills + section headings) stays same ===== */
+        /* sweep text */
         .svc-sweepText{
           display:inline-block;
           background-image:
-            linear-gradient(
-              90deg,
-              #ffffff 0%,
-              rgba(170,225,255,.98) 34%,
-              rgba(47,184,255,1) 68%,
-              rgba(42,125,255,1) 100%
-            ),
-            linear-gradient(
-              110deg,
-              transparent 0%,
-              transparent 34%,
-              rgba(255,255,255,.30) 44%,
-              rgba(255,255,255,.92) 50%,
-              rgba(170,225,255,.70) 53%,
-              rgba(47,184,255,.45) 56%,
-              transparent 66%,
-              transparent 100%
-            );
+            linear-gradient(90deg,#fff 0%, rgba(170,225,255,.98) 34%, rgba(47,184,255,1) 68%, rgba(42,125,255,1) 100%),
+            linear-gradient(110deg, transparent 0%, transparent 34%, rgba(255,255,255,.30) 44%, rgba(255,255,255,.92) 50%, rgba(170,225,255,.70) 53%, rgba(47,184,255,.45) 56%, transparent 66%, transparent 100%);
           background-size: 100% 100%, 360% 100%;
           background-position: 0 0, -220% 0;
           -webkit-background-clip: text;
@@ -315,62 +293,31 @@ function ServicePage({
           will-change: background-position;
           ${reduced ? "" : "animation: svcTextSweep 2.2s linear infinite;"}
         }
-        @keyframes svcTextSweep{
-          0%   { background-position: 0 0, -220% 0; }
-          100% { background-position: 0 0,  220% 0; }
-        }
-        @media (prefers-reduced-motion: reduce){
-          .svc-sweepText{ animation:none !important; }
-        }
+        @keyframes svcTextSweep{ 0%{background-position:0 0,-220% 0} 100%{background-position:0 0,220% 0} }
+        @media (prefers-reduced-motion: reduce){ .svc-sweepText{ animation:none !important; } }
 
-        /* =========================
-           ✅ SMM-LIKE TITLE LENTA (ONLY TITLE)
-        ========================= */
+        /* title shimmer ribbon (ONLY title) */
         .svc-grad{
-          background: linear-gradient(
-            90deg,
-            #ffffff 0%,
-            rgba(170,225,255,.96) 34%,
-            rgba(47,184,255,.95) 68%,
-            rgba(42,125,255,.95) 100%
-          );
+          background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
           -webkit-background-clip:text;
           background-clip:text;
           color:transparent;
         }
-        .svc-shimmer{
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
+        .svc-shimmer{ position: relative; display:inline-block; isolation:isolate; }
         .svc-shimmer::after{
           content:"";
           position:absolute;
           inset: -12% -60%;
           pointer-events:none;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            transparent 35%,
-            rgba(255,255,255,.30) 45%,
-            rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.45) 55%,
-            transparent 65%,
-            transparent 100%
-          );
+          background: linear-gradient(110deg, transparent 0%, transparent 35%, rgba(255,255,255,.30) 45%, rgba(170,225,255,.55) 50%, rgba(47,184,255,.45) 55%, transparent 65%, transparent 100%);
           mix-blend-mode: screen;
           opacity: .92;
           transform: translate3d(-55%,0,0);
           will-change: transform;
           ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
         }
-        @keyframes svcShine{
-          0%{ transform: translate3d(-55%,0,0); }
-          100%{ transform: translate3d(55%,0,0); }
-        }
-        @media (prefers-reduced-motion: reduce){
-          .svc-shimmer::after{ animation:none !important; display:none; }
-        }
+        @keyframes svcShine{ 0%{ transform: translate3d(-55%,0,0); } 100%{ transform: translate3d(55%,0,0); } }
+        @media (prefers-reduced-motion: reduce){ .svc-shimmer::after{ animation:none !important; display:none; } }
 
         .svc-hero{
           position: relative;
@@ -403,9 +350,7 @@ function ServicePage({
           align-items: stretch;
           min-width:0;
         }
-        @media (max-width: 980px){
-          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
-        }
+        @media (max-width: 980px){ .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; } }
 
         .svc-left{ min-width:0; }
 
@@ -417,7 +362,6 @@ function ServicePage({
           color: rgba(255,255,255,.70);
           text-transform:uppercase;
         }
-        /* ✅ move dot slightly UP so it doesn't touch title shimmer */
         .svc-kdot{
           width: 8px; height: 8px; border-radius: 999px;
           background: rgba(47,184,255,1);
@@ -444,13 +388,7 @@ function ServicePage({
         }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
-        .svc-pills{
-          margin-top: 14px;
-          display:flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          align-items:center;
-        }
+        .svc-pills{ margin-top: 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
         .svc-pill{
           display:inline-flex; align-items:center; justify-content:center;
           height: 34px;
@@ -466,46 +404,23 @@ function ServicePage({
         .svc-pill--rot{ min-width: 170px; padding: 0 14px; }
         .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; }
         .svc-pillRot-track{ display:block; will-change: transform; }
-        .svc-pillRot-item{
-          height: 34px;
-          line-height: 34px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-        }
-        .svc-pillRot-item .svc-sweepText{
-          background-size: 100% 100%, 420% 100%;
-          background-position: 0 0, -240% 0;
-          ${reduced ? "" : "animation-duration: 2.0s;"}
-        }
+        .svc-pillRot-item{ height: 34px; line-height: 34px; display:flex; align-items:center; justify-content:center; }
 
-        /* =========================
-           ✅ CTA (premium text, no arrow, no underline)
-        ========================= */
-        .svc-ctaRow{
-          margin-top: 18px;
-          display:flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
+        .svc-ctaRow{ margin-top: 18px; display:flex; flex-wrap: wrap; gap: 10px; }
         .svc-cta{
           position: relative;
           overflow:hidden;
           display:inline-flex;
           align-items:center;
           justify-content:center;
-          gap: 10px;
           height: 46px;
           padding: 0 18px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-          background:
-            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
-            rgba(255,255,255,.06);
+          background: radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%), rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 700;
           letter-spacing: .02em;
-          text-decoration:none !important;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
           transform: translateZ(0);
         }
@@ -522,45 +437,21 @@ function ServicePage({
           content:"";
           position:absolute;
           inset:-55% -70%;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            transparent 34%,
-            rgba(255,255,255,.28) 44%,
-            rgba(255,255,255,.92) 50%,
-            rgba(170,225,255,.66) 54%,
-            rgba(47,184,255,.42) 58%,
-            transparent 68%,
-            transparent 100%
-          );
+          background: linear-gradient(110deg, transparent 0%, transparent 34%, rgba(255,255,255,.28) 44%, rgba(255,255,255,.92) 50%, rgba(170,225,255,.66) 54%, rgba(47,184,255,.42) 58%, transparent 68%, transparent 100%);
           transform: translate3d(-70%,0,0);
           opacity: 0;
-          will-change: transform, opacity;
           pointer-events:none;
+          will-change: transform, opacity;
         }
-        .svc-cta:hover{
-          transform: translate3d(0,-1px,0);
-          border-color: rgba(47,184,255,.26);
-          background: rgba(255,255,255,.08);
-        }
+        .svc-cta:hover{ transform: translate3d(0,-1px,0); border-color: rgba(47,184,255,.26); background: rgba(255,255,255,.08); }
         .svc-cta:hover::before{
           opacity: .96;
           ${reduced ? "transform: translate3d(70%,0,0);" : "animation: svcBtnSweep 820ms linear 1;"}
         }
-        @keyframes svcBtnSweep{
-          0%{ transform: translate3d(-70%,0,0); }
-          100%{ transform: translate3d(70%,0,0); }
-        }
-        @media (hover:none){
-          .svc-cta:hover{ transform:none; }
-          .svc-cta:hover::before{ opacity:0; animation:none; }
-        }
-        .svc-cta--ghost{
-          background: rgba(255,255,255,.04);
-          border-color: rgba(255,255,255,.10);
-        }
+        @keyframes svcBtnSweep{ 0%{transform:translate3d(-70%,0,0)} 100%{transform:translate3d(70%,0,0)} }
+        @media (hover:none){ .svc-cta:hover{ transform:none; } .svc-cta:hover::before{ opacity:0; animation:none; } }
+        .svc-cta--ghost{ background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
 
-        /* VIDEO */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -580,21 +471,17 @@ function ServicePage({
           transform: translateZ(0);
           backface-visibility:hidden;
         }
-        @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; } }
-
+        @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; height: 260px; } }
         .svc-video{
           position:absolute; inset:0;
           width:100%; height:100%;
           object-fit: cover;
           display:block;
-          border-radius: inherit;
           transform: translateZ(0);
         }
         .svc-videoScrim{
           position:absolute; inset:0;
-          background:
-            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
-            linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
+          background: radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%), linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
 
@@ -630,12 +517,9 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
-        @keyframes svcBreath{
-          0%,100%{ transform: scale(1); opacity:.95; }
-          50%{ transform: scale(1.18); opacity:.80; }
-        }
+        @keyframes svcBreath{ 0%,100%{transform:scale(1);opacity:.95} 50%{transform:scale(1.18);opacity:.80} }
+        @media (prefers-reduced-motion: reduce){ .svc-dot{ animation:none !important; } }
 
-        /* section */
         .svc-section{
           margin-top: 26px;
           display:grid;
@@ -653,7 +537,6 @@ function ServicePage({
           box-shadow: 0 22px 90px rgba(0,0,0,.40);
           contain: layout paint style;
         }
-
         .svc-card__title{
           display:flex; align-items:center; gap:10px;
           font-weight: 600;
@@ -663,7 +546,6 @@ function ServicePage({
           line-height: 1.2;
         }
         @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
-
         .svc-card__desc{
           margin-top: 10px;
           color: rgba(255,255,255,.70);
@@ -692,6 +574,7 @@ function ServicePage({
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
           50%{ transform: translateZ(0) scale(1.12); filter: drop-shadow(0 0 12px rgba(47,184,255,.60)); }
         }
+        @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
 
@@ -707,7 +590,6 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              {/* ✅ ONLY title uses SMM-like shimmer ribbon */}
               <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
                 <span className="svc-grad svc-shimmer">{title}</span>
               </h1>
@@ -732,15 +614,7 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video
-                  ref={vidRef}
-                  className="svc-video"
-                  src={videoUrl}
-                  autoPlay
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
+                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted playsInline preload="metadata" />
                 <div className="svc-videoScrim" aria-hidden="true" />
                 <div className="svc-badge" aria-hidden="true">
                   <div className="svc-badgeLeft">
