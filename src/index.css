@@ -3397,7 +3397,6 @@ html, body{
   display:grid;
   place-items:center;
 }
-/* ===== FIX: SOCIAL-da yalnız 1 node qalsın (port node) ===== */
 
 /* Cable layer-in üzərində node/marker varsa söndür */
 .neo-deviceMock__cable::before,
@@ -7001,12 +7000,6 @@ html {
   .neox-ai-join{ height: 34px; border-radius: 13px; }
 }
 
-.pageShell{ padding: 88px 0 90px; }
-.pageHero{
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 0 18px;
-}
 .pageHero h1{
   font-size: 44px;
   letter-spacing: -0.02em;
