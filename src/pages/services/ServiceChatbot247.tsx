@@ -1,16 +1,15 @@
-// src/pages/services/ServiceBusinessWorkflows.tsx
+// src/pages/services/ServiceChatbot247.tsx
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Workflow, ShieldCheck, GitBranch, CheckCircle2, ChevronDown } from "lucide-react";
+import { Bot, ShieldCheck, MessagesSquare, ArrowRight, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-/** ✅ NEW VIDEO */
 const RAW_VIDEO =
-  "https://res.cloudinary.com/dppoomunj/video/upload/v1770680044/neox/media/asset_1770680031070_b242f71157e47.mp4";
+  "https://res.cloudinary.com/dppoomunj/video/upload/v1770671661/neox/media/asset_1770671649523_16c8bc8278fcb.mp4";
 
 function cloudinaryAuto(url: string) {
   try {
@@ -125,6 +124,7 @@ function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean })
     const step = () => {
       if (!alive) return;
 
+      // show word -> wait 1s -> animate out -> swap -> animate in
       t1 = window.setTimeout(() => {
         if (!alive) return;
         const el = spanRef.current;
@@ -192,7 +192,7 @@ function ServicePage({
   kicker: string;
   title: string;
   subtitle: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: any;
   pills: string[];
   videoUrl: string;
 }) {
@@ -207,12 +207,24 @@ function ServicePage({
   useEffect(() => {
     const v = vidRef.current;
     if (!v) return;
+
+    // ✅ autoplay try (mobile may block until gesture)
     const tryPlay = async () => {
       try {
         await v.play();
       } catch {}
     };
     tryPlay();
+
+    // ✅ when finished: STAY on last frame (no loop)
+    const onEnded = () => {
+      try {
+        v.pause();
+        // keep currentTime as-is (last frame) and do not reset
+      } catch {}
+    };
+    v.addEventListener("ended", onEnded);
+    return () => v.removeEventListener("ended", onEnded);
   }, []);
 
   const contact =
@@ -240,7 +252,20 @@ function ServicePage({
   const services: ServiceLink[] = useMemo(
     () => [
       { id: "chatbot-24-7", path: "/services/chatbot-24-7", title: () => "Chatbot 24/7" },
-      { id: "business-workflows", path: "/services/business-workflows", title: () => "Business Workflows" },
+      {
+        id: "business-workflows",
+        path: "/services/business-workflows",
+        title: (l) =>
+          l === "az"
+            ? "Business Workflows"
+            : l === "ru"
+            ? "Бизнес-воркфлоу"
+            : l === "tr"
+            ? "İş Akışları"
+            : l === "es"
+            ? "Workflows"
+            : "Business Workflows",
+      },
       {
         id: "websites",
         path: "/services/websites",
@@ -280,13 +305,14 @@ function ServicePage({
   const dropdownItems = useMemo(
     () =>
       services
-        .filter((s) => s.path !== "/services/business-workflows")
+        .filter((s) => s.path !== "/services/chatbot-24-7")
         .filter((s) => !location.pathname.includes(s.path)),
     [services, location.pathname]
   );
 
   const [svcOpen, setSvcOpen] = useState(false);
 
+  // sequential open
   const [openSeq, setOpenSeq] = useState(0);
   useEffect(() => {
     if (!svcOpen) {
@@ -304,6 +330,7 @@ function ServicePage({
     return () => window.clearInterval(t);
   }, [svcOpen, dropdownItems.length]);
 
+  // height
   const ddInnerRef = useRef<HTMLDivElement | null>(null);
   const [ddH, setDdH] = useState(0);
   useLayoutEffect(() => {
@@ -317,6 +344,7 @@ function ServicePage({
     setDdH(h);
   }, [svcOpen, openSeq, dropdownItems.length]);
 
+  // ✅ PERFECT "open under button" alignment (desktop + mobile)
   const otherBtnRef = useRef<HTMLButtonElement | null>(null);
   const ddSlotRef = useRef<HTMLDivElement | null>(null);
 
@@ -400,7 +428,11 @@ function ServicePage({
           background-clip:text;
           color:transparent;
         }
-        .svc-shimmer{ position: relative; display: inline-block; isolation: isolate; }
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
         .svc-shimmer::after{
           content:"";
           position:absolute;
@@ -424,8 +456,13 @@ function ServicePage({
           mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
           ${reduced ? "" : "animation: svcShine var(--svcShineDur) linear infinite;"}
         }
-        @keyframes svcShine{ 0%{ transform: translate3d(-86%,0,0);} 100%{ transform: translate3d(86%,0,0);} }
-        @media (prefers-reduced-motion: reduce){ .svc-shimmer::after{ animation:none !important; display:none; } }
+        @keyframes svcShine{
+          0%{ transform: translate3d(-86%,0,0); }
+          100%{ transform: translate3d(86%,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-shimmer::after{ animation:none !important; display:none; }
+        }
 
         .svc-hero{
           position: relative;
@@ -482,7 +519,9 @@ function ServicePage({
           transform: translateZ(0);
           backface-visibility:hidden;
         }
-        @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; height: 260px; } }
+        @media (max-width: 980px){
+          .svc-videoWrap{ min-height: 260px; height: 260px; }
+        }
         .svc-video{
           position:absolute; inset:0;
           width: 100%; height: 100%;
@@ -515,10 +554,23 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
-        .svc-title{ margin-top: 14px; font-size: 40px; line-height: 1.05; color: rgba(255,255,255,.94); font-weight: 600; letter-spacing: -0.02em; }
+        .svc-title{
+          margin-top: 14px;
+          font-size: 40px;
+          line-height: 1.05;
+          color: rgba(255,255,255,.94);
+          font-weight: 600;
+          letter-spacing: -0.02em;
+        }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
-        .svc-sub{ margin-top: 14px; color: rgba(255,255,255,.70); font-size: 16px; line-height: 1.7; max-width: 70ch; }
+        .svc-sub{
+          margin-top: 14px;
+          color: rgba(255,255,255,.70);
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 70ch;
+        }
         @media (min-width: 640px){ .svc-sub{ font-size: 18px; } }
 
         .svc-pills{ margin-top: 14px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
@@ -617,11 +669,18 @@ function ServicePage({
           .svc-cta:hover::before{ animation:none; }
         }
 
-        .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
         .svc-ctaBtn{ cursor:pointer; appearance:none; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); }
 
-        .svc-below{ margin-top: 18px; display:grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-        @media (max-width: 980px){ .svc-below{ grid-template-columns: 1fr; } }
+        .svc-below{
+          margin-top: 18px;
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+          align-items: start;
+        }
+        @media (max-width: 980px){
+          .svc-below{ grid-template-columns: 1fr; }
+        }
 
         .svc-ddSlot{ position: relative; width: 100%; height: auto; margin-top: 0; }
         .svc-ddFrame{
@@ -650,7 +709,12 @@ function ServicePage({
           max-height: var(--ddh, 360px);
           margin-top: 12px;
         }
-        .svc-ddInner{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+        .svc-ddInner{
+          padding: 10px;
+          display:flex;
+          flex-direction:column;
+          gap: 10px;
+        }
         .svc-ddItem{
           position: relative;
           display:inline-flex;
@@ -676,12 +740,31 @@ function ServicePage({
         .svc-ddItem.is-on{ opacity: 1; transform: translate3d(0,0,0); }
         .svc-ddItem:hover{ border-color: rgba(47,184,255,.22); background: rgba(255,255,255,.05); }
 
-        .svc-card{ border-radius: 22px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); padding: 16px 16px; box-shadow: 0 22px 90px rgba(0,0,0,.40); contain: layout paint style; }
-        .svc-card__title{ display:flex; align-items:center; gap: 10px; font-weight: 600; color: rgba(255,255,255,.92); letter-spacing: -.01em; font-size: 22px; }
+        .svc-card{
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+          padding: 16px 16px;
+          box-shadow: 0 22px 90px rgba(0,0,0,.40);
+          contain: layout paint style;
+        }
+        .svc-card__title{
+          display:flex; align-items:center; gap: 10px;
+          font-weight: 600;
+          color: rgba(255,255,255,.92);
+          letter-spacing: -.01em;
+          font-size: 22px;
+        }
         @media (min-width: 640px){ .svc-card__title{ font-size: 26px; } }
         .svc-card__desc{ margin-top: 10px; color: rgba(255,255,255,.70); line-height: 1.7; font-size: 14px; }
 
-        .svc-feat{ display:flex; gap: 10px; align-items:flex-start; padding: 10px 10px; border-radius: 16px; border: 1px solid rgba(255,255,255,.07); background: rgba(0,0,0,.18); }
+        .svc-feat{
+          display:flex; gap: 10px; align-items:flex-start;
+          padding: 10px 10px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.07);
+          background: rgba(0,0,0,.18);
+        }
         .svc-feat + .svc-feat{ margin-top: 10px; }
         .svc-feat__tick{
           width: 30px; height: 30px; border-radius: 12px;
@@ -780,7 +863,17 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "160ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  playsInline
+                  preload="metadata"
+                  // ✅ IMPORTANT: no loop
+                  loop={false}
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -790,7 +883,7 @@ function ServicePage({
                   </div>
                   <div className="svc-badgeRight">
                     <span className="svc-dot" />
-                    <span>Workflow</span>
+                    <span>24/7</span>
                   </div>
                 </div>
               </div>
@@ -830,40 +923,26 @@ function ServicePage({
 
             <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
               <div className="svc-card__title">
-                <GitBranch size={18} />
-                <span className="svc-grad svc-shimmer">{lang === "az" ? "Nə qururuq?" : "What we build"}</span>
+                <MessagesSquare size={18} />
+                <span className="svc-grad svc-shimmer">{lang === "az" ? "Nə əldə edirsən?" : "What you get"}</span>
               </div>
-
               <div className="svc-card__desc">
                 {lang === "az"
-                  ? "Satış, lead, müştəri dəstəyi və daxili əməliyyatlar üçün avtomatlaşdırılmış proseslər: form → CRM → bildiriş → hesabat → növbəti addım."
-                  : "Automation for sales, leads, support and operations: form → CRM → notifications → reporting → next step."}
+                  ? "Müştəriləri itirməyən, satışa yönləndirən və çətin suallarda operatora problemsiz ötürən 24/7 AI çat."
+                  : "A 24/7 AI chat that converts, answers fast, and hands off to an operator when needed."}
               </div>
-
               <div style={{ marginTop: 12 }}>
                 <Feature
-                  title={lang === "az" ? "Proses dizaynı (step-by-step)" : "Process design (step-by-step)"}
-                  desc={
-                    lang === "az"
-                      ? "İş modelinə uyğun axın: kim nə vaxt nə edir, hansı triggerlər işləyir."
-                      : "A clear flow: who does what and when, and which triggers run."
-                  }
+                  title={lang === "az" ? "Sürətli cavablar" : "Fast replies"}
+                  desc={lang === "az" ? "Ən çox soruşulan suallar və satış yönümlü cavab axını." : "FAQ + sales-oriented answer flow."}
                 />
                 <Feature
-                  title={lang === "az" ? "Trigger & Rules" : "Triggers & rules"}
-                  desc={
-                    lang === "az"
-                      ? "Status, SLA, auto follow-up, eskalasiya və qayda setləri."
-                      : "Statuses, SLA, auto follow-ups, escalations and rule sets."
-                  }
+                  title={lang === "az" ? "Operatora ötürmə" : "Operator handoff"}
+                  desc={lang === "az" ? "Çətin suallarda 1 kliklə admin panelə keçid." : "One-click open the exact chat and reply."}
                 />
                 <Feature
-                  title={lang === "az" ? "İnteqrasiya" : "Integrations"}
-                  desc={
-                    lang === "az"
-                      ? "Formlar, CRM, Telegram bildirişləri, e-mail axınları, task yaratma."
-                      : "Forms, CRM, Telegram alerts, email flows, task creation."
-                  }
+                  title={lang === "az" ? "Kanallar" : "Channels"}
+                  desc={lang === "az" ? "Website · WhatsApp · Instagram · Telegram inteqrasiya." : "Website · WhatsApp · Instagram · Telegram integration."}
                 />
               </div>
             </div>
@@ -873,27 +952,25 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "Ölçmə & idarəetmə" : "Measurement & control"}</span>
+              <span className="svc-grad svc-shimmer">{lang === "az" ? "İdarəetmə & Təhlükəsizlik" : "Control & Security"}</span>
             </div>
-
             <div className="svc-card__desc">
               {lang === "az"
-                ? "KPI-lar: dönüşüm, cavab vaxtı, itən lead, operator yükü — hamısı panel, export və iterasiya ilə."
-                : "KPIs: conversion, response time, dropped leads, operator workload — tracked via dashboards, exports and iteration."}
+                ? "Admin panel, audit, operator handoff, multi-lang cavablar və konversiya analitikası."
+                : "Admin panel, audit trail, operator handoff, multi-language responses and conversion analytics."}
             </div>
-
             <div style={{ marginTop: 12 }}>
               <Feature
-                title={lang === "az" ? "Dashboard" : "Dashboards"}
-                desc={lang === "az" ? "Gündəlik statlar, funnel, conversion, team performansı." : "Daily stats, funnels, conversion and team performance."}
+                title={lang === "az" ? "Operator handoff" : "Operator handoff"}
+                desc={lang === "az" ? "1 kliklə admin paneldə cavabla." : "Open the exact ticket and reply from admin."}
               />
               <Feature
-                title={lang === "az" ? "Optimallaşdırma" : "Optimization"}
-                desc={lang === "az" ? "Həftəlik təkmilləşdirmə: daha az manual iş, daha çox nəticə." : "Weekly iteration: less manual work, more results."}
+                title={lang === "az" ? "Multi-lang" : "Multi-lang"}
+                desc={lang === "az" ? "Avto tərcümə + admin dil seçimi." : "Auto translate + admin language select."}
               />
               <Feature
-                title={lang === "az" ? "Təhlükəsizlik & nəzarət" : "Security & control"}
-                desc={lang === "az" ? "Rollar, audit izi, export, dəyişikliklərin izlənməsi." : "Roles, audit trail, exports and change tracking."}
+                title={lang === "az" ? "Lead capture" : "Lead capture"}
+                desc={lang === "az" ? "2–3 mesajdan sonra yumşaq lead." : "Soft lead capture after 2–3 messages."}
               />
             </div>
           </div>
@@ -903,19 +980,19 @@ function ServicePage({
   );
 }
 
-export default memo(function ServiceBusinessWorkflows() {
-  const { t } = useTranslation();
+export default memo(function ServiceChatbot247() {
+  useTranslation();
 
   return (
     <ServicePage
       tint="cyan"
-      kicker={t?.("nav.services") || "SERVICES"}
-      title={"Biznes workflowlarının qurulması"}
+      kicker={"SERVICES"}
+      title={"24/7 Chatbot qoşulması"}
       subtitle={
-        "Satış, lead, müştəri dəstəyi və daxili əməliyyatlar üçün avtomatlaşdırılmış proseslər: form → CRM → bildiriş → hesabat → növbəti addım."
+        "Vebsayt, WhatsApp və sosial kanallarda müştəri suallarını dərhal cavablayan, satışa yönləndirən və lazım olduqda operatora ötürən AI sistem."
       }
-      icon={Workflow}
-      pills={["Triggers", "Automation", "CRM", "Dashboards", "SLA"]}
+      icon={Bot}
+      pills={["24/7", "Operator handoff", "Multi-lang", "Lead capture"]}
       videoUrl={VIDEO_URL}
     />
   );
