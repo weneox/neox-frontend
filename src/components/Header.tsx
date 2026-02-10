@@ -16,7 +16,6 @@ type UseCaseDef = {
   id: string;
   label: string;
   to: string;
-  // “hologram stream” — kliklənən axan linklər
   stream: Array<{ id: string; label: string; to: string }>;
 };
 
@@ -248,9 +247,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ Use Cases — sənin 5 əsas səhifən + hər biri üçün “hologram stream”
-  // Business Workflows-a aid 5 əsas “scenario” linkləri: finance/healthcare/retail/logistics/hotels.
-  // Digərlərinə də premium uyğun əlavə etdik.
   const USECASES: UseCaseDef[] = useMemo(
     () => [
       {
@@ -452,7 +448,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   // mobile styles
   const mobileP = clamp01(hdrp);
-  const mobileBgAlpha = open ? 0.90 : 0.06 + 0.70 * mobileP;
+  const mobileBgAlpha = open ? 0.9 : 0.06 + 0.7 * mobileP;
   const mobileBlurPx = open ? 18 : 4 + 14 * mobileP;
   const mobileSat = open ? 1.3 : 1 + 0.25 * mobileP;
 
@@ -461,7 +457,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
         WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
         backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.10 : 0.06 * mobileP).toFixed(3)})`,
+        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.1 : 0.06 * mobileP).toFixed(3)})`,
       }
     : undefined;
 
@@ -761,7 +757,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .header-mid{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .header-right{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
 
-        /* ===== Brand (mobile left small) ===== */
+        /* ===== Brand ===== */
         .brand-link{ display:inline-flex; align-items:center; gap: 10px; text-decoration: none; min-width:0; }
         .headerBrand{ position: relative; display:flex; align-items:center; }
         .headerBrand__aura{
@@ -772,7 +768,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           filter: blur(10px); opacity: .75; pointer-events:none;
         }
 
-        /* ===== Desktop top links ===== */
+        /* ===== Desktop links ===== */
         .nav-link{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
@@ -796,15 +792,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
         .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        /* ✅ arrow (hover/open => rotate) */
+        /* arrow rotate on open */
         .nav-dd__chev{ opacity: .85; transition: transform .14s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
-        /* ✅ panel should be compact — not huge */
+        /* ✅ FIX: panel "özündən aşağı açılır" hissiyatı + trigger-ın başladığı yerdən (sol) */
         .nav-dd__panel{
-          position:absolute; top: calc(100% + 10px); left: 50%;
-          transform: translateX(-50%) translateY(-6px) scale(.99);
-          width: 300px;
+          position:absolute;
+          top: calc(100% + 8px);
+          left: 0;               /* ✅ start from button/container left */
+          right: auto;
+          width: 280px;          /* ✅ shorter / not too long */
+          max-width: 340px;
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,.10);
           background:
@@ -814,24 +813,36 @@ export default function Header({ introReady }: { introReady: boolean }) {
           -webkit-backdrop-filter: blur(18px) saturate(1.18);
           backdrop-filter: blur(18px) saturate(1.18);
           box-shadow: 0 24px 80px rgba(0,0,0,.65);
-          opacity: 0; pointer-events: none;
-          transform-origin: top center;
+
+          padding: 10px;
+          opacity: 0;
+          pointer-events: none;
+
+          transform-origin: top left; /* ✅ opens from itself */
+          transform: translateY(-8px) scaleY(.96) scaleX(.995);
           transition: opacity .14s ease, transform .14s ease;
           z-index: 1300;
-          padding: 10px;
         }
         .nav-dd.is-open .nav-dd__panel{
-          opacity: 1; pointer-events: auto;
-          transform: translateX(-50%) translateY(0) scale(1);
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateY(0) scaleY(1) scaleX(1);
         }
 
-        /* ===== Minimal rows (NO hints) ===== */
+        /* ✅ If a dropdown is close to the right edge, align it to right to prevent overflow */
+        .nav-dd.nav-dd--right .nav-dd__panel{
+          left: auto;
+          right: 0;
+          transform-origin: top right;
+        }
+
+        /* ===== Minimal rows (compact) ===== */
         .ddList{ display:grid; gap: 8px; }
         .ddRow{
           position: relative;
           display:flex; align-items:center; justify-content: space-between; gap: 12px;
           width: 100%;
-          padding: 12px 12px;
+          padding: 11px 12px;     /* ✅ slightly tighter */
           border-radius: 14px;
           border: 1px solid rgba(255,255,255,.07);
           background: rgba(255,255,255,.035);
@@ -853,12 +864,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .ddText{ min-width:0; }
         .ddLabel{ display:block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* ✅ no arrows inside row (you only wanted arrows on main triggers) */
         .ddArrow{ display:none !important; }
 
-        /* ===== UseCases special: compact + hologram stream appears ONLY when hovering a row ===== */
-        .nav-dd--uc .nav-dd__panel{ width: 320px; }
+        /* ===== UseCases special ===== */
+        .nav-dd--uc .nav-dd__panel{ width: 300px; max-width: 360px; }
+
         .ucFloat{
           position:absolute;
           left: calc(100% + 10px);
@@ -907,7 +917,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         @keyframes ucScan{ 0%{ transform: translateX(-50%);} 100%{ transform: translateX(50%);} }
 
-        /* ✅ “qeryri adi”, pillsiz, yazısız — axan ghost links */
         .ucFlow{
           display:flex; gap: 18px; align-items: center;
           width: max-content;
@@ -940,14 +949,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: scaleX(.75);
           transition: opacity .16s ease, transform .16s ease;
         }
-        .ucGhost:hover{
-          opacity: 1;
-          transform: translateY(-1px);
-        }
-        .ucGhost:hover::after{
-          opacity: 1;
-          transform: scaleX(1);
-        }
+        .ucGhost:hover{ opacity: 1; transform: translateY(-1px); }
+        .ucGhost:hover::after{ opacity: 1; transform: scaleX(1); }
 
         /* ===== CTA + toggle ===== */
         .nav-cta{
@@ -1005,13 +1008,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
           backdrop-filter: blur(18px) saturate(1.15);
           box-shadow: 0 24px 80px rgba(0,0,0,.65);
           opacity: 0; pointer-events: none;
-          transform: translateY(-6px) scale(.98);
+          transform-origin: top right;
+          transform: translateY(-8px) scaleY(.96);
           transition: opacity .14s ease, transform .14s ease;
           z-index: 1500;
         }
         .langMenu.is-open .langMenu__panel{
           opacity: 1; pointer-events: auto;
-          transform: translateY(0) scale(1);
+          transform: translateY(0) scaleY(1);
         }
         .langMenu__item{
           width: 100%;
@@ -1252,7 +1256,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* Services (only list — no hologram here) */}
+          {/* Services */}
           <div
             ref={svcRef}
             className={cx("nav-dd", svcOpen && "is-open")}
@@ -1295,7 +1299,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* Use Cases (hologram stream ONLY here) */}
+          {/* Use Cases */}
           <div
             ref={ucRef}
             className={cx("nav-dd", "nav-dd--uc", ucOpen && "is-open")}
@@ -1319,11 +1323,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             <div className="nav-dd__panel" role="menu" aria-hidden={!ucOpen}>
               <div className="ddList">
                 {USECASES.map((u) => (
-                  <div
-                    key={u.id}
-                    onMouseEnter={() => setUcActive(u.id)}
-                    onFocus={() => setUcActive(u.id)}
-                  >
+                  <div key={u.id} onMouseEnter={() => setUcActive(u.id)} onFocus={() => setUcActive(u.id)}>
                     <NavLink
                       to={withLang(u.to)}
                       className={({ isActive }) => cx("ddRow", isActive && "is-active")}
@@ -1337,7 +1337,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         </span>
                       </span>
 
-                      {/* ✅ hover -> hologram stream (no title, no pills, compact) */}
                       <div className="ucFloat" aria-hidden={ucActive !== u.id}>
                         <div className="ucStream">
                           <div className="ucScan" aria-hidden="true" />
@@ -1367,10 +1366,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
-          {/* Resources */}
+          {/* Resources (right-aligned dropdown to avoid overflow) */}
           <div
             ref={resRef}
-            className={cx("nav-dd", resOpen && "is-open")}
+            className={cx("nav-dd", "nav-dd--right", resOpen && "is-open")}
             onMouseEnter={() => openDrop("resources")}
             onMouseLeave={() => scheduleCloseDrop("resources")}
           >
