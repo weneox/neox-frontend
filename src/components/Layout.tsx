@@ -1,10 +1,11 @@
 // src/components/Layout.tsx
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import Header from "./Header";
 import Footer from "./Footer";
 import NeoxAIWidget from "./NeoxAIWidget";
+import SmoothWheelScroll from "./SmoothWheelScroll";
 
 const LANGS = ["az", "en", "tr", "ru", "es"] as const;
 type Lang = (typeof LANGS)[number];
@@ -24,7 +25,7 @@ function stripLang(pathname: string) {
 }
 
 function buildLocalizedUrl(base: string, lang: Lang, restPath: string) {
-  const p = restPath === "/" ? "" : restPath; // home üçün /az kimi
+  const p = restPath === "/" ? "" : restPath;
   return `${base}/${lang}${p}`;
 }
 
@@ -47,7 +48,6 @@ function SeoHreflangCanonical() {
   return (
     <Helmet>
       <html lang={lang} />
-
       <link rel="canonical" href={canonical} />
 
       {alternates.map((a) => (
@@ -67,7 +67,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // ✅ admin route detection: /az/admin və /az/admin/...
   const isAdminRoute = useMemo(() => {
     const p = location.pathname || "";
-    // /{lang}/admin və altları
     return /^\/(az|en|tr|ru|es)\/admin(\/|$)/.test(p);
   }, [location.pathname]);
 
@@ -76,6 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [entering, setEntering] = useState(false);
 
   useEffect(() => {
+    // native scroll reset (səndəki kimi saxladım)
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
@@ -93,6 +93,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div ref={shellRef} className="app-shell">
+      {/* ✅ Smooth wheel scroll: wrapper DEYİL, children qəbul etmir */}
+      {/* ✅ Route dəyişəndə reset üçün locationKey veririk */}
+      {/* ✅ Admin səhifələrində söndürürük */}
+      <SmoothWheelScroll enabled={!isAdminRoute} locationKey={location.pathname} />
+
       <SeoHreflangCanonical />
 
       <Header introReady={true} />
