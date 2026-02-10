@@ -219,6 +219,7 @@ function ServicePage({
     const onEnded = () => {
       try {
         v.pause();
+        // keep currentTime at end => last frame stays
       } catch {}
     };
     v.addEventListener("ended", onEnded);
@@ -472,7 +473,7 @@ function ServicePage({
           contain: layout paint style; height: 100%;
         }
 
-        /* ✅ FIX: video never cuts top, never overflows the card */
+        /* ✅ VIDEO: no crop + a bit bigger (scale), stays inside box */
         .svc-videoWrap{
           position: relative;
           width: 100%;
@@ -482,24 +483,30 @@ function ServicePage({
           overflow:hidden;
           isolation:isolate;
           background: rgba(0,0,0,.22);
+
+          /* optional: reduces empty look while keeping contain */
+          padding: 8px;
         }
         @media (max-width: 980px){
           .svc-videoWrap{ min-height: 260px; height: 260px; }
         }
         .svc-video{
-          position:absolute; inset:0;
-          width:100%; height:100%;
+          position:absolute;
+          inset: 8px; /* match padding so it fills nicely */
+          width: calc(100% - 16px);
+          height: calc(100% - 16px);
           display:block;
 
-          /* IMPORTANT: show full frame (no crop), and keep TOP visible */
           object-fit: contain;
           object-position: center top;
 
-          /* prevent any weird scaling overflow */
+          /* ✅ “biraz dartıb uzatma” (kəsmir) */
+          transform: translate3d(0,0,0) scale(1.12);
+          transform-origin: top center;
+
+          background: rgba(0,0,0,.18);
           max-width:100%;
           max-height:100%;
-          background: rgba(0,0,0,.18);
-          transform: translateZ(0);
         }
         .svc-videoScrim{
           position:absolute; inset:0;
@@ -634,7 +641,7 @@ function ServicePage({
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: scale(1); box-shadow:none; opacity:.98; }
-          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
+          50%{ transform: scale(1.07); box-shadow: 0 0 0 6px rgba(47f,184,255,.10), 0 0 24px rgba(47,184,255,.22); opacity:.92; }
         }
         @media (prefers-reduced-motion: reduce){ .svc-feat__tick{ animation:none !important; } }
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
