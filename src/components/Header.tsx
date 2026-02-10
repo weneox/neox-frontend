@@ -12,11 +12,13 @@ function cx(...xs: Array<string | false | null | undefined>) {
 
 type MenuKey = "services" | "scenarios" | "resources" | "lang" | null;
 
-/** ✅ FIX: LANGS map -> never problemi olmasın deyə, burada konkret siyahı saxlayırıq */
+/** typed lang list (TS “never” fix) */
 const LANG_MENU: Lang[] = ["az", "tr", "ru", "en", "es"];
 
 function isLang(x: string | undefined | null): x is Lang {
-  return !!x && (LANG_MENU as readonly string[]).includes(String(x).toLowerCase());
+  if (!x) return false;
+  const v = String(x).toLowerCase();
+  return (LANG_MENU as readonly string[]).includes(v);
 }
 
 function langFullName(c: Lang) {
@@ -53,11 +55,6 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-function isInside(el: HTMLElement | null, target: EventTarget | null) {
-  if (!el || !target) return false;
-  return el.contains(target as Node);
-}
-
 export default function Header({ introReady }: { introReady: boolean }) {
   const reduced = usePrefersReducedMotion();
   const { i18n, t } = useTranslation();
@@ -90,12 +87,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const [hoverPreview, setHoverPreview] = useState<string>("");
 
+  // ---------- close scheduling (hover safe) ----------
   const closeT = useRef<number | null>(null);
   const scheduleClose = useCallback((k: MenuKey) => {
     if (closeT.current) window.clearTimeout(closeT.current);
     closeT.current = window.setTimeout(() => {
       setOpenMenu((cur) => (cur === k ? null : cur));
-    }, 70);
+    }, 120);
   }, []);
   const cancelClose = useCallback(() => {
     if (closeT.current) window.clearTimeout(closeT.current);
@@ -124,21 +122,29 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [lang]
   );
 
-  /** ✅ Lang switch: həm i18n, həm route */
+  /** ✅ LANG SWITCH — hard-fix */
   const switchLang = useCallback(
     (next: Lang) => {
       if (next === lang) return;
 
-      const rest = location.pathname.replace(/^\/[a-z]{2}(\/|$)/i, "/");
-      const cleaned = rest.endsWith("/") && rest !== "/" ? rest.slice(0, -1) : rest;
+      // 1) pathname-dən başlanğıcdakı /xx hissəsini çıxart
+      // /az  | /az/xxx | /AZ/xxx -> hamısını tutur
+      const rest = location.pathname.replace(/^\/[a-z]{2}(?=\/|$)/i, "");
+      const cleaned = rest === "" ? "/" : rest;
       const target = cleaned === "/" ? `/${next}` : `/${next}${cleaned}`;
 
-      // i18n-i əvvəl dəyiş (bəzi setup-larda vacibdir)
-      Promise.resolve(i18n.changeLanguage(next)).finally(() => {
-        navigate(target, { replace: false });
-      });
+      cancelClose();
+      setOpenMenu(null);
+      setMobileOpen(false);
+
+      // əvvəl i18n, sonra route (stabil)
+      Promise.resolve(i18n.changeLanguage(next))
+        .catch(() => {})
+        .finally(() => {
+          navigate(target + location.search + location.hash, { replace: false });
+        });
     },
-    [i18n, lang, location.pathname, navigate]
+    [cancelClose, i18n, lang, location.hash, location.pathname, location.search, navigate]
   );
 
   const SERVICES: ItemDef[] = useMemo(
@@ -164,7 +170,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  /** ✅ Resources: yalnız Docs + Guides */
   const RESOURCES: ItemDef[] = useMemo(
     () => [
       { id: "docs", label: "Docs", to: "/resources/docs", preview: "> api • setup • integrations • reference" },
@@ -173,7 +178,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ===== Scroll blur (RAF, fps-safe) =====
+  // ----- Scroll blur (RAF, fps-safe) -----
   useEffect(() => {
     let raf = 0;
     let prevOn = false;
@@ -203,6 +208,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     };
   }, []);
 
+  // close on route change
   useEffect(() => {
     setOpenMenu(null);
     setMobileOpen(false);
@@ -210,7 +216,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setMSvc(false);
     setMScn(false);
     setMRes(false);
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, location.hash]);
 
   // lock scroll on mobile overlay
   useEffect(() => {
@@ -244,7 +250,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         resources: resRef,
         lang: langRef,
       };
-
       const wrap = map[openMenu]?.current;
       if (!wrap) return;
       if (!wrap.contains(target)) setOpenMenu(null);
@@ -264,25 +269,25 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setOpenMenu((cur) => (cur === k ? null : k));
   };
 
-  // keep dropdown open when moving to panel (no gap close)
+  // safer hover binding (lang da hover açılır, amma click də stabil)
   const bindHover = (k: Exclude<MenuKey, null>, ref: React.RefObject<HTMLDivElement>) => {
     return {
       onMouseEnter: () => {
+        if (isMobile) return;
         cancelClose();
         setOpenMenu(k);
       },
-      onMouseLeave: (e: React.MouseEvent) => {
-        const rel = e.relatedTarget as any as HTMLElement | null;
-        if (isInside(ref.current, rel)) return;
+      onMouseLeave: () => {
+        if (isMobile) return;
         scheduleClose(k);
       },
       onPointerEnter: () => {
+        if (isMobile) return;
         cancelClose();
         setOpenMenu(k);
       },
-      onPointerLeave: (e: React.PointerEvent) => {
-        const rel = e.relatedTarget as any as HTMLElement | null;
-        if (isInside(ref.current, rel)) return;
+      onPointerLeave: () => {
+        if (isMobile) return;
         scheduleClose(k);
       },
     } as const;
@@ -312,9 +317,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 onPointerEnter={() => setHoverPreview(it.preview || "")}
               >
                 <span className="neoEliteText">{it.label}</span>
-                <span className="neoEliteArrow" aria-hidden="true">
-                  ↗
-                </span>
+                {/* oxları çıxartdıq — yalnız nöqtə */}
+                <span className="neoEliteDot" aria-hidden="true" />
               </NavLink>
             ))}
           </div>
@@ -333,7 +337,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     );
   };
 
-  /** ✅ Lang panel: AZ TR RU EN ES; hover-da full name çıxır */
   const LangPanel = (
     <div className="neoLangPanel" role="menu" aria-label="Language menu" aria-hidden={openMenu !== "lang"}>
       {LANG_MENU.map((code) => (
@@ -342,10 +345,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           type="button"
           role="menuitem"
           className={cx("neoLangItem", code === lang && "is-active")}
-          onClick={() => {
-            switchLang(code);
-            setOpenMenu(null);
-          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => switchLang(code)}
         >
           <span className="neoLangCode">{String(code).toUpperCase()}</span>
           <span className="neoLangName">{langFullName(code)}</span>
@@ -387,7 +388,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           backdrop-filter: blur(18px) saturate(1.12);
         }
 
-        /* ✅ Premium moving hairline (right -> left) */
+        /* premium hairline yalnız scroll olanda */
         .neoHdr::after{
           content:"";
           position:absolute;
@@ -459,7 +460,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           background: transparent;
           border: 0;
           color: rgba(255,255,255,.78);
-          font-weight: 780;
+          font-weight: 760;
           font-size: 13px;
           letter-spacing: .01em;
           cursor:pointer;
@@ -501,6 +502,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoDD.is-open .neoChev{ transform: rotate(180deg); opacity: .9; }
 
         .neoDD{ position: relative; display:inline-flex; }
+        /* hover gap körpüsü */
         .neoDD::after{
           content:"";
           position:absolute;
@@ -556,7 +558,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           padding: 9px 10px;
           border-radius: 10px;
           color: rgba(255,255,255,.90);
-          font-weight: 760;
+          font-weight: 740;
           font-size: 13px;
           background: transparent;
           border: 1px solid rgba(255,255,255,0);
@@ -568,18 +570,18 @@ export default function Header({ introReady }: { introReady: boolean }) {
           background: rgba(255,255,255,.035);
           color: rgba(255,255,255,.98);
         }
-        .neoEliteItem.is-active{
-          background: rgba(120,170,255,.075);
-        }
+        .neoEliteItem.is-active{ background: rgba(120,170,255,.075); }
         .neoEliteText{ line-height: 1; letter-spacing: .01em; }
-        .neoEliteArrow{
-          opacity: .38;
-          transform: translateX(-2px);
-          transition: transform .14s ease, opacity .14s ease;
+        .neoEliteDot{
+          width: 8px; height: 8px;
+          border-radius: 999px;
+          background: rgba(255,255,255,.22);
+          box-shadow: 0 0 0 4px rgba(120,170,255,.00);
+          transition: background-color .14s ease, box-shadow .14s ease;
         }
-        .neoEliteItem:hover .neoEliteArrow{
-          opacity: .68;
-          transform: translateX(0);
+        .neoEliteItem:hover .neoEliteDot{
+          background: rgba(120,170,255,.72);
+          box-shadow: 0 0 0 4px rgba(120,170,255,.10);
         }
 
         .neoEliteTicker{
@@ -675,7 +677,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.90);
           cursor:pointer;
           transition: background-color .12s ease, transform .12s ease, color .12s ease;
-          font-weight: 760;
+          font-weight: 740;
         }
         .neoLangItem + .neoLangItem{ margin-top: 6px; }
         .neoLangItem:hover{
@@ -694,7 +696,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .neoLangItem:hover .neoLangName{ transform: translateX(0); opacity: .90; }
 
-        /* Mobile */
+        /* Mobile burger — futuristik 3 xətt -> X */
         .neoBurger{
           width: 46px; height: 40px;
           border-radius: 12px;
@@ -706,12 +708,39 @@ export default function Header({ introReady }: { introReady: boolean }) {
           justify-content:center;
           cursor:pointer;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          position: relative;
+          overflow: hidden;
         }
         .neoBurger:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
+        .neoBurgerGlow{
+          position:absolute; inset:-40px;
+          background: radial-gradient(circle at 30% 30%, rgba(120,170,255,.18), rgba(0,0,0,0) 55%);
+          opacity: .85;
+          pointer-events:none;
+          transform: translateZ(0);
+        }
+        .neoBurgerLines{
+          width: 18px; height: 12px;
+          display:grid; gap: 4px;
+          position: relative;
+          z-index: 2;
+        }
+        .neoBurgerLines i{
+          display:block;
+          height: 2px;
+          border-radius: 999px;
+          background: rgba(255,255,255,.86);
+          transition: transform .18s ease, opacity .18s ease;
+          transform-origin: center;
+        }
+        .neoBurger.is-x .neoBurgerLines i:nth-child(1){ transform: translateY(6px) rotate(45deg); }
+        .neoBurger.is-x .neoBurgerLines i:nth-child(2){ opacity: 0; }
+        .neoBurger.is-x .neoBurgerLines i:nth-child(3){ transform: translateY(-6px) rotate(-45deg); }
 
         .neoMOv{ position: fixed; inset: 0; z-index: 100000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .neoMOv.is-open{ opacity: 1; pointer-events: auto; }
         .neoBg{ position:absolute; inset:0; border:0; background: rgba(0,0,0,.46); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
         .neoSheet{
           position:absolute; top: 12px; right: 12px; left: 12px;
           max-width: 520px; margin-left: auto;
@@ -726,19 +755,27 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 28px 90px rgba(0,0,0,.70);
         }
         .neoSheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
+
+        /* Mobile terminal header */
         .neoHead{
-          display:flex; align-items:center; justify-content: space-between;
-          padding: 14px 14px 10px;
+          padding: 12px 14px 10px;
           border-bottom: 1px solid rgba(255,255,255,.06);
         }
-        .neoTitle{
+        .neoHeadTop{
+          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+        }
+        .neoTermTitle{
+          display:flex; align-items:center; gap: 10px;
           font-weight: 900;
           letter-spacing: .18em;
           font-size: 11px;
-          color: rgba(255,255,255,.70);
-          display:flex; align-items:center; gap: 10px;
+          color: rgba(255,255,255,.72);
         }
-        .neoDot{ width: 10px; height: 10px; border-radius: 999px; background: rgba(120,170,255,.90); box-shadow: 0 0 0 4px rgba(120,170,255,.10); }
+        .neoDot{
+          width: 10px; height: 10px; border-radius: 999px;
+          background: rgba(120,170,255,.90);
+          box-shadow: 0 0 0 4px rgba(120,170,255,.10);
+        }
         .neoClose{
           width: 44px; height: 40px;
           border-radius: 12px;
@@ -748,6 +785,35 @@ export default function Header({ introReady }: { introReady: boolean }) {
           display:flex; align-items:center; justify-content:center;
           cursor: pointer;
         }
+
+        .neoHeadTerm{
+          margin-top: 10px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+          padding: 10px 12px;
+          overflow:hidden;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 11px;
+          letter-spacing: .14em;
+          color: rgba(255,255,255,.70);
+          display:flex; align-items:center; gap: 8px;
+        }
+        .neoPrompt{ opacity: .65; }
+        .neoTypeLine{
+          white-space: nowrap;
+          overflow:hidden;
+          text-overflow: ellipsis;
+        }
+        .neoCursor{
+          width: 9px; height: 12px;
+          background: rgba(120,170,255,.85);
+          border-radius: 2px;
+          opacity: .9;
+          animation: neoBlink 1s steps(1) infinite;
+        }
+        @keyframes neoBlink{ 50%{ opacity: .12; } }
+
         .neoBody{ padding: 12px 14px 14px; display:grid; gap: 10px; }
 
         .neoRow{
@@ -801,6 +867,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           .neoHdr::after{ animation:none !important; }
           .neoDD::after{ display:none !important; }
           .neoLangName{ transition:none !important; transform:none !important; }
+          .neoCursor{ animation:none !important; opacity:.9 !important; }
         }
       `}</style>
 
@@ -816,7 +883,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               decoding="async"
               draggable={false}
               style={{
-                height: isMobile ? 14 : 26, // ✅ mobil logo balaca
+                height: isMobile ? 14 : 26,
                 width: "auto",
                 objectFit: "contain",
                 display: "block",
@@ -846,7 +913,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <ChevronDown size={16} />
               </span>
             </button>
-
             <div className="neoPanelWrap" onMouseEnter={cancelClose} onMouseLeave={() => scheduleClose("services")}>
               <ElitePanel items={SERVICES} k="services" />
             </div>
@@ -865,7 +931,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <ChevronDown size={16} />
               </span>
             </button>
-
             <div className="neoPanelWrap" onMouseEnter={cancelClose} onMouseLeave={() => scheduleClose("scenarios")}>
               <ElitePanel items={SCENARIOS} k="scenarios" />
             </div>
@@ -884,7 +949,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 <ChevronDown size={16} />
               </span>
             </button>
-
             <div className="neoPanelWrap" onMouseEnter={cancelClose} onMouseLeave={() => scheduleClose("resources")}>
               <ElitePanel items={RESOURCES} k="resources" />
             </div>
@@ -894,7 +958,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             FAQ
           </NavLink>
 
-          {/* ✅ “Resurslar” adlı ayrıca link varsa artıq olmayacaq — Blog saxlayırıq */}
           <NavLink to={withLang("/blog")} className={({ isActive }) => cx("neoTop", isActive && "is-active")}>
             {t("nav.blog") || "Blog"}
           </NavLink>
@@ -905,7 +968,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </nav>
 
         <div className="neoRight">
-          {/* ✅ Lang switcher: yalnız burada (mobil overlay-dən sildik) */}
+          {/* LANG switcher: yalnız burada */}
           <div
             ref={langRef}
             className={cx("neoDD", "neoLangWrap", openMenu === "lang" && "is-open")}
@@ -917,7 +980,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
               className="neoLangBtn"
               aria-haspopup="menu"
               aria-expanded={openMenu === "lang"}
-              onClick={() => openOnly("lang")}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                cancelClose();
+                setOpenMenu((cur) => (cur === "lang" ? null : "lang"));
+              }}
             >
               {String(lang).toUpperCase()}
               <span aria-hidden="true" style={{ opacity: 0.72 }}>
@@ -930,8 +997,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </div>
           </div>
 
+          {/* Futuristic burger */}
           <button
-            className="neoBurger"
+            className={cx("neoBurger", mobileOpen && "is-x")}
             type="button"
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
@@ -941,7 +1009,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
               else closeMobile();
             }}
           >
-            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            <span className="neoBurgerGlow" aria-hidden="true" />
+            <span className="neoBurgerLines" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            {/* icon ehtiyat (aria), amma görünməsin */}
+            <span style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}>
+              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            </span>
           </button>
         </div>
       </div>
@@ -952,12 +1029,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
           <button className="neoBg" type="button" aria-label="Close" onClick={closeMobile} />
           <div id={panelId} className={cx("neoSheet", mobileSoft && "is-open")} role="dialog" aria-modal="true" aria-label="Menu">
             <div className="neoHead">
-              <div className="neoTitle">
-                <span className="neoDot" aria-hidden="true" /> MENU
+              <div className="neoHeadTop">
+                <div className="neoTermTitle">
+                  <span className="neoDot" aria-hidden="true" /> MENU
+                </div>
+                <button className="neoClose" type="button" aria-label="Close" onClick={closeMobile}>
+                  <X size={18} />
+                </button>
               </div>
-              <button className="neoClose" type="button" aria-label="Close" onClick={closeMobile}>
-                <X size={18} />
-              </button>
+
+              {/* Mobile terminal vibe */}
+              <div className="neoHeadTerm" aria-hidden="true">
+                <span className="neoPrompt">{">"}</span>
+                <span className="neoTypeLine">
+                  {mSvc ? "services/open" : mScn ? "scenarios/open" : mRes ? "resources/open" : "ready"}
+                </span>
+                <span className="neoCursor" />
+              </div>
             </div>
 
             <div className="neoBody">
@@ -1016,7 +1104,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 {t("nav.contact") || "Əlaqə"} <span aria-hidden="true">•</span>
               </NavLink>
 
-              {/* ✅ Mobil overlay-dən Language bölməsini TAM çıxartdıq (2 dəfə görünməsin) */}
+              {/* mobil overlay-də language YOX */}
             </div>
           </div>
         </div>,
