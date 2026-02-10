@@ -7,10 +7,10 @@ type Props = {
   ignoreSelectors?: string[];
 
   // tuning
-  strength?: number; // wheel -> accel
-  friction?: number; // inertia decay (0.86..0.93)
-  maxVelocity?: number; // clamp
-  softCap?: number; // yumuşatma həddi
+  strength?: number;     // wheel -> accel
+  friction?: number;     // inertia decay (0.86..0.93)
+  maxVelocity?: number;  // clamp
+  softCap?: number;      // yumuşatma həddi
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -54,10 +54,12 @@ function normalizeDelta(e: WheelEvent) {
 function soften(v: number, softCap: number) {
   const s = Math.sign(v);
   const a = Math.abs(v);
+
   if (a <= softCap) return v;
 
+  // soft knee: cap-dən sonra artım yavaşıyır (log-like)
   const extra = a - softCap;
-  const damped = softCap + extra * 0.35; // ağır hiss
+  const damped = softCap + extra * 0.35; // 0.35 = daha ağır hiss
   return s * damped;
 }
 
@@ -68,10 +70,10 @@ export default function SmoothWheelScroll({
   ignoreSelectors,
 
   // ✅ default: “hezin-hezin”
-  strength = 0.22,
-  friction = 0.92,
-  maxVelocity = 85,
-  softCap = 120,
+  strength = 0.22,     // çox aşağı
+  friction = 0.92,     // yavaş sönmə
+  maxVelocity = 85,    // çox aşağı clamp
+  softCap = 120,       // wheel böyük gəlsə yumşalt
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -88,8 +90,6 @@ export default function SmoothWheelScroll({
           ],
     [ignoreSelectors]
   );
-
-  const ignoresKey = useMemo(() => ignores.join("|"), [ignores]);
 
   const rafRef = useRef<number | null>(null);
   const velocityRef = useRef(0);
@@ -133,8 +133,10 @@ export default function SmoothWheelScroll({
         posRef.current = nativeY;
       }
 
+      // inertia
       velocityRef.current *= friction;
 
+      // dayandırma həddi (çox yumşaq)
       if (Math.abs(velocityRef.current) < 0.08) {
         stop();
         return;
@@ -148,6 +150,7 @@ export default function SmoothWheelScroll({
       lastYRef.current = clamped;
       window.scrollTo(0, clamped);
 
+      // sərhəddə tam dayansın
       if (clamped <= 0 || clamped >= mx) {
         stop();
         return;
@@ -179,12 +182,19 @@ export default function SmoothWheelScroll({
         return;
       }
 
+      // ✅ smooth only here
       e.preventDefault();
+
       syncToNative();
 
+      // ✅ wheel impulsunu yumşalt
       dy = soften(dy, softCap);
 
+      // accel çox az
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
+
+      // ✅ toplama yox, “blend” (birdən sürətlənməsin)
+      // yeni velocity = köhnənin 70%-i + add
       velocityRef.current = clamp(velocityRef.current * 0.70 + add, -maxVelocity, maxVelocity);
 
       if (!rafRef.current) rafRef.current = requestAnimationFrame(step);
@@ -204,7 +214,8 @@ export default function SmoothWheelScroll({
       window.removeEventListener("resize", onResize);
       stop();
     };
-  }, [enabled, minWidth, strength, friction, maxVelocity, softCap, locationKey, ignoresKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, minWidth, strength, friction, maxVelocity, softCap, locationKey, JSON.stringify(ignores)]);
 
   return null;
 }
