@@ -112,7 +112,7 @@ function PillRotator({
   disabled: boolean;
 }) {
   const safe = items.length ? items : [""];
-  const track = safe.length > 1 ? [...safe, safe[0]] : safe; // ghost
+  const track = safe.length > 1 ? [...safe, safe[0]] : safe;
 
   const [i, setI] = useState(0);
   const [noTrans, setNoTrans] = useState(false);
@@ -124,21 +124,19 @@ function PillRotator({
     return () => window.clearInterval(t);
   }, [disabled, intervalMs, safe.length]);
 
-  // when we hit the ghost (index == safe.length), snap back to 0
   useEffect(() => {
     if (safe.length <= 1) return;
     if (i === safe.length) {
       const snap = window.setTimeout(() => {
         setNoTrans(true);
         setI(0);
-        // re-enable transition next tick
         requestAnimationFrame(() => setNoTrans(false));
-      }, 560); // must be >= transition duration
+      }, 560);
       return () => window.clearTimeout(snap);
     }
   }, [i, safe.length]);
 
-  const step = 34; // exact pill height
+  const step = 34;
   const y = -i * step;
 
   return (
@@ -153,7 +151,7 @@ function PillRotator({
         >
           {track.map((t, idx) => (
             <span className="svc-pillRot-item" key={`${t}-${idx}`}>
-              <span className="svc-textSnake">{t}</span>
+              <span className="svc-sweepText">{t}</span>
             </span>
           ))}
         </span>
@@ -239,7 +237,12 @@ function ServicePage({
       }
     >
       <style>{`
-        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; }
+        /* =========================
+           Palette = BusinessWorkflows style (not dark)
+           Text sweep left->right on words + buttons
+        ========================= */
+
+        .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; background:#000; color: rgba(255,255,255,.92); }
         .svc *{ box-sizing:border-box; }
         .svc .container{ max-width: 1180px; margin:0 auto; padding:0 18px; }
 
@@ -255,43 +258,45 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ================================
-           ✅ TEXT-ONLY “snake” shimmer
-           - NO overlay behind text
-           - uses YOUR tint palette (tA..tD)
-        ================================= */
-        .svc-textSnake{
+        /* =========================
+           ✅ TEXT SWEEP (left -> right)
+           - only inside text (no background ambiyans)
+           - your palette: white -> 170/225/255 -> 47/184/255 -> 42/125/255
+        ========================= */
+        .svc-sweepText{
           display:inline-block;
           background-image:
-            linear-gradient(90deg,
-              rgba(255,255,255,.98) 0%,
-              var(--tB) 28%,
-              var(--tD) 60%,
-              var(--tA) 100%
+            linear-gradient(
+              90deg,
+              #ffffff 0%,
+              rgba(170,225,255,.96) 34%,
+              rgba(47,184,255,.95) 68%,
+              rgba(42,125,255,.95) 100%
             ),
-            linear-gradient(110deg,
+            linear-gradient(
+              110deg,
               transparent 0%,
               transparent 40%,
               rgba(255,255,255,.18) 47%,
-              rgba(255,255,255,.52) 50%,
+              rgba(255,255,255,.55) 50%,
               rgba(255,255,255,.18) 53%,
               transparent 60%,
               transparent 100%
             );
-          background-size: 100% 100%, 240% 100%;
-          background-position: 0 0, -140% 0;
-          -webkit-background-clip:text;
-          background-clip:text;
+          background-size: 100% 100%, 260% 100%;
+          background-position: 0 0, -160% 0; /* start LEFT */
+          -webkit-background-clip: text;
+          background-clip: text;
           color: transparent;
           will-change: background-position;
-          ${reduced ? "" : "animation: svcSnake 2.9s linear infinite;"}
+          ${reduced ? "" : "animation: svcTextSweep 2.9s linear infinite;"}
         }
-        @keyframes svcSnake{
-          0%   { background-position: 0 0, -140% 0; }
-          100% { background-position: 0 0,  140% 0; }
+        @keyframes svcTextSweep{
+          0%   { background-position: 0 0, -160% 0; }
+          100% { background-position: 0 0,  160% 0; } /* go RIGHT */
         }
         @media (prefers-reduced-motion: reduce){
-          .svc-textSnake{ animation:none !important; }
+          .svc-sweepText{ animation:none !important; }
         }
 
         .svc-hero{
@@ -299,22 +304,24 @@ function ServicePage({
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, var(--tA), transparent 55%),
-            radial-gradient(120% 90% at 86% 10%, rgba(167,89,255,.12), transparent 60%),
+            radial-gradient(900px 520px at 50% 0%, rgba(47,184,255,.08), transparent 62%),
+            radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
+            radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
           overflow:hidden;
         }
-        .svc-hero::before{
+        .svc-hero::after{
           content:"";
-          position:absolute; inset:-2px;
-          background: radial-gradient(620px 260px at 22% 18%, var(--tB), transparent 60%);
-          opacity:.85;
-          filter: blur(14px);
+          position:absolute; inset:0;
           pointer-events:none;
+          background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.18), rgba(0,0,0,.72));
+          opacity:.9;
         }
+
         .svc-hero__inner{
           position:relative;
+          z-index:1;
           padding: 28px 22px;
           display:grid;
           grid-template-columns: 1.02fr .98fr;
@@ -335,8 +342,8 @@ function ServicePage({
         }
         .svc-kdot{
           width:10px; height:10px; border-radius:999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
-          box-shadow: 0 0 0 4px var(--tC);
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
         .svc-title{
@@ -395,13 +402,16 @@ function ServicePage({
           align-items:center;
           justify-content:center;
         }
-        /* Make snake span fill “whole pill width” visually */
-        .svc-pillRot-item .svc-textSnake{
-          background-size: 100% 100%, 320% 100%;
-          background-position: 0 0, -170% 0;
+        /* make sweep fill pill nicely */
+        .svc-pillRot-item .svc-sweepText{
+          background-size: 100% 100%, 340% 100%;
+          background-position: 0 0, -190% 0;
           ${reduced ? "" : "animation-duration: 2.6s;"}
         }
 
+        /* =========================
+           ✅ BUTTON sweep on hover
+        ========================= */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -409,6 +419,8 @@ function ServicePage({
           gap: 10px;
         }
         .svc-cta{
+          position: relative;
+          overflow:hidden;
           display:inline-flex;
           align-items:center;
           justify-content:center;
@@ -424,8 +436,44 @@ function ServicePage({
           font-weight: 900;
           text-decoration:none;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+          transform: translateZ(0);
         }
-        .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
+        .svc-cta::before{
+          content:"";
+          position:absolute;
+          inset:-40% -60%;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 38%,
+            rgba(255,255,255,.18) 46%,
+            rgba(170,225,255,.55) 50%,
+            rgba(47,184,255,.32) 54%,
+            transparent 62%,
+            transparent 100%
+          );
+          transform: translate3d(-60%,0,0);
+          opacity: 0;
+          will-change: transform, opacity;
+          pointer-events:none;
+        }
+        .svc-cta:hover{
+          transform: translateY(-1px);
+          border-color: rgba(47,184,255,.22);
+          background: rgba(255,255,255,.08);
+        }
+        .svc-cta:hover::before{
+          opacity: .95;
+          ${reduced ? "transform: translate3d(60%,0,0);" : "animation: svcBtnSweep 900ms linear 1;"}
+        }
+        @keyframes svcBtnSweep{
+          0%{ transform: translate3d(-60%,0,0); }
+          100%{ transform: translate3d(60%,0,0); }
+        }
+        @media (hover: none){
+          .svc-cta:hover{ transform:none; }
+          .svc-cta:hover::before{ opacity:0; animation:none; }
+        }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
         /* =========================
@@ -447,6 +495,7 @@ function ServicePage({
           border-radius: 22px;
           overflow:hidden;
           transform: translateZ(0);
+          backface-visibility:hidden;
         }
         @media (max-width: 980px){ .svc-videoWrap{ min-height: 260px; } }
 
@@ -461,8 +510,8 @@ function ServicePage({
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.14), transparent 55%),
-            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.46) 92%);
+            radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.12), transparent 55%),
+            linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
 
@@ -494,8 +543,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
-          box-shadow: 0 0 0 4px var(--tC);
+          background: rgba(47,184,255,1);
+          box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -554,7 +603,7 @@ function ServicePage({
         }
         @keyframes svcTickBreath{
           0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
-          50%{ transform: translateZ(0) scale(1.10); filter: drop-shadow(0 0 10px var(--tD)); }
+          50%{ transform: translateZ(0) scale(1.10); filter: drop-shadow(0 0 10px rgba(47,184,255,.55)); }
         }
         .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
@@ -570,14 +619,13 @@ function ServicePage({
               </div>
 
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-textSnake">{title}</span>
+                <span className="svc-sweepText">{title}</span>
               </div>
 
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
-              {/* ✅ single pill, rotating text */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
                 <PillRotator items={pills} disabled={reduced} />
               </div>
@@ -624,7 +672,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Clock size={18} />
-              <span className="svc-textSnake">{lang === "az" ? "Sürətli cavab" : "Fast response"}</span>
+              <span className="svc-sweepText">{lang === "az" ? "Sürətli cavab" : "Fast response"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -641,7 +689,7 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span className="svc-textSnake">{lang === "az" ? "Stabil sistem" : "Stable system"}</span>
+              <span className="svc-sweepText">{lang === "az" ? "Stabil sistem" : "Stable system"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
