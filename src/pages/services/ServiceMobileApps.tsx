@@ -82,20 +82,11 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-/* ---------------- Rotating pill (1s per word + smooth swap + auto width) ---------------- */
-function RotatingPill({
-  items,
-  reduced,
-  intervalMs = 1000, // ✅ 1 second per word (your request)
-}: {
-  items: string[];
-  reduced: boolean;
-  intervalMs?: number;
-}) {
+/* ---------------- Rotating pill (correct timing: show 1s, then switch) ---------------- */
+function RotatingPill({ items, reduced }: { items: string[]; reduced: boolean }) {
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   const [w, setW] = useState<number | null>(null);
-
   const activeRef = useRef<HTMLSpanElement | null>(null);
 
   const current = items[idx % items.length] || "";
@@ -108,8 +99,8 @@ function RotatingPill({
       const raw = Math.ceil(el.scrollWidth || el.getBoundingClientRect().width || 0);
       if (!raw) return;
 
-      const pad = 36;
-      const max = Math.min(window.innerWidth * 0.86, 580);
+      const pad = 40; // ✅ extra safety (never clips)
+      const max = Math.min(window.innerWidth * 0.86, 600);
       const min = 96;
       setW(Math.max(min, Math.min(max, raw + pad)));
     };
@@ -117,8 +108,6 @@ function RotatingPill({
     const r1 = requestAnimationFrame(() => {
       measure();
       requestAnimationFrame(measure);
-      const t = window.setTimeout(measure, 120);
-      (measure as any)._t = t;
     });
 
     const onResize = () => measure();
@@ -126,8 +115,6 @@ function RotatingPill({
     return () => {
       cancelAnimationFrame(r1);
       window.removeEventListener("resize", onResize);
-      const t = (measure as any)._t;
-      if (t) clearTimeout(t);
     };
   }, [current]);
 
@@ -135,20 +122,44 @@ function RotatingPill({
     if (reduced) return;
     if (!items.length) return;
 
-    // Each cycle:
-    // - stay "idle" so user can read for intervalMs
-    // - then animate out 260ms, switch, animate in 280ms
-    const t = window.setInterval(() => {
-      setPhase("out");
-      window.setTimeout(() => {
-        setIdx((v) => (v + 1) % items.length);
-        setPhase("in");
-        window.setTimeout(() => setPhase("idle"), 320);
-      }, 260);
-    }, intervalMs);
+    let alive = true;
+    let t: number | null = null;
 
-    return () => window.clearInterval(t);
-  }, [items.length, intervalMs, reduced]);
+    const loop = () => {
+      if (!alive) return;
+
+      // ✅ show current word for 1 second
+      t = window.setTimeout(() => {
+        if (!alive) return;
+
+        // animate out
+        setPhase("out");
+
+        // small out duration
+        t = window.setTimeout(() => {
+          if (!alive) return;
+
+          // switch word
+          setIdx((v) => (v + 1) % items.length);
+          setPhase("in");
+
+          // finish in
+          t = window.setTimeout(() => {
+            if (!alive) return;
+            setPhase("idle");
+            loop();
+          }, 260);
+        }, 220);
+      }, 1000);
+    };
+
+    loop();
+
+    return () => {
+      alive = false;
+      if (t) window.clearTimeout(t);
+    };
+  }, [items.length, reduced]);
 
   if (reduced) {
     return (
@@ -186,11 +197,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-type ServiceLink = {
-  id: string;
-  path: string;
-  title: (lang: Lang) => string;
-};
+type ServiceLink = { id: string; path: string; title: (lang: Lang) => string };
 
 function ServicePage({
   tint = "cyan",
@@ -252,11 +259,7 @@ function ServicePage({
 
   const services: ServiceLink[] = useMemo(
     () => [
-      {
-        id: "chatbot-24-7",
-        path: "/services/chatbot-24-7",
-        title: (l) => (l === "az" ? "Chatbot 24/7" : "Chatbot 24/7"),
-      },
+      { id: "chatbot-24-7", path: "/services/chatbot-24-7", title: () => "Chatbot 24/7" },
       {
         id: "business-workflows",
         path: "/services/business-workflows",
@@ -281,7 +284,15 @@ function ServicePage({
         id: "mobile-apps",
         path: "/services/mobile-apps",
         title: (l) =>
-          l === "az" ? "Mobil tətbiqlər" : l === "ru" ? "Мобильные tətbiqlər" : l === "tr" ? "Mobil Uygulamalar" : l === "es" ? "Apps móviles" : "Mobile Apps",
+          l === "az"
+            ? "Mobil tətbiqlər"
+            : l === "ru"
+            ? "Мобильные приложения"
+            : l === "tr"
+            ? "Mobil Uygulamalar"
+            : l === "es"
+            ? "Apps móviles"
+            : "Mobile Apps",
       },
       {
         id: "smm-automation",
@@ -309,14 +320,13 @@ function ServicePage({
 
   const [svcOpen, setSvcOpen] = useState(false);
 
-  // ✅ Animate items one-by-one when opening
+  // ✅ sequential “light up” open
   const [openSeq, setOpenSeq] = useState(0);
   useEffect(() => {
     if (!svcOpen) {
       setOpenSeq(0);
       return;
     }
-    // reveal sequentially
     const total = dropdownItems.length;
     let i = 0;
     setOpenSeq(0);
@@ -324,19 +334,41 @@ function ServicePage({
       i += 1;
       setOpenSeq(i);
       if (i >= total) window.clearInterval(t);
-    }, 90);
+    }, 95);
     return () => window.clearInterval(t);
   }, [svcOpen, dropdownItems.length]);
 
-  // Smooth height animation for dropdown (pushes UX&Performance card down only)
+  // ✅ dropdown height animation (in NEW section below hero)
   const ddInnerRef = useRef<HTMLDivElement | null>(null);
-  const [ddH, setDdH] = useState<number>(0);
+  const [ddH, setDdH] = useState(0);
   useLayoutEffect(() => {
+    if (!svcOpen) {
+      setDdH(0);
+      return;
+    }
     const el = ddInnerRef.current;
     if (!el) return;
     const h = Math.ceil(el.scrollHeight || 0);
     setDdH(h);
   }, [svcOpen, openSeq, dropdownItems.length]);
+
+  // ✅ anchor dropdown directly under the button (same left, same width)
+  const otherBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [ddW, setDdW] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const btn = otherBtnRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const w = Math.ceil(r.width);
+      setDdW(Math.max(220, Math.min(520, w))); // panel is compact; >= button width
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
 
   // close dropdown on route change
   useEffect(() => {
@@ -364,10 +396,8 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== Shared Shimmer timing (SYNC across page) ===== */
-        :root{
-          --svcShineDur: 2.9s;
-        }
+        /* ===== SHIMMER SYNC (same start, same duration everywhere) ===== */
+        :root{ --svcShineDur: 2.9s; }
 
         .svc-grad{
           background: linear-gradient(
@@ -382,7 +412,6 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer — SAME behavior everywhere ===== */
         .svc-shimmer{
           position: relative;
           display: inline-block;
@@ -451,7 +480,7 @@ function ServicePage({
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
-          align-items: start; /* ✅ important: do NOT stretch with dropdown */
+          align-items: start; /* ✅ hero NEVER grows with dropdown now */
           min-width:0;
         }
         @media (max-width: 980px){
@@ -467,7 +496,7 @@ function ServicePage({
           position:relative;
           background: rgba(0,0,0,.22);
           contain: layout paint style;
-          align-self: start; /* ✅ video panel stays same size, no stretching */
+          align-self: start;
         }
         .svc-videoWrap{
           position: relative;
@@ -489,7 +518,6 @@ function ServicePage({
           display:block;
           transform: translateZ(0);
         }
-        /* ✅ remove yellow cast */
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
@@ -572,7 +600,7 @@ function ServicePage({
           position: relative;
           display:block;
           transform: translate3d(0,0,0);
-          transition: transform .26s ease, opacity .26s ease, filter .26s ease;
+          transition: transform .22s ease, opacity .22s ease;
           will-change: transform, opacity;
         }
         .svc-rotLine{
@@ -659,7 +687,6 @@ function ServicePage({
           .svc-cta:hover::before{ animation:none; }
         }
         .svc-ctaIcon{ opacity:.92; transform: translateZ(0); }
-
         .svc-ctaBtn{
           cursor:pointer;
           appearance:none;
@@ -667,16 +694,29 @@ function ServicePage({
           background: rgba(255,255,255,.04);
         }
 
-        /* ✅ Dropdown MUST open UNDER the button (not left, not outside)
-           We anchor it under CTA row and keep it aligned left of row.
-           It pushes content below (UX card) but does not stretch right column.
+        /* ✅ NEW: below-hero “split” area:
+           left column contains ONLY dropdown + UX card (so only UX gets pushed),
+           right column contains backend card (stays).
         */
-        .svc-ddZone{
-          margin-top: 10px;
+        .svc-below{
+          margin-top: 18px;
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+          align-items: start;
+        }
+        @media (max-width: 980px){
+          .svc-below{ grid-template-columns: 1fr; }
+        }
+
+        /* Dropdown below hero — opens under the button area, not left, not growing hero */
+        .svc-ddSlot{
           width: 100%;
+          display:flex;
+          justify-content: flex-start;
         }
         .svc-ddFrame{
-          width: fit-content;
+          width: var(--ddw, 260px);
           max-width: min(92vw, 520px);
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,.10);
@@ -696,14 +736,12 @@ function ServicePage({
           transform: translate3d(0,0,0);
           max-height: var(--ddh, 360px);
         }
-
         .svc-ddInner{
           padding: 10px;
           display:flex;
           flex-direction:column;
           gap: 10px;
         }
-
         .svc-ddItem{
           position: relative;
           display:inline-flex;
@@ -731,8 +769,6 @@ function ServicePage({
           opacity: 1;
           transform: translate3d(0,0,0);
         }
-
-        /* shine sweep on hover */
         .svc-ddItem::before{
           content:"";
           position:absolute;
@@ -766,54 +802,7 @@ function ServicePage({
           100%{ transform: translate3d(70%,0,0); }
         }
 
-        .svc-badge{
-          position:absolute; top: 12px; left: 12px; right: 12px;
-          display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          pointer-events:none;
-        }
-        .svc-badgeLeft{
-          display:inline-flex; align-items:center; gap: 10px;
-          padding: 9px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.28);
-          color: rgba(255,255,255,.88);
-          font-weight: 900;
-          letter-spacing: .12em;
-          font-size: 11px;
-        }
-        .svc-badgeRight{
-          display:inline-flex; align-items:center; gap: 8px;
-          padding: 9px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.28);
-          color: rgba(255,255,255,.86);
-          font-weight: 900;
-          font-size: 12px;
-        }
-        .svc-dot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
-          ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
-        }
-        @keyframes svcBreath{
-          0%,100%{ transform: scale(1); opacity:.95; }
-          50%{ transform: scale(1.18); opacity:.80; }
-        }
-
-        .svc-section{
-          margin-top: 26px;
-          display:grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 18px;
-          align-items: start;
-        }
-        @media (max-width: 980px){
-          .svc-section{ grid-template-columns: 1fr; }
-        }
-
+        /* Cards */
         .svc-card{
           border-radius: 22px;
           border: 1px solid rgba(255,255,255,.08);
@@ -868,9 +857,48 @@ function ServicePage({
 
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
+
+        /* badge */
+        .svc-badge{
+          position:absolute; top: 12px; left: 12px; right: 12px;
+          display:flex; align-items:center; justify-content: space-between; gap: 10px;
+          pointer-events:none;
+        }
+        .svc-badgeLeft{
+          display:inline-flex; align-items:center; gap: 10px;
+          padding: 9px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.28);
+          color: rgba(255,255,255,.88);
+          font-weight: 900;
+          letter-spacing: .12em;
+          font-size: 11px;
+        }
+        .svc-badgeRight{
+          display:inline-flex; align-items:center; gap: 8px;
+          padding: 9px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.12);
+          background: rgba(0,0,0,.28);
+          color: rgba(255,255,255,.86);
+          font-weight: 900;
+          font-size: 12px;
+        }
+        .svc-dot{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
+          box-shadow: 0 0 0 4px ${T.c};
+          ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
+        }
+        @keyframes svcBreath{
+          0%,100%{ transform: scale(1); opacity:.95; }
+          50%{ transform: scale(1.18); opacity:.80; }
+        }
       `}</style>
 
       <div className="container">
+        {/* HERO (never grows) */}
         <div className="svc-hero">
           <div className="svc-hero__inner">
             <div className="svc-left">
@@ -888,7 +916,7 @@ function ServicePage({
               </div>
 
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                <RotatingPill items={pills} reduced={reduced} intervalMs={1000} />
+                <RotatingPill items={pills} reduced={reduced} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
@@ -897,6 +925,7 @@ function ServicePage({
                 </Link>
 
                 <button
+                  ref={otherBtnRef}
                   type="button"
                   className="svc-cta svc-ctaBtn"
                   onClick={() => setSvcOpen((v) => !v)}
@@ -906,28 +935,6 @@ function ServicePage({
                   {otherServicesLabel}
                   <ChevronDown className="svc-ctaIcon" size={16} />
                 </button>
-              </div>
-
-              {/* ✅ dropdown opens UNDER buttons, pushes UX card down,
-                  DOES NOT affect right video and DOES NOT push backend card */}
-              <div className="svc-ddZone">
-                <div
-                  className={cx("svc-ddFrame", svcOpen && "is-open")}
-                  style={svcOpen ? ({ ["--ddh" as any]: `${Math.max(120, ddH + 20)}px` } as any) : undefined}
-                >
-                  <div ref={ddInnerRef} className="svc-ddInner" role="menu" aria-label="Services">
-                    {dropdownItems.map((s, i) => (
-                      <Link
-                        key={s.id}
-                        to={withLang(s.path, lang)}
-                        className={cx("svc-ddItem", i < openSeq && "is-on")}
-                        onClick={() => setSvcOpen(false)}
-                      >
-                        {s.title(lang)}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -951,43 +958,72 @@ function ServicePage({
           </div>
         </div>
 
-        {/* ✅ IMPORTANT:
-            To make ONLY UX panel move down, we put UX panel first and backend second,
-            but since dropdown is inside LEFT column (hero), it will only push the content below the hero,
-            not the right column itself. Here, both cards are below hero; they will both move down naturally.
-            If you truly need ONLY UX to move (and backend not), tell me and I’ll make UX a separate block above backend. */}
-        <div className="svc-section">
-          <div className="svc-card" data-reveal>
-            <div className="svc-card__title">
-              <Smartphone size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
-            </div>
-            <div className="svc-card__desc">
-              {lang === "az"
-                ? "iOS/Android üçün sürətli açılış, smooth animasiya və premium UX. Offline-ready strukturlar və stabil arxitektura."
-                : "Premium mobile UX with fast load, smooth animation and offline-ready architecture."}
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <Feature
-                title={lang === "az" ? "Fast" : "Fast"}
-                desc={
-                  lang === "az"
-                    ? "Optimized bundle, caching, minimal latency və sürətli açılış."
-                    : "Optimized bundle, caching, minimal latency."
+        {/* BELOW HERO:
+            ✅ dropdown is here (NOT inside hero) so hero/video never grows
+            ✅ dropdown is in LEFT COLUMN only, so it pushes ONLY UX card
+            ✅ backend card stays in right column, untouched
+        */}
+        <div className="svc-below">
+          {/* LEFT column: dropdown + UX card */}
+          <div>
+            <div className="svc-ddSlot" style={{ marginTop: 12 }}>
+              <div
+                className={cx("svc-ddFrame", svcOpen && "is-open")}
+                style={
+                  {
+                    ["--ddh" as any]: `${Math.max(0, ddH + 20)}px`,
+                    ["--ddw" as any]: ddW ? `${ddW}px` : undefined,
+                  } as any
                 }
-              />
-              <Feature
-                title={lang === "az" ? "Scalable" : "Scalable"}
-                desc={lang === "az" ? "Modular arxitektura, rahat genişlənmə və clean code." : "Modular architecture, easy to extend."}
-              />
-              <Feature
-                title={lang === "az" ? "Offline-ready" : "Offline-ready"}
-                desc={lang === "az" ? "Smart cache, queue və zəif internetdə belə stabil iş." : "Smart cache and queues for poor connections."}
-              />
+              >
+                <div ref={ddInnerRef} className="svc-ddInner" role="menu" aria-label="Services">
+                  {dropdownItems.map((s, i) => (
+                    <Link
+                      key={s.id}
+                      to={withLang(s.path, lang)}
+                      className={cx("svc-ddItem", svcOpen && i < openSeq && "is-on")}
+                      onClick={() => setSvcOpen(false)}
+                    >
+                      {s.title(lang)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
+              <div className="svc-card__title">
+                <Smartphone size={18} />
+                <span className="svc-grad svc-shimmer">{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
+              </div>
+              <div className="svc-card__desc">
+                {lang === "az"
+                  ? "iOS/Android üçün sürətli açılış, smooth animasiya və premium UX. Offline-ready strukturlar və stabil arxitektura."
+                  : "Premium mobile UX with fast load, smooth animation and offline-ready architecture."}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <Feature
+                  title={lang === "az" ? "Fast" : "Fast"}
+                  desc={
+                    lang === "az"
+                      ? "Optimized bundle, caching, minimal latency və sürətli açılış."
+                      : "Optimized bundle, caching, minimal latency."
+                  }
+                />
+                <Feature
+                  title={lang === "az" ? "Scalable" : "Scalable"}
+                  desc={lang === "az" ? "Modular arxitektura, rahat genişlənmə və clean code." : "Modular architecture, easy to extend."}
+                />
+                <Feature
+                  title={lang === "az" ? "Offline-ready" : "Offline-ready"}
+                  desc={lang === "az" ? "Smart cache, queue və zəif internetdə belə stabil iş." : "Smart cache and queues for poor connections."}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
+          {/* RIGHT column: backend card (stays) */}
+          <div className="svc-card" data-reveal style={{ marginTop: 14 }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
               <span className="svc-grad svc-shimmer">{lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}</span>
