@@ -1,5 +1,5 @@
 // src/pages/About.tsx
-import React, { useEffect, useMemo, useRef, useState, memo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,6 +13,7 @@ import {
   Sparkles,
   Zap,
   Cpu,
+  Dot,
 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
@@ -126,64 +127,34 @@ function useRevealWithinBatched(
   }, [containerRef, rootMargin, ...deps]);
 }
 
-/* ------------------ Rotator (3s, yuxarıdan-aşağı) ------------------ */
-type RotatorProps = {
-  items: string[];
-  intervalMs?: number; // default 3000
-  className?: string;
-  variant?: "heroWord" | "kicker" | "headingWord";
-  ariaLabel?: string;
-};
-
-const Rotator = memo(function Rotator({
-  items,
-  intervalMs = 3000,
-  className,
-  variant = "heroWord",
-  ariaLabel,
-}: RotatorProps) {
-  const reduced = usePrefersReducedMotion();
-  const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<"in" | "out">("in");
-  const tA = useRef<number | null>(null);
-  const tB = useRef<number | null>(null);
+/** 3s loop rotator with top->down replace animation */
+function useRotator(items: string[], intervalMs: number, reduced: boolean) {
+  const [idx, setIdx] = useState(0);
+  const [prev, setPrev] = useState<number | null>(null);
 
   useEffect(() => {
-    if (items.length <= 1) return;
+    if (reduced) return;
+    if (!items.length) return;
+    const t = window.setInterval(() => {
+      setPrev((p) => {
+        // set outgoing = current idx
+        return idx;
+      });
+      setIdx((x) => (x + 1) % items.length);
+    }, intervalMs);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length, intervalMs, reduced, idx]);
 
-    const OUT_MS = reduced ? 0 : 650;
-    const HOLD_MS = Math.max(0, intervalMs - OUT_MS);
+  // clear prev after animation
+  useEffect(() => {
+    if (prev == null) return;
+    const tt = window.setTimeout(() => setPrev(null), 560);
+    return () => window.clearTimeout(tt);
+  }, [prev]);
 
-    const schedule = () => {
-      if (tA.current) window.clearTimeout(tA.current);
-      if (tB.current) window.clearTimeout(tB.current);
-
-      tA.current = window.setTimeout(() => {
-        setPhase("out");
-        tB.current = window.setTimeout(() => {
-          setIndex((v) => (v + 1) % items.length);
-          setPhase("in");
-          schedule();
-        }, OUT_MS);
-      }, HOLD_MS);
-    };
-
-    schedule();
-    return () => {
-      if (tA.current) window.clearTimeout(tA.current);
-      if (tB.current) window.clearTimeout(tB.current);
-    };
-  }, [items, intervalMs, reduced]);
-
-  const motionCls = reduced ? "ab-rtNoMotion" : phase === "in" ? "ab-rtIn" : "ab-rtOut";
-  const current = items[index] ?? "";
-
-  return (
-    <span className={cx("ab-rtWrap", `ab-rtVar-${variant}`, className)} aria-label={ariaLabel}>
-      <span className={cx("ab-rtItem", motionCls)}>{current}</span>
-    </span>
-  );
-});
+  return { idx, prev };
+}
 
 type Pill = { icon: any; title: string; desc: string; bullets: string[] };
 type Step = { n: string; title: string; desc: string; points: string[] };
@@ -225,20 +196,6 @@ export default function About() {
   // Strip words (i18n)
   const stripWords = useMemo(() => STRIP_WORDS_KEYS.map((k) => t(`about.strip.${k}`)), [t]);
   const marquee = useMemo(() => [...stripWords, ...stripWords], [stripWords]);
-
-  // Hero rotators (AZ hardcoded — sənin istədiyin mətn)
-  const heroWords = useMemo(() => ["işləyən", "ölçülən", "nəzarətli"], []);
-  const heroKickerLines = useMemo(
-    () => [
-      "NEOX — AI avtomasiya və agent sistemləri studiyası.",
-      "Inbox → intent → routing → CRM → ölçüm.",
-      "Məqsəd: daha az manual iş, daha sürətli cavab, daha çox satış.",
-    ],
-    []
-  );
-
-  // Foundation heading rotator (AZ)
-  const basisWords = useMemo(() => ["sistem", "nəzarət", "nəticə"], []);
 
   // Foundation (i18n)
   const foundation: Pill[] = useMemo(
@@ -327,6 +284,14 @@ export default function About() {
     [t]
   );
 
+  // ✅ HERO: 3s rotator (işləyən/ölçülən/nəzarətli)
+  const heroWords = useMemo(() => ["işləyən", "ölçülən", "nəzarətli"], []);
+  const heroRot = useRotator(heroWords, 3000, reduced);
+
+  // ✅ SECTION: 3s rotator (sistem/nəzarət/nəticə)
+  const baseWords = useMemo(() => ["sistem", "nəzarət", "nəticə"], []);
+  const baseRot = useRotator(baseWords, 3000, reduced);
+
   return (
     <main ref={pageRef} className="ab-page" style={{ background: "#000", minHeight: "100vh" }}>
       <style>{`
@@ -346,7 +311,7 @@ export default function About() {
           --ab-glow2: rgba(47,184,255,.18);
           --ab-glow3: rgba(42,125,255,.16);
 
-          /* header safety (mobilde üst-üstə düşməsin) */
+          /* header safety */
           --ab-headerSafe: 86px;
         }
 
@@ -358,7 +323,6 @@ export default function About() {
           overflow-x: clip;
         }
 
-        /* ✅ overlay heç vaxt kontenti örtməsin */
         .ab-page{
           position: relative;
           isolation: isolate;
@@ -372,7 +336,6 @@ export default function About() {
         }
         .ab-page *{ min-width:0; max-width:100%; }
 
-        /* ✅ background layer-ları iOS Safari üçün 100vw/100vh (sağdakı qara band gedir) */
         .ab-layer{
           position: fixed;
           top: 0; left: 50%;
@@ -423,7 +386,6 @@ export default function About() {
           opacity: .82;
         }
 
-        /* ✅ kontent üst qatda */
         .ab-container{
           width: min(1180px, calc(100% - 40px));
           margin: 0 auto;
@@ -544,13 +506,13 @@ export default function About() {
           z-index: 2;
         }
 
-        /* ✅ title — NO forced line breaks, wraps naturally */
+        /* ✅ title (biraz kiçildi) */
         .ab-title{
           margin-top: 12px;
-          font-size: clamp(30px, 7.2vw, 72px);
+          font-size: clamp(28px, 6.4vw, 64px);
           line-height: 1.06;
           letter-spacing: -.02em;
-          font-weight: 660;
+          font-weight: 680;
           text-align:center;
           text-wrap: balance;
           max-width: 980px;
@@ -559,44 +521,62 @@ export default function About() {
         }
         @media (max-width: 560px){
           .ab-title{
-            max-width: 640px;
-            font-size: clamp(28px, 7.1vw, 44px);
+            max-width: 680px;
+            font-size: clamp(28px, 7.0vw, 46px);
             line-height: 1.06;
           }
         }
-        @media (max-width: 420px){
-          .ab-title{ font-size: 30px; line-height: 1.06; }
-        }
 
-        /* Rotator lines in hero */
-        .ab-heroLine{
-          margin: 14px auto 0;
-          text-align:center;
-          font-size: 16px;
-          line-height: 1.6;
-          color: rgba(255,255,255,.84);
-          font-weight: 650;
-        }
-        .ab-heroKickerRot{
-          margin: 10px auto 0;
-          text-align:center;
-          color: rgba(255,255,255,.72);
-          font-size: 13px;
-          line-height: 1.55;
-          min-height: 20px;
-        }
-
-        .ab-sub{
+        /* HERO subline (biraz böyüdü) */
+        .ab-heroSub{
           margin: 14px auto 0;
           max-width: 980px;
           text-align:center;
-          font-size: 15.5px;
-          line-height: 1.68;
-          color: var(--ab-dim);
-          font-weight: 450;
+          font-size: 17px;
+          line-height: 1.62;
+          color: rgba(255,255,255,.78);
+          font-weight: 520;
         }
-        @media (max-width: 420px){
-          .ab-sub{ font-size: 15px; }
+        @media (max-width: 560px){
+          .ab-heroSub{ font-size: 16px; }
+        }
+
+        /* top->down rotator */
+        .ab-rotLine{
+          display:inline-flex;
+          align-items: baseline;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+        .ab-rotSlot{
+          display:inline-grid;
+          position: relative;
+          height: 1.35em;
+          min-width: 7.2ch;
+          vertical-align: baseline;
+          overflow: hidden;
+        }
+        .ab-rotWord{
+          grid-area: 1/1;
+          white-space: nowrap;
+          font-weight: 800;
+          letter-spacing: -.01em;
+        }
+        .ab-rotIn{
+          animation: ab-rot-in .56s ease both;
+        }
+        .ab-rotOut{
+          animation: ab-rot-out .56s ease both;
+          opacity: .0;
+        }
+        @keyframes ab-rot-in{
+          from{ transform: translate3d(0,-14px,0); opacity: 0; filter: blur(6px); }
+          to{ transform: translate3d(0,0,0); opacity: 1; filter: blur(0); }
+        }
+        @keyframes ab-rot-out{
+          from{ transform: translate3d(0,0,0); opacity: 1; filter: blur(0); }
+          to{ transform: translate3d(0,14px,0); opacity: 0; filter: blur(6px); }
         }
 
         /* pill */
@@ -887,109 +867,6 @@ export default function About() {
           filter: drop-shadow(0 6px 10px rgba(0,0,0,.6));
         }
 
-        /* arch */
-        .ab-archGrid{
-          display:grid;
-          grid-template-columns: 1.05fr .95fr;
-          gap: 22px;
-          align-items:start;
-        }
-        @media (max-width: 980px){ .ab-archGrid{ grid-template-columns: 1fr; } }
-
-        .ab-diagram{
-          position: relative;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: linear-gradient(180deg, rgba(255,255,255,.034), rgba(255,255,255,.018));
-          box-shadow: var(--ab-shadow2);
-          padding: 16px;
-          overflow:hidden;
-          isolation:isolate;
-          contain: layout paint style;
-        }
-        .ab-diagram::after{
-          content:"";
-          position:absolute; inset:0;
-          pointer-events:none;
-          background:
-            radial-gradient(640px 220px at 20% 0%, rgba(255,255,255,.08), transparent 72%),
-            radial-gradient(760px 260px at 85% 10%, rgba(47,184,255,.10), transparent 72%);
-          opacity:.75;
-        }
-
-        .ab-diagTop{ position:relative; display:flex; gap: 8px; flex-wrap:wrap; z-index:1; }
-        .ab-diagGrid{
-          position:relative;
-          z-index:1;
-          margin-top: 14px;
-          display:grid;
-          grid-template-columns: 1fr 1.1fr 1fr;
-          gap: 12px;
-          align-items:stretch;
-        }
-        @media (max-width: 560px){ .ab-diagGrid{ grid-template-columns: 1fr; } }
-
-        .ab-node{
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(0,0,0,.26);
-          padding: 12px;
-        }
-        .ab-nodeName{ font-weight: 750; }
-        .ab-nodeSub{
-          color: rgba(255,255,255,.66);
-          margin-top: 4px;
-          font-size: 12.5px;
-          line-height: 1.5;
-          font-weight: 450;
-        }
-
-        .ab-core{
-          border-radius: 18px;
-          border: 1px solid rgba(47,184,255,.26);
-          background: linear-gradient(180deg, rgba(47,184,255,.14), rgba(255,255,255,.02));
-          padding: 12px;
-          position: relative;
-          overflow:hidden;
-          contain: paint;
-        }
-        .ab-coreTop{
-          font-weight: 750;
-          letter-spacing: .10em;
-          font-size: 12px;
-          color: rgba(255,255,255,.84);
-        }
-        .ab-coreMid{ margin-top: 6px; font-weight: 750; font-size: 16px; }
-        .ab-coreBot{ margin-top: 6px; color: rgba(255,255,255,.72); font-size: 13px; font-weight: 450; }
-
-        .ab-pulse{
-          position:absolute;
-          width: 7px; height: 7px;
-          border-radius: 999px;
-          background: rgba(47,184,255,.92);
-          box-shadow: 0 0 0 5px rgba(47,184,255,.10);
-          opacity:.9;
-          animation: ab-pulse 1.9s ease-in-out infinite;
-        }
-        .ab-pulse.p1{ left: 12px; top: 44px; }
-        .ab-pulse.p2{ right: 18px; top: 66px; background: rgba(170,225,255,.90); box-shadow: 0 0 0 5px rgba(170,225,255,.08); }
-        .ab-pulse.p3{ left: 44%; bottom: 18px; }
-        @keyframes ab-pulse{
-          0%,100%{ transform: translate3d(0,0,0) scale(1); opacity:.82; }
-          50%{ transform: translate3d(0,-5px,0) scale(1.06); opacity:1; }
-        }
-        @media (prefers-reduced-motion: reduce){ .ab-pulse{ animation: none !important; } }
-
-        .ab-diagFoot{
-          position:relative;
-          z-index:1;
-          margin-top: 12px;
-          display:flex;
-          flex-wrap:wrap;
-          gap: 8px;
-          opacity:.98;
-        }
-
         /* process */
         .ab-termHead{
           display:flex;
@@ -1133,91 +1010,35 @@ export default function About() {
         .ab-proofMid{ margin-top: 10px; font-weight: 750; font-size: 28px; letter-spacing: -.02em; }
         .ab-proofBot{ margin-top: 8px; color: rgba(255,255,255,.70); line-height: 1.6; font-size: 13.5px; font-weight: 450; }
 
+        /* ✅ “İşimizin əsası” rot pill (ox yoxdur, daha natural) */
+        .ab-rotPill{
+          display:inline-flex;
+          align-items:center;
+          gap: 10px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.03);
+          box-shadow: 0 14px 52px rgba(0,0,0,.56);
+          transform: translate3d(0,0,0);
+        }
+        .ab-rotPillIcon{
+          width: 26px; height:26px;
+          border-radius: 999px;
+          border: 1px solid rgba(47,184,255,.22);
+          background: rgba(0,0,0,.30);
+          display:grid; place-items:center;
+          box-shadow: 0 0 0 3px rgba(47,184,255,.08);
+        }
+        .ab-rotPillIcon svg{ width: 16px; height: 16px; color: rgba(255,255,255,.92); }
+
         @media (hover: none){
           .ab-pop:hover{ transform:none; filter:none; }
           .ab-btn:hover{ transform:none; box-shadow:none; }
         }
-
-        /* ---------------- Rotator CSS ---------------- */
-        .ab-rtWrap{
-          display:inline-block;
-          position: relative;
-          vertical-align: baseline;
-          min-width: 1ch;
-        }
-        .ab-rtItem{
-          display:inline-block;
-          will-change: transform, opacity;
-        }
-        .ab-rtIn{
-          animation: abRtIn 650ms cubic-bezier(.2,.9,.2,1) both;
-        }
-        .ab-rtOut{
-          animation: abRtOut 650ms cubic-bezier(.2,.9,.2,1) both;
-        }
-        .ab-rtNoMotion{
-          animation: none !important;
-          transform: none !important;
-          opacity: 1 !important;
-          filter: none !important;
-        }
-        @keyframes abRtIn{
-          from{ opacity: 0; transform: translateY(-18px); filter: blur(6px); }
-          to  { opacity: 1; transform: translateY(0);    filter: blur(0); }
-        }
-        @keyframes abRtOut{
-          from{ opacity: 1; transform: translateY(0);    filter: blur(0); }
-          to  { opacity: 0; transform: translateY(18px); filter: blur(6px); }
-        }
-
-        .ab-rtVar-heroWord .ab-rtItem,
-        .ab-rtVar-headingWord .ab-rtItem{
-          color: transparent;
-          background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
-          -webkit-background-clip:text;
-          background-clip:text;
-          padding: 0 .10em;
-        }
-        .ab-rtVar-kicker .ab-rtItem{
-          color: rgba(255,255,255,.72);
-        }
-
-        /* Foundation başlıq üçün badge */
-        .ab-basisRow{
-          display:inline-flex;
-          align-items:center;
-          gap: 12px;
-          flex-wrap: wrap;
-          justify-content:center;
-        }
-        .ab-basisBadge{
-          display:inline-flex;
-          align-items:center;
-          gap:10px;
-          padding: 10px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.22);
-          box-shadow: 0 14px 52px rgba(0,0,0,.40);
-        }
-        .ab-basisIcon{
-          width: 26px;
-          height: 26px;
-          border-radius: 999px;
-          display:grid;
-          place-items:center;
-          background: radial-gradient(circle at 30% 30%, rgba(170,225,255,.26), rgba(47,184,255,.12));
-          border: 1px solid rgba(47,184,255,.22);
-        }
-        .ab-basisIcon::before{
-          content:"↘";
-          font-size: 14px;
-          color: rgba(255,255,255,.92);
-          transform: translateY(-1px);
-        }
       `}</style>
 
-      {/* ✅ premium background layers (tam ekran, sağdakı qara band yoxdur) */}
+      {/* premium background layers */}
       <div className="ab-layer ab-bgGlow" aria-hidden="true" />
       {!reduced && <div className="ab-layer ab-drift" aria-hidden="true" />}
       <div className="ab-layer ab-noise" aria-hidden="true" />
@@ -1245,29 +1066,35 @@ export default function About() {
             </div>
           </div>
 
-          {/* ✅ Title: sabit cümlə, dirnaq YOX */}
+          {/* ✅ Title — quotes yoxdur */}
           <h1 style={d(90)} className={cx("ab-title", "ab-enter", enter && "ab-in")}>
-            AI-ni sadəcə <span className="ab-glowWord ab-gradient">gözəl görünsün</span> deyə qurmuruq.
+            AI-ni sadəcə{" "}
+            <span className="ab-glowWord ab-gradient" style={{ whiteSpace: "nowrap" }}>
+              gözəl görünsün
+            </span>{" "}
+            deyə qurmuruq.
           </h1>
 
-          {/* ✅ 3 saniyə rotasiya (yuxarıdan-aşağı) */}
-          <div style={d(140)} className={cx("ab-heroLine", "ab-enter", enter && "ab-in")}>
-            Biz{" "}
-            <Rotator items={heroWords} intervalMs={3000} variant="heroWord" ariaLabel="NEOX yanaşması" /> sistem qururuq.
-          </div>
-
-          {/* ✅ Aşağı rotasiya (3 saniyə) */}
-          <div style={d(190)} className={cx("ab-heroKickerRot", "ab-enter", enter && "ab-in")}>
-            <Rotator items={heroKickerLines} intervalMs={3000} variant="kicker" ariaLabel="NEOX xətti" />
-          </div>
-
-          {/* Sub (səndə qalsın) */}
-          <p style={d(230)} className={cx("ab-sub", "ab-enter", enter && "ab-in")}>
-            {t("about.hero.sub")}
+          {/* ✅ Sub — əvvəl “Biz ... sistem qururuq.”, sonra 3 saniyədən bir yuxarıdan-aşağı dəyişsin */}
+          <p style={d(180)} className={cx("ab-heroSub", "ab-enter", enter && "ab-in")}>
+            <span className="ab-rotLine">
+              Biz{" "}
+              <span className="ab-rotSlot" aria-label="rotating">
+                {heroRot.prev != null && (
+                  <span className={cx("ab-rotWord", "ab-glowWord", "ab-gradient", "ab-rotOut")} aria-hidden="true">
+                    {heroWords[heroRot.prev]}
+                  </span>
+                )}
+                <span key={heroRot.idx} className={cx("ab-rotWord", "ab-glowWord", "ab-gradient", !reduced && "ab-rotIn")}>
+                  {heroWords[heroRot.idx]}
+                </span>
+              </span>{" "}
+              sistem qururuq.
+            </span>
           </p>
 
           {/* Buttons */}
-          <div style={d(310)} className={cx("ab-actions", "ab-enter", enter && "ab-in")}>
+          <div style={d(270)} className={cx("ab-actions", "ab-enter", enter && "ab-in")}>
             <Link to="/contact" className="ab-btn ab-btn--primary">
               {t("about.hero.ctaPrimary")} <ArrowRight size={18} />
             </Link>
@@ -1277,7 +1104,7 @@ export default function About() {
           </div>
 
           {/* Chips */}
-          <div style={d(380)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
+          <div style={d(350)} className={cx("ab-chips", "ab-enter", enter && "ab-in")} aria-hidden="true">
             <span className="ab-chip ab-chip--soft">
               <Cpu size={14} /> {t("about.hero.chips.0")}
             </span>
@@ -1308,15 +1135,25 @@ export default function About() {
       <section className="ab-section" aria-label={t("about.foundation.aria")}>
         <div className="ab-container">
           <header className="ab-head">
-            <div className={cx("ab-kicker", "ab-reveal", "ab-reveal-top")}>{t("about.foundation.kicker")}</div>
+            {/* ✅ “ƏSAS” kimi balaca kicker ləğv edildi */}
+            <h2 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")} style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+              <span>İşimizin əsası</span>
 
-            {/* ✅ 2-ci şəkil başlıq: sabit + badge rotator (no colon) */}
-            <h2 className={cx("ab-h2", "ab-reveal", "ab-reveal-top")}>
-              <span className="ab-basisRow">
-                <span>İşimizin əsası</span>
-                <span className="ab-basisBadge" aria-label="dəyişən fokus">
-                  <span className="ab-basisIcon" aria-hidden="true" />
-                  <Rotator items={basisWords} intervalMs={3000} variant="headingWord" ariaLabel="əsas söz" />
+              <span className="ab-rotPill" aria-label="rotating base">
+                <span className="ab-rotPillIcon" aria-hidden="true">
+                  {/* ✅ ox əvəzinə daha natural “dot/pulse” */}
+                  <Dot />
+                </span>
+
+                <span className="ab-rotSlot" style={{ minWidth: "7ch" }}>
+                  {baseRot.prev != null && (
+                    <span className={cx("ab-rotWord", "ab-glowWord", "ab-gradient", "ab-rotOut")} aria-hidden="true">
+                      {baseWords[baseRot.prev]}
+                    </span>
+                  )}
+                  <span key={baseRot.idx} className={cx("ab-rotWord", "ab-glowWord", "ab-gradient", !reduced && "ab-rotIn")}>
+                    {baseWords[baseRot.idx]}
+                  </span>
                 </span>
               </span>
             </h2>
@@ -1377,58 +1214,115 @@ export default function About() {
       {/* ARCHITECTURE */}
       <section className="ab-arch" aria-label={t("about.arch.aria")}>
         <div className="ab-container">
-          <div className="ab-archGrid">
+          <div className="ab-archGrid" style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 22, alignItems: "start" }}>
             {/* diagram */}
             <div className={cx("ab-reveal", "ab-reveal-left")} style={{ minWidth: 0 }}>
-              <div className={cx("ab-diagram", "ab-pop")} aria-hidden="true">
-                <div className="ab-diagTop">
+              <div className={cx("ab-diagram", "ab-pop")} aria-hidden="true" style={{
+                position: "relative",
+                borderRadius: 22,
+                border: "1px solid rgba(255,255,255,.10)",
+                background: "linear-gradient(180deg, rgba(255,255,255,.034), rgba(255,255,255,.018))",
+                boxShadow: "var(--ab-shadow2)",
+                padding: 16,
+                overflow: "hidden",
+                isolation: "isolate",
+                contain: "layout paint style",
+              }}>
+                <div className="ab-diagTop" style={{ position: "relative", display: "flex", gap: 8, flexWrap: "wrap", zIndex: 1 }}>
                   <span className="ab-chip ab-chip--soft">{t("about.arch.diagram.top.0")}</span>
                   <span className="ab-chip">{t("about.arch.diagram.top.1")}</span>
                   <span className="ab-chip">{t("about.arch.diagram.top.2")}</span>
                   <span className="ab-chip">{t("about.arch.diagram.top.3")}</span>
                 </div>
 
-                <div className="ab-diagGrid">
-                  <div className="ab-node">
-                    <div className="ab-nodeName">{t("about.arch.diagram.nodes.inbox.title")}</div>
-                    <div className="ab-nodeSub">{t("about.arch.diagram.nodes.inbox.sub")}</div>
+                <div
+                  className="ab-diagGrid"
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    marginTop: 14,
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "1fr 1.1fr 1fr",
+                    gap: 12,
+                    alignItems: "stretch",
+                  }}
+                >
+                  <div className="ab-node" style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.26)", padding: 12 }}>
+                    <div className="ab-nodeName" style={{ fontWeight: 750 }}>{t("about.arch.diagram.nodes.inbox.title")}</div>
+                    <div className="ab-nodeSub" style={{ color: "rgba(255,255,255,.66)", marginTop: 4, fontSize: 12.5, lineHeight: 1.5, fontWeight: 450 }}>
+                      {t("about.arch.diagram.nodes.inbox.sub")}
+                    </div>
                   </div>
 
-                  <div className="ab-core">
-                    <div className="ab-coreTop">{t("about.arch.diagram.core.top")}</div>
-                    <div className="ab-coreMid">{t("about.arch.diagram.core.mid")}</div>
-                    <div className="ab-coreBot">{t("about.arch.diagram.core.bot")}</div>
+                  <div
+                    className="ab-core"
+                    style={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(47,184,255,.26)",
+                      background: "linear-gradient(180deg, rgba(47,184,255,.14), rgba(255,255,255,.02))",
+                      padding: 12,
+                      position: "relative",
+                      overflow: "hidden",
+                      contain: "paint",
+                    }}
+                  >
+                    <div className="ab-coreTop" style={{ fontWeight: 750, letterSpacing: ".10em", fontSize: 12, color: "rgba(255,255,255,.84)" }}>
+                      {t("about.arch.diagram.core.top")}
+                    </div>
+                    <div className="ab-coreMid" style={{ marginTop: 6, fontWeight: 750, fontSize: 16 }}>
+                      {t("about.arch.diagram.core.mid")}
+                    </div>
+                    <div className="ab-coreBot" style={{ marginTop: 6, color: "rgba(255,255,255,.72)", fontSize: 13, fontWeight: 450 }}>
+                      {t("about.arch.diagram.core.bot")}
+                    </div>
                     {!reduced && (
                       <>
-                        <span className="ab-pulse p1" />
-                        <span className="ab-pulse p2" />
-                        <span className="ab-pulse p3" />
+                        <span className="ab-pulse p1" style={{
+                          position: "absolute", width: 7, height: 7, borderRadius: 999, background: "rgba(47,184,255,.92)",
+                          boxShadow: "0 0 0 5px rgba(47,184,255,.10)", opacity: .9, left: 12, top: 44, animation: "ab-pulse 1.9s ease-in-out infinite",
+                        }} />
+                        <span className="ab-pulse p2" style={{
+                          position: "absolute", width: 7, height: 7, borderRadius: 999, background: "rgba(170,225,255,.90)",
+                          boxShadow: "0 0 0 5px rgba(170,225,255,.08)", opacity: .9, right: 18, top: 66, animation: "ab-pulse 1.9s ease-in-out infinite",
+                        }} />
+                        <span className="ab-pulse p3" style={{
+                          position: "absolute", width: 7, height: 7, borderRadius: 999, background: "rgba(47,184,255,.92)",
+                          boxShadow: "0 0 0 5px rgba(47,184,255,.10)", opacity: .9, left: "44%", bottom: 18, animation: "ab-pulse 1.9s ease-in-out infinite",
+                        }} />
                       </>
                     )}
                   </div>
 
-                  <div className="ab-node">
-                    <div className="ab-nodeName">{t("about.arch.diagram.nodes.crm.title")}</div>
-                    <div className="ab-nodeSub">{t("about.arch.diagram.nodes.crm.sub")}</div>
+                  <div className="ab-node" style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.26)", padding: 12 }}>
+                    <div className="ab-nodeName" style={{ fontWeight: 750 }}>{t("about.arch.diagram.nodes.crm.title")}</div>
+                    <div className="ab-nodeSub" style={{ color: "rgba(255,255,255,.66)", marginTop: 4, fontSize: 12.5, lineHeight: 1.5, fontWeight: 450 }}>
+                      {t("about.arch.diagram.nodes.crm.sub")}
+                    </div>
                   </div>
 
-                  <div className="ab-node">
-                    <div className="ab-nodeName">{t("about.arch.diagram.nodes.ops.title")}</div>
-                    <div className="ab-nodeSub">{t("about.arch.diagram.nodes.ops.sub")}</div>
+                  <div className="ab-node" style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.26)", padding: 12 }}>
+                    <div className="ab-nodeName" style={{ fontWeight: 750 }}>{t("about.arch.diagram.nodes.ops.title")}</div>
+                    <div className="ab-nodeSub" style={{ color: "rgba(255,255,255,.66)", marginTop: 4, fontSize: 12.5, lineHeight: 1.5, fontWeight: 450 }}>
+                      {t("about.arch.diagram.nodes.ops.sub")}
+                    </div>
                   </div>
 
-                  <div className="ab-node">
-                    <div className="ab-nodeName">{t("about.arch.diagram.nodes.rules.title")}</div>
-                    <div className="ab-nodeSub">{t("about.arch.diagram.nodes.rules.sub")}</div>
+                  <div className="ab-node" style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.26)", padding: 12 }}>
+                    <div className="ab-nodeName" style={{ fontWeight: 750 }}>{t("about.arch.diagram.nodes.rules.title")}</div>
+                    <div className="ab-nodeSub" style={{ color: "rgba(255,255,255,.66)", marginTop: 4, fontSize: 12.5, lineHeight: 1.5, fontWeight: 450 }}>
+                      {t("about.arch.diagram.nodes.rules.sub")}
+                    </div>
                   </div>
 
-                  <div className="ab-node">
-                    <div className="ab-nodeName">{t("about.arch.diagram.nodes.integrations.title")}</div>
-                    <div className="ab-nodeSub">{t("about.arch.diagram.nodes.integrations.sub")}</div>
+                  <div className="ab-node" style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(0,0,0,.26)", padding: 12 }}>
+                    <div className="ab-nodeName" style={{ fontWeight: 750 }}>{t("about.arch.diagram.nodes.integrations.title")}</div>
+                    <div className="ab-nodeSub" style={{ color: "rgba(255,255,255,.66)", marginTop: 4, fontSize: 12.5, lineHeight: 1.5, fontWeight: 450 }}>
+                      {t("about.arch.diagram.nodes.integrations.sub")}
+                    </div>
                   </div>
                 </div>
 
-                <div className="ab-diagFoot" aria-hidden="true">
+                <div className="ab-diagFoot" aria-hidden="true" style={{ position: "relative", zIndex: 1, marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8, opacity: .98 }}>
                   <span className="ab-chip">{t("about.arch.diagram.foot.0")}</span>
                   <span className="ab-chip">{t("about.arch.diagram.foot.1")}</span>
                   <span className="ab-chip">{t("about.arch.diagram.foot.2")}</span>
@@ -1468,11 +1362,7 @@ export default function About() {
                 <Link to="/services" className="ab-btn">
                   {t("about.arch.ctaServices")} <ArrowRight size={18} />
                 </Link>
-                <button
-                  type="button"
-                  className="ab-btn"
-                  onClick={() => window.dispatchEvent(new CustomEvent("neox-ai:open"))}
-                >
+                <button type="button" className="ab-btn" onClick={() => window.dispatchEvent(new CustomEvent("neox-ai:open"))}>
                   {t("about.arch.ctaAsk")}
                 </button>
               </div>
@@ -1502,10 +1392,7 @@ export default function About() {
             <div className="ab-termGrid">
               <div style={{ display: "grid", gap: 12 }}>
                 {steps.map((s, idx) => (
-                  <div
-                    key={s.n}
-                    className={cx("ab-termLine", "ab-reveal", idx % 2 === 0 ? "ab-reveal-left" : "ab-reveal-right")}
-                  >
+                  <div key={s.n} className={cx("ab-termLine", "ab-reveal", idx % 2 === 0 ? "ab-reveal-left" : "ab-reveal-right")}>
                     <div>
                       <div className="ab-k">
                         {t("about.process.stepLabel")} {s.n} / {s.title}
