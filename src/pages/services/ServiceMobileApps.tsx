@@ -86,6 +86,84 @@ function Pill({ children }: { children: React.ReactNode }) {
   return <span className="svc-pill">{children}</span>;
 }
 
+/** Single pill that swaps texts (vertical wipe) and resizes to content width */
+function RotatingPill({
+  items,
+  reduced,
+  intervalMs = 2400,
+}: {
+  items: string[];
+  reduced: boolean;
+  intervalMs?: number;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
+  const measureRef = useRef<HTMLSpanElement | null>(null);
+  const [w, setW] = useState<number | null>(null);
+
+  const current = items[idx % items.length] || "";
+  const next = items[(idx + 1) % items.length] || "";
+
+  // Measure current text width (so pill shrinks/grows naturally)
+  useEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    // measure after paint
+    const raf = requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      const nextW = Math.ceil(rect.width);
+      setW(nextW);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [current]);
+
+  useEffect(() => {
+    if (reduced) return;
+    if (!items.length) return;
+
+    const t = setInterval(() => {
+      // out -> switch -> in
+      setPhase("out");
+      window.setTimeout(() => {
+        setIdx((v) => (v + 1) % items.length);
+        setPhase("in");
+        window.setTimeout(() => setPhase("idle"), 520);
+      }, 420);
+    }, intervalMs);
+
+    return () => clearInterval(t);
+  }, [items.length, intervalMs, reduced]);
+
+  // Reduced motion: just show first item
+  if (reduced) {
+    const first = items[0] || "";
+    return (
+      <span className="svc-rotPill" style={{ width: undefined }}>
+        <span className="svc-rotText">{first}</span>
+      </span>
+    );
+  }
+
+  // width = measured text + padding budget (left/right = 12+12)
+  const width = w != null ? w + 24 : undefined;
+
+  return (
+    <span className="svc-rotPill" style={{ width }}>
+      {/* hidden measurer (same font/weight) */}
+      <span className="svc-rotMeasure" ref={measureRef} aria-hidden="true">
+        {current}
+      </span>
+
+      <span className={cx("svc-rotViewport", phase === "out" && "is-out", phase === "in" && "is-in")}>
+        <span className="svc-rotStack">
+          <span className="svc-rotLine is-a">{current}</span>
+          <span className="svc-rotLine is-b">{next}</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
@@ -197,9 +275,10 @@ function ServicePage({
           color:transparent;
         }
 
-        /* ===== Shimmer / Shine (your “ilan kimi” effect) =====
-           Idea: keep the text visible, and move a bright band over it forever.
-           Only animates transform => good FPS.
+        /* ===== Shimmer / Shine =====
+           We provide 2 variants:
+           - .svc-shimmer--cut: disappears earlier (feels like it goes behind the video panel)
+           - .svc-shimmer--into: keeps going to the end, fades only at the very edge (feels like it “enters”)
         */
         .svc-shimmer{
           position: relative;
@@ -212,26 +291,37 @@ function ServicePage({
           inset: -12% -60%;
           pointer-events:none;
 
-          /* moving light band */
           background: linear-gradient(
             110deg,
             transparent 0%,
             transparent 35%,
-            rgba(255,255,255,.30) 45%,
+            rgba(255,255,255,.26) 45%,
             rgba(170,225,255,.55) 50%,
             rgba(47,184,255,.45) 55%,
             transparent 65%,
             transparent 100%
           );
 
-          /* show band only inside the text */
           mix-blend-mode: screen;
           opacity: .9;
-
           transform: translate3d(-40%,0,0);
           will-change: transform;
           ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
         }
+
+        /* CUT variant: fade-out earlier to simulate “goes behind the video panel” */
+        .svc-shimmer--cut::after{
+          /* mask fades earlier (before the right edge) */
+          -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 78%, transparent 100%);
+          mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 78%, transparent 100%);
+        }
+
+        /* INTO variant: fade only at very end (feels like it enters) */
+        .svc-shimmer--into::after{
+          -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 86%, rgba(0,0,0,.9) 92%, transparent 100%);
+          mask-image: linear-gradient(90deg, #000 0%, #000 86%, rgba(0,0,0,.9) 92%, transparent 100%);
+        }
+
         @keyframes svcShine{
           0%{ transform: translate3d(-55%,0,0); }
           100%{ transform: translate3d(55%,0,0); }
@@ -291,7 +381,7 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
-        /* Contact-like title sizing */
+        /* Title */
         .svc-title{
           margin-top: 14px;
           font-size: 40px;
@@ -303,6 +393,7 @@ function ServicePage({
         @media (min-width: 640px){
           .svc-title{ font-size: 60px; }
         }
+
         .svc-sub{
           margin-top: 14px;
           color: rgba(255,255,255,.70);
@@ -314,12 +405,15 @@ function ServicePage({
           .svc-sub{ font-size: 18px; }
         }
 
+        /* ===== Rotating pill row (single pill) ===== */
         .svc-pills{
           margin-top: 14px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
+          align-items: center;
         }
+
         .svc-pill{
           display:inline-flex; align-items:center;
           height: 34px; padding: 0 12px;
@@ -330,6 +424,78 @@ function ServicePage({
           font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
+        }
+
+        .svc-rotPill{
+          position: relative;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          height: 34px;
+          padding: 0 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(47,184,255,.22);
+          background:
+            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
+            rgba(255,255,255,.04);
+          box-shadow: 0 10px 40px rgba(0,0,0,.35);
+          color: rgba(255,255,255,.92);
+          font-weight: 900;
+          font-size: 12px;
+          white-space: nowrap;
+          transition: width .26s ease;
+          transform: translateZ(0);
+          overflow: hidden;
+        }
+
+        .svc-rotMeasure{
+          position:absolute;
+          left:-9999px; top:-9999px;
+          font-weight: 900;
+          font-size: 12px;
+          white-space: nowrap;
+          padding: 0;
+          visibility: hidden;
+        }
+
+        .svc-rotViewport{
+          position: relative;
+          height: 18px;
+          overflow: hidden;
+          display:block;
+        }
+        .svc-rotStack{
+          position: relative;
+          display:block;
+          transform: translate3d(0,0,0);
+          transition: transform .42s ease, opacity .42s ease, filter .42s ease;
+          will-change: transform, opacity;
+        }
+        .svc-rotLine{
+          display:block;
+          height: 18px;
+          line-height: 18px;
+          text-align:center;
+        }
+
+        /* wipe: current goes up, next comes from below */
+        .svc-rotViewport.is-out .svc-rotStack{
+          transform: translate3d(0,-18px,0);
+          opacity: .92;
+          filter: blur(.2px);
+        }
+        .svc-rotViewport.is-in .svc-rotStack{
+          transform: translate3d(0,-18px,0);
+          opacity: 1;
+          filter: none;
+        }
+
+        /* Make rotating pill text tinted (same palette) */
+        .svc-rotLine{
+          background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(170,225,255,.96), rgba(47,184,255,.95));
+          -webkit-background-clip:text;
+          background-clip:text;
+          color: transparent;
         }
 
         .svc-ctaRow{
@@ -479,6 +645,8 @@ function ServicePage({
           background: rgba(0,0,0,.18);
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
+
+        /* ✅ “breathing” check icon */
         .svc-feat__tick{
           width: 30px; height: 30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
@@ -486,7 +654,28 @@ function ServicePage({
           background: ${T.c};
           color: rgba(170,225,255,.95);
           flex: 0 0 auto;
+          transform: translateZ(0);
+          box-shadow: 0 0 0 0 rgba(47,184,255,.0);
+          ${reduced ? "" : "animation: svcTickBreath 1.35s ease-in-out infinite;"}
         }
+        @keyframes svcTickBreath{
+          0%,100%{
+            transform: translateZ(0) scale(1);
+            box-shadow: 0 0 0 0 rgba(47,184,255,.0), 0 0 0 0 rgba(47,184,255,.0);
+            filter: saturate(1);
+            opacity: .98;
+          }
+          50%{
+            transform: translateZ(0) scale(1.07);
+            box-shadow: 0 0 0 6px rgba(47,184,255,.10), 0 0 24px rgba(47,184,255,.22);
+            filter: saturate(1.15);
+            opacity: .92;
+          }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-feat__tick{ animation:none !important; }
+        }
+
         .svc-feat__t{ font-weight: 600; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
@@ -500,19 +689,18 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              {/* ✅ Title: Contact palette + shimmer band (your “ilan kimi”) */}
+              {/* ✅ Title shimmer: CUT (feels like it goes behind the video panel) */}
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+                <span className="svc-grad svc-shimmer svc-shimmer--cut">{title}</span>
               </div>
 
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
+              {/* ✅ One pill that swaps texts + resizes */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                {pills.map((p) => (
-                  <Pill key={p}>{p}</Pill>
-                ))}
+                <RotatingPill items={pills} reduced={reduced} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
@@ -527,7 +715,16 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
 
                 <div className="svc-badge" aria-hidden="true">
@@ -549,7 +746,10 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Smartphone size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "UX & Performans" : "UX & Performance"}</span>
+              {/* ✅ cards shimmer: INTO (goes to the end, feels like it “enters”) */}
+              <span className="svc-grad svc-shimmer svc-shimmer--into">
+                {lang === "az" ? "UX & Performans" : "UX & Performance"}
+              </span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -579,7 +779,10 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}</span>
+              {/* ✅ cards shimmer: INTO */}
+              <span className="svc-grad svc-shimmer svc-shimmer--into">
+                {lang === "az" ? "Backend & Təhlükəsizlik" : "Backend & Security"}
+              </span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
