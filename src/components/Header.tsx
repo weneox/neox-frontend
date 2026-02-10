@@ -16,7 +16,7 @@ type UseCaseDef = {
   id: string;
   label: string;
   to: string;
-  stream: Array<{ id: string; label: string; to: string }>;
+  terminal: string[]; // terminalda axacaq sözlər
 };
 
 type MenuKey = "about" | "services" | "usecases" | "resources" | null;
@@ -24,11 +24,9 @@ type MenuKey = "about" | "services" | "usecases" | "resources" | null;
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
 }
-
 function isLang(x: string | undefined | null): x is Lang {
   return !!x && (LANGS as readonly string[]).includes(x as any);
 }
-
 function getWindowScrollY() {
   return (
     window.scrollY ||
@@ -54,7 +52,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-/* ===== Desktop language dropdown (single button) ===== */
+/* ===== Desktop language dropdown ===== */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -177,7 +175,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const ucRef = useRef<HTMLDivElement | null>(null);
   const resRef = useRef<HTMLDivElement | null>(null);
 
-  // usecases hover active item (for hologram stream)
+  // usecases hover active
   const [ucActive, setUcActive] = useState<string>("finance");
 
   // mobile overlay
@@ -222,7 +220,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
-  // Routes lists
   const SERVICES: ServiceDef[] = useMemo(
     () => [
       { id: "chatbot-24-7", label: "Chatbot 24/7", to: "/services/chatbot-24-7" },
@@ -247,62 +244,38 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
+  // Use Cases: terminal üçün sözlər (sən istəyən “qeyri-adi” vibe)
   const USECASES: UseCaseDef[] = useMemo(
     () => [
       {
         id: "finance",
         label: "Finance",
         to: "/use-cases/finance",
-        stream: [
-          { id: "lead", label: "Lead Capture", to: "/use-cases/finance" },
-          { id: "score", label: "KYC-safe Routing", to: "/use-cases/finance" },
-          { id: "demo", label: "Demo Funnel", to: "/use-cases/finance" },
-          { id: "handoff", label: "Operator Handoff", to: "/use-cases/finance" },
-        ],
+        terminal: ["LEAD CAPTURE", "KYC SAFE ROUTING", "DEMO FUNNEL", "OPERATOR HANDOFF", "AUDIT LOGS"],
       },
       {
         id: "healthcare",
         label: "Healthcare",
         to: "/use-cases/healthcare",
-        stream: [
-          { id: "triage", label: "Smart Triage", to: "/use-cases/healthcare" },
-          { id: "booking", label: "Auto Booking", to: "/use-cases/healthcare" },
-          { id: "remind", label: "No-Show Reminders", to: "/use-cases/healthcare" },
-          { id: "secure", label: "Privacy-first Flow", to: "/use-cases/healthcare" },
-        ],
+        terminal: ["SMART TRIAGE", "AUTO BOOKING", "NO-SHOW REMINDERS", "PRIVACY FIRST", "ESCALATE TO STAFF"],
       },
       {
         id: "retail",
         label: "Retail",
         to: "/use-cases/retail",
-        stream: [
-          { id: "upsell", label: "Upsell Assist", to: "/use-cases/retail" },
-          { id: "bundle", label: "Bundles", to: "/use-cases/retail" },
-          { id: "support", label: "Returns & Support", to: "/use-cases/retail" },
-          { id: "track", label: "Order Tracking", to: "/use-cases/retail" },
-        ],
+        terminal: ["UPSELL ASSIST", "BUNDLES", "RETURNS FLOW", "ORDER TRACKING", "PAYMENT READY"],
       },
       {
         id: "logistics",
         label: "Logistics",
         to: "/use-cases/logistics",
-        stream: [
-          { id: "eta", label: "ETA Updates", to: "/use-cases/logistics" },
-          { id: "delay", label: "Delay Escalation", to: "/use-cases/logistics" },
-          { id: "ticket", label: "Ticket Automation", to: "/use-cases/logistics" },
-          { id: "notify", label: "Auto Notifications", to: "/use-cases/logistics" },
-        ],
+        terminal: ["ETA UPDATES", "DELAY ESCALATION", "TICKET AUTOMATION", "AUTO NOTIFICATIONS", "ROUTE STATUS"],
       },
       {
         id: "hotels",
         label: "Hotels & Resorts",
         to: "/use-cases/hotels",
-        stream: [
-          { id: "booking", label: "Reservations", to: "/use-cases/hotels" },
-          { id: "concierge", label: "Concierge", to: "/use-cases/hotels" },
-          { id: "upgrade", label: "Upgrades", to: "/use-cases/hotels" },
-          { id: "handoff", label: "VIP Handoff", to: "/use-cases/hotels" },
-        ],
+        terminal: ["RESERVATIONS", "CONCIERGE", "UPGRADES", "VIP HANDOFF", "CHECK-IN FLOW"],
       },
     ],
     []
@@ -539,7 +512,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
-                  <span className="nav-acc__dot" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
                   <span className="nav-acc__arrow" aria-hidden="true">
                     →
@@ -576,7 +548,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
-                  <span className="nav-acc__dot" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
                   <span className="nav-acc__arrow" aria-hidden="true">
                     →
@@ -611,7 +582,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                 onClick={() => closeMobile()}
               >
-                <span className="nav-acc__dot" aria-hidden="true" />
                 <span className="nav-acc__text">All Use Cases</span>
                 <span className="nav-acc__arrow" aria-hidden="true">
                   →
@@ -625,7 +595,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
-                  <span className="nav-acc__dot" aria-hidden="true" />
                   <span className="nav-acc__text">{u.label}</span>
                   <span className="nav-acc__arrow" aria-hidden="true">
                     →
@@ -662,7 +631,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
-                  <span className="nav-acc__dot" aria-hidden="true" />
                   <span className="nav-acc__text">{s.label}</span>
                   <span className="nav-acc__arrow" aria-hidden="true">
                     →
@@ -718,6 +686,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
     </div>
   );
 
+  const termLine = useMemo(() => {
+    const parts = activeUC.terminal;
+    const base = parts.join("   ·   ");
+    // iki dəfə təkrarla ki, loop seamless olsun
+    return `${base}   ·   ${base}`;
+  }, [activeUC]);
+
   return (
     <header
       ref={headerRef}
@@ -728,7 +703,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
 
-        /* ===== Header shell ===== */
         .site-header{
           position: sticky; top: 0; z-index: 1100; width: 100%;
           transform: translateZ(0);
@@ -757,7 +731,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .header-mid{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .header-right{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
 
-        /* ===== Brand ===== */
         .brand-link{ display:inline-flex; align-items:center; gap: 10px; text-decoration: none; min-width:0; }
         .headerBrand{ position: relative; display:flex; align-items:center; }
         .headerBrand__aura{
@@ -768,191 +741,303 @@ export default function Header({ introReady }: { introReady: boolean }) {
           filter: blur(10px); opacity: .75; pointer-events:none;
         }
 
-        /* ===== Desktop links ===== */
+        /* Top links */
         .nav-link{
-          position: relative;
           display: inline-flex; align-items: center; justify-content: center;
           gap: 8px; height: 40px; padding: 0 12px; border-radius: 999px;
-          text-decoration: none; color: rgba(255,255,255,.74);
+          text-decoration: none;
+          color: rgba(255,255,255,.72);
           font-weight: 760; font-size: 13px; letter-spacing: .02em;
-          transition: color .16s ease, background-color .16s ease, transform .16s ease;
+          transition: color .16s ease, background-color .16s ease;
         }
         .nav-link:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
         .nav-link.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        /* ===== Dropdown root ===== */
+        /* Dropdown trigger */
         .nav-dd{ position: relative; display:inline-flex; }
         .nav-dd__btn{
-          position: relative; display:inline-flex; align-items:center; gap: 8px;
+          display:inline-flex; align-items:center; gap: 8px;
           height: 40px; padding: 0 12px; border-radius: 999px;
-          color: rgba(255,255,255,.74); background: transparent; border: 0;
-          cursor: pointer; font: inherit; font-weight: 780; letter-spacing: .02em;
+          color: rgba(255,255,255,.72);
+          background: transparent; border: 0; cursor: pointer;
+          font: inherit; font-weight: 780; letter-spacing: .02em;
           transition: color .16s ease, background-color .16s ease;
         }
         .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
         .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
 
-        /* arrow rotate on open */
         .nav-dd__chev{ opacity: .85; transition: transform .14s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
-        /* ✅ FIX: panel "özündən aşağı açılır" hissiyatı + trigger-ın başladığı yerdən (sol) */
+        /* ===== PREMIUM panel (book-like, compact, not "long") ===== */
         .nav-dd__panel{
           position:absolute;
-          top: calc(100% + 8px);
-          left: 0;               /* ✅ start from button/container left */
-          right: auto;
-          width: 280px;          /* ✅ shorter / not too long */
-          max-width: 340px;
-          border-radius: 16px;
+          top: calc(100% + 10px);
+          left: 0;
+          width: 320px;               /* Services/About/Resources default */
+          border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 90% at 20% 10%, rgba(47,184,255,.14), transparent 58%),
-            radial-gradient(120% 90% at 90% 10%, rgba(63,227,196,.10), transparent 60%),
-            rgba(10,12,18,.88);
-          -webkit-backdrop-filter: blur(18px) saturate(1.18);
-          backdrop-filter: blur(18px) saturate(1.18);
-          box-shadow: 0 24px 80px rgba(0,0,0,.65);
-
+            radial-gradient(120% 90% at 18% 6%, rgba(47,184,255,.12), transparent 58%),
+            radial-gradient(120% 90% at 84% 6%, rgba(63,227,196,.10), transparent 62%),
+            rgba(10,12,18,.86);
+          -webkit-backdrop-filter: blur(16px) saturate(1.16);
+          backdrop-filter: blur(16px) saturate(1.16);
+          box-shadow: 0 24px 80px rgba(0,0,0,.62);
           padding: 10px;
           opacity: 0;
           pointer-events: none;
-
-          transform-origin: top left; /* ✅ opens from itself */
-          transform: translateY(-8px) scaleY(.96) scaleX(.995);
-          transition: opacity .14s ease, transform .14s ease;
+          transform-origin: top left;
+          transform: translateY(-10px) rotateX(8deg) scaleY(.92);
+          transition: opacity .16s ease, transform .16s ease;
           z-index: 1300;
+          overflow: hidden;
         }
         .nav-dd.is-open .nav-dd__panel{
           opacity: 1;
           pointer-events: auto;
-          transform: translateY(0) scaleY(1) scaleX(1);
+          transform: translateY(0) rotateX(0deg) scaleY(1);
         }
 
-        /* ✅ If a dropdown is close to the right edge, align it to right to prevent overflow */
+        /* page-fold vibe */
+        .nav-dd__panel::before{
+          content:"";
+          position:absolute; inset:0;
+          background:
+            linear-gradient(180deg, rgba(255,255,255,.10), transparent 26%),
+            radial-gradient(600px 260px at 20% 0%, rgba(47,184,255,.10), transparent 60%);
+          opacity:.55;
+          pointer-events:none;
+        }
+        .nav-dd__panel::after{
+          content:"";
+          position:absolute;
+          top: 10px; left: 10px; right: 10px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.10), transparent);
+          opacity:.55;
+          pointer-events:none;
+        }
+
+        /* Right align helper */
         .nav-dd.nav-dd--right .nav-dd__panel{
           left: auto;
           right: 0;
           transform-origin: top right;
         }
 
-        /* ===== Minimal rows (compact) ===== */
-        .ddList{ display:grid; gap: 8px; }
+        /* ===== LIST: no dots, no pills, no underline ===== */
+        .ddList{ position: relative; z-index: 1; display:grid; gap: 6px; padding: 4px; }
         .ddRow{
           position: relative;
-          display:flex; align-items:center; justify-content: space-between; gap: 12px;
+          display:flex;
+          align-items:center;
+          justify-content: flex-start;
           width: 100%;
-          padding: 11px 12px;     /* ✅ slightly tighter */
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.07);
-          background: rgba(255,255,255,.035);
+          padding: 10px 10px;
+          border-radius: 12px;
           text-decoration:none;
-          color: rgba(255,255,255,.90);
-          font-weight: 860;
+          color: rgba(255,255,255,.88);
+          font-weight: 820;
           font-size: 13px;
           letter-spacing: .01em;
-          transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
-        }
-        .ddRow:hover{ background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.12); transform: translateY(-1px); }
-        .ddRow.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-
-        .ddLeft{ display:flex; align-items:center; gap: 10px; min-width: 0; }
-        .ddDot{
-          width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(47,184,255,.86));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
-        }
-        .ddText{ min-width:0; }
-        .ddLabel{ display:block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ddArrow{ display:none !important; }
-
-        /* ===== UseCases special ===== */
-        .nav-dd--uc .nav-dd__panel{ width: 300px; max-width: 360px; }
-
-        .ucFloat{
-          position:absolute;
-          left: calc(100% + 10px);
-          top: 50%;
-          transform: translateY(-50%) translateX(-6px) scale(.99);
-          width: 320px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.10);
-          background:
-            radial-gradient(120% 90% at 18% 8%, rgba(47,184,255,.14), transparent 58%),
-            radial-gradient(120% 90% at 82% 10%, rgba(63,227,196,.10), transparent 60%),
-            rgba(10,12,18,.86);
-          -webkit-backdrop-filter: blur(16px) saturate(1.18);
-          backdrop-filter: blur(16px) saturate(1.18);
-          box-shadow: 0 26px 90px rgba(0,0,0,.70);
-          padding: 10px;
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity .16s ease, transform .16s ease;
-          overflow: hidden;
-        }
-        .ddRow:hover .ucFloat,
-        .ddRow:focus-within .ucFloat{
-          opacity: 1;
-          transform: translateY(-50%) translateX(0) scale(1);
-          pointer-events: auto;
-        }
-
-        .ucStream{
-          position: relative;
-          border-radius: 12px;
+          background: transparent;
           border: 1px solid rgba(255,255,255,.06);
-          background: rgba(0,0,0,.18);
-          padding: 10px 10px;
-          overflow: hidden;
-          min-height: 54px;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease, color .14s ease;
+          outline: none;
         }
+        .ddRow:hover{
+          background: rgba(255,255,255,.04);
+          border-color: rgba(255,255,255,.10);
+          transform: translateY(-1px);
+        }
+        .ddRow.is-active{
+          background: rgba(47,184,255,.08);
+          border-color: rgba(47,184,255,.18);
+        }
+        .ddRow:focus-visible{
+          box-shadow: 0 0 0 3px rgba(47,184,255,.16);
+        }
+
+        /* subtle "unusual" hover: left glow bar */
+        .ddRow::before{
+          content:"";
+          position:absolute;
+          left: 8px;
+          top: 10px;
+          bottom: 10px;
+          width: 2px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, rgba(47,184,255,.65), rgba(63,227,196,.25));
+          opacity: 0;
+          transform: scaleY(.7);
+          transition: opacity .14s ease, transform .14s ease;
+        }
+        .ddRow:hover::before{
+          opacity: .9;
+          transform: scaleY(1);
+        }
+
+        .ddLabel{
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          padding-left: 14px; /* left glow space */
+        }
+
+        /* ===== UseCases: single integrated panel (list + terminal) ===== */
+        .nav-dd--uc .nav-dd__panel{
+          width: 560px;               /* integrated */
+          padding: 12px;
+        }
+        .ucPanel{
+          position: relative;
+          z-index: 1;
+          display:grid;
+          grid-template-columns: 240px 1fr;
+          gap: 12px;
+          align-items: stretch;
+        }
+        .ucList{ display:grid; gap: 6px; padding: 4px; }
+        .ucList .ddRow{ border-color: rgba(255,255,255,.06); }
+
+        /* Terminal: NO extra thick border, looks like panel’s own section */
+        .ucTerm{
+          border-radius: 14px;
+          background: rgba(0,0,0,.18);
+          border: 1px solid rgba(255,255,255,.06);
+          overflow: hidden;
+          display:flex;
+          flex-direction: column;
+          min-height: 196px;
+          position: relative;
+        }
+        .ucTerm::before{
+          content:"";
+          position:absolute; inset:0;
+          background:
+            radial-gradient(420px 180px at 20% 10%, rgba(47,184,255,.10), transparent 60%),
+            radial-gradient(420px 180px at 85% 0%, rgba(63,227,196,.08), transparent 62%);
+          opacity:.55;
+          pointer-events:none;
+        }
+
+        .ucTermHead{
+          position: relative;
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(255,255,255,.06);
+          color: rgba(255,255,255,.72);
+          font-weight: 860;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          font-size: 11px;
+        }
+        .ucTermHeadLeft{
+          display:flex; align-items:center; gap: 8px; min-width: 0;
+        }
+        .ucPulse{
+          width: 8px; height: 8px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(47,184,255,.82));
+          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          opacity:.9;
+          animation: ucPulse 1.9s ease-in-out infinite;
+        }
+        @keyframes ucPulse{
+          0%,100%{ transform: scale(1); opacity:.9; }
+          50%{ transform: scale(1.18); opacity: 1; }
+        }
+        .ucTag{
+          opacity:.85;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .ucHint{
+          opacity:.55;
+          font-weight: 780;
+          letter-spacing: .10em;
+          font-size: 10px;
+        }
+
+        .ucTermBody{
+          position: relative;
+          flex: 1;
+          padding: 10px 12px 12px;
+          display:flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        /* “unusual” cursor + scan */
         .ucScan{
-          position:absolute; inset:-40px -20px;
+          position:absolute;
+          inset:-40px -20px;
           background: linear-gradient(90deg, transparent 0%, rgba(47,184,255,.12) 22%, transparent 44%, transparent 100%);
-          transform: translateX(-30%);
-          opacity: .72;
+          transform: translateX(-35%);
+          opacity: .65;
           filter: blur(1px);
           pointer-events:none;
-          animation: ucScan 9s linear infinite;
+          animation: ucScan 8.6s linear infinite;
         }
-        @keyframes ucScan{ 0%{ transform: translateX(-50%);} 100%{ transform: translateX(50%);} }
+        @keyframes ucScan{ 0%{ transform: translateX(-55%);} 100%{ transform: translateX(55%);} }
 
-        .ucFlow{
-          display:flex; gap: 18px; align-items: center;
-          width: max-content;
-          animation: ucFlow 14s linear infinite;
-          will-change: transform;
-        }
-        .ucFlow.is-reduced{ animation: none; }
-        @keyframes ucFlow{
-          0%{ transform: translateX(18%); }
-          100%{ transform: translateX(-62%); }
-        }
-        .ucGhost{
-          text-decoration:none;
-          color: rgba(255,255,255,.86);
-          font-weight: 860;
-          font-size: 12px;
-          letter-spacing: .10em;
-          text-transform: uppercase;
-          padding: 6px 2px;
+        /* Marquee line: RIGHT -> LEFT (smooth), not thick */
+        .ucMarquee{
+          width: 100%;
+          overflow: hidden;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,.06);
+          background: rgba(0,0,0,.16);
+          padding: 10px 10px;
           position: relative;
+        }
+        .ucMarqueeInner{
+          display: inline-flex;
           white-space: nowrap;
-          opacity: .90;
-          transition: opacity .16s ease, transform .16s ease;
+          gap: 36px;
+          font-weight: 900;
+          letter-spacing: .18em;
+          text-transform: uppercase;
+          font-size: 11px;
+          color: rgba(255,255,255,.86);
+          will-change: transform;
+          animation: ucMar 13s linear infinite;
         }
-        .ucGhost::after{
-          content:"";
-          position:absolute; left:0; right:0; bottom:-4px; height:1px;
-          background: linear-gradient(90deg, transparent, rgba(47,184,255,.55), transparent);
-          opacity: 0;
-          transform: scaleX(.75);
-          transition: opacity .16s ease, transform .16s ease;
+        .ucMarqueeInner.is-reduced{ animation: none; }
+        @keyframes ucMar{
+          0%{ transform: translateX(15%); }
+          100%{ transform: translateX(-55%); }
         }
-        .ucGhost:hover{ opacity: 1; transform: translateY(-1px); }
-        .ucGhost:hover::after{ opacity: 1; transform: scaleX(1); }
 
-        /* ===== CTA + toggle ===== */
+        /* below: compact “preview lines” (no pills) */
+        .ucMini{
+          display:grid;
+          gap: 6px;
+          opacity: .86;
+          font-size: 12px;
+          font-weight: 780;
+          color: rgba(255,255,255,.74);
+        }
+        .ucMiniRow{
+          display:flex; align-items:center; gap: 10px;
+        }
+        .ucMiniTick{
+          width: 6px; height: 6px; border-radius: 999px;
+          background: rgba(47,184,255,.75);
+          box-shadow: 0 0 0 3px rgba(47,184,255,.08);
+          opacity:.9;
+          flex: 0 0 auto;
+        }
+        .ucMiniText{
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* CTA + toggle */
         .nav-cta{
           display:inline-flex; align-items:center; justify-content:center;
           height: 38px; padding: 0 14px; border-radius: 999px; text-decoration:none;
@@ -978,7 +1063,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .nav-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
 
-        /* ===== Lang ===== */
+        /* Lang */
         .langMenu{ position: relative; }
         .langMenu__btn{
           display:inline-flex; align-items:center; gap: 8px;
@@ -1009,20 +1094,19 @@ export default function Header({ introReady }: { introReady: boolean }) {
           box-shadow: 0 24px 80px rgba(0,0,0,.65);
           opacity: 0; pointer-events: none;
           transform-origin: top right;
-          transform: translateY(-8px) scaleY(.96);
-          transition: opacity .14s ease, transform .14s ease;
+          transform: translateY(-10px) rotateX(8deg) scaleY(.92);
+          transition: opacity .16s ease, transform .16s ease;
           z-index: 1500;
         }
         .langMenu.is-open .langMenu__panel{
           opacity: 1; pointer-events: auto;
-          transform: translateY(0) scaleY(1);
+          transform: translateY(0) rotateX(0deg) scaleY(1);
         }
         .langMenu__item{
           width: 100%;
           display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          border: 0;
-          background: rgba(255,255,255,.04);
           border: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.04);
           color: rgba(255,255,255,.86);
           padding: 10px 10px;
           border-radius: 12px;
@@ -1035,7 +1119,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
         .langMenu__itemName{ opacity: .85; font-weight: 740; }
 
-        /* ===== Mobile overlay ===== */
+        /* Mobile overlay (sənin köhnə hissə saxlanıldı) */
         .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .nav-overlay.is-mounted{ display:block; }
         .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
@@ -1046,7 +1130,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           backdrop-filter: blur(8px);
           cursor: pointer;
         }
-
         .nav-sheet{
           position:absolute; top: 12px; right: 12px; left: 12px;
           max-width: 520px; margin-left: auto;
@@ -1057,7 +1140,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: transform .16s ease, opacity .16s ease;
         }
         .nav-sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
-
         .nav-sheet__bg{
           position:absolute; inset:0;
           background:
@@ -1075,7 +1157,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events:none;
           mix-blend-mode: overlay;
         }
-
         .nav-sheet__head{ position: relative; z-index: 2; display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; }
         .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
         .nav-sheet__dot{
@@ -1094,7 +1175,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: transform .14s ease, background-color .14s ease;
         }
         .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
-
         .nav-sheet__list{ position: relative; z-index: 2; padding: 8px 14px 14px; display:grid; gap: 10px; }
 
         .nav-stagger{ transform: translateY(6px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
@@ -1121,7 +1201,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-sheetLink__label{ font-weight: 820; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .nav-sheetLink__chev{ opacity: .75; }
-
         .nav-sheetLink--contact{
           background:
             radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.20), transparent 60%),
@@ -1129,6 +1208,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-color: rgba(255,255,255,.12);
         }
 
+        /* mobile accordions */
         .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
         .nav-acc__head{
           width: 100%;
@@ -1156,12 +1236,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .nav-acc__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
         .nav-acc__item.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-        .nav-acc__dot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
-          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
-          flex: 0 0 auto;
-        }
         .nav-acc__text{ font-weight: 820; }
         .nav-acc__arrow{ opacity: .7; }
 
@@ -1170,6 +1244,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
           .nav-toggle{ display:inline-flex; }
           .nav-cta--desktopOnly{ display:none; }
           .langMenu__btn{ height: 40px; }
+        }
+        @media (max-width: 620px){
+          /* uc panel on smaller screens: terminal below list */
+          .nav-dd--uc .nav-dd__panel{ width: 360px; }
+          .ucPanel{ grid-template-columns: 1fr; }
+          .ucTerm{ min-height: 170px; }
         }
         @media (max-width: 520px){
           .container{ padding: 0 14px; }
@@ -1207,7 +1287,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </Link>
         </div>
 
-        {/* ===== Desktop nav ===== */}
+        {/* Desktop nav */}
         <nav className="header-mid" aria-label="Əsas menyu">
           <NavLink to={withLang("/")} end className={navItem}>
             {t("nav.home")}
@@ -1244,12 +1324,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddText">
-                        <span className="ddLabel">{s.label}</span>
-                      </span>
-                    </span>
+                    <span className="ddLabel">{s.label}</span>
                   </NavLink>
                 ))}
               </div>
@@ -1287,19 +1362,14 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddText">
-                        <span className="ddLabel">{s.label}</span>
-                      </span>
-                    </span>
+                    <span className="ddLabel">{s.label}</span>
                   </NavLink>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Use Cases */}
+          {/* Use Cases: integrated terminal */}
           <div
             ref={ucRef}
             className={cx("nav-dd", "nav-dd--uc", ucOpen && "is-open")}
@@ -1321,52 +1391,53 @@ export default function Header({ introReady }: { introReady: boolean }) {
             </button>
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!ucOpen}>
-              <div className="ddList">
-                {USECASES.map((u) => (
-                  <div key={u.id} onMouseEnter={() => setUcActive(u.id)} onFocus={() => setUcActive(u.id)}>
+              <div className="ucPanel">
+                <div className="ucList" aria-label="Use cases list">
+                  {USECASES.map((u) => (
                     <NavLink
+                      key={u.id}
                       to={withLang(u.to)}
                       className={({ isActive }) => cx("ddRow", isActive && "is-active")}
                       role="menuitem"
+                      onMouseEnter={() => setUcActive(u.id)}
+                      onFocus={() => setUcActive(u.id)}
                       onClick={() => setOpenMenu(null)}
                     >
-                      <span className="ddLeft">
-                        <span className="ddDot" aria-hidden="true" />
-                        <span className="ddText">
-                          <span className="ddLabel">{u.label}</span>
-                        </span>
-                      </span>
-
-                      <div className="ucFloat" aria-hidden={ucActive !== u.id}>
-                        <div className="ucStream">
-                          <div className="ucScan" aria-hidden="true" />
-                          <div className={cx("ucFlow", prefersReduced && "is-reduced")}>
-                            {(u.id === activeUC.id ? activeUC.stream : u.stream)
-                              .concat(u.stream)
-                              .map((p, idx) => (
-                                <NavLink
-                                  key={`${u.id}-${p.id}-${idx}`}
-                                  to={withLang(p.to)}
-                                  className="ucGhost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenMenu(null);
-                                  }}
-                                >
-                                  {p.label}
-                                </NavLink>
-                              ))}
-                          </div>
-                        </div>
-                      </div>
+                      <span className="ddLabel">{u.label}</span>
                     </NavLink>
+                  ))}
+                </div>
+
+                <div className="ucTerm" aria-label="Use case terminal preview">
+                  <div className="ucTermHead">
+                    <div className="ucTermHeadLeft">
+                      <span className="ucPulse" aria-hidden="true" />
+                      <span className="ucTag">{activeUC.label}</span>
+                    </div>
+                    <span className="ucHint">LIVE STREAM</span>
                   </div>
-                ))}
+
+                  <div className="ucTermBody">
+                    <div className="ucScan" aria-hidden="true" />
+                    <div className="ucMarquee" aria-hidden={false}>
+                      <div className={cx("ucMarqueeInner", prefersReduced && "is-reduced")}>{termLine}</div>
+                    </div>
+
+                    <div className="ucMini" aria-hidden="true">
+                      {activeUC.terminal.slice(0, 4).map((x) => (
+                        <div className="ucMiniRow" key={x}>
+                          <span className="ucMiniTick" aria-hidden="true" />
+                          <span className="ucMiniText">{x}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Resources (right-aligned dropdown to avoid overflow) */}
+          {/* Resources (right-aligned) */}
           <div
             ref={resRef}
             className={cx("nav-dd", "nav-dd--right", resOpen && "is-open")}
@@ -1397,12 +1468,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                     role="menuitem"
                     onClick={() => setOpenMenu(null)}
                   >
-                    <span className="ddLeft">
-                      <span className="ddDot" aria-hidden="true" />
-                      <span className="ddText">
-                        <span className="ddLabel">{s.label}</span>
-                      </span>
-                    </span>
+                    <span className="ddLabel">{s.label}</span>
                   </NavLink>
                 ))}
               </div>
