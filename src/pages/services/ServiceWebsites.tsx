@@ -96,7 +96,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-/** ✅ Rotator pill — width hugs text (SEO daha da kiçik) */
+/** ✅ Rotator pill — en sözə görə böyüyür/kiçilir + son hərf kəsilmir */
 function PillRotator({
   items,
   intervalMs = 2200,
@@ -123,11 +123,12 @@ function PillRotator({
 
     const textW = Math.ceil(el.getBoundingClientRect().width);
 
-    const PAD = 28; // 14 + 14
-    const MIN = 76; // ✅ SEO üçün daha “tight”
+    const PAD = 38;   // ✅ daha rahat padding
+    const FUDGE = 10; // ✅ son hərf kəsilməsin (subpixel/border)
+    const MIN = 64;   // ✅ "SEO" üçün daha kiçik min
     const MAX = 420;
 
-    const next = Math.max(MIN, Math.min(MAX, textW + PAD));
+    const next = Math.max(MIN, Math.min(MAX, textW + PAD + FUDGE));
     setW(next);
   };
 
@@ -169,7 +170,12 @@ function PillRotator({
   const y = -i * step;
 
   return (
-    <span className="svc-pill svc-pill--rot" aria-label={safe[curIdx]} style={w ? ({ width: `${w}px` } as any) : undefined}>
+    <span
+      className="svc-pill svc-pill--rot"
+      aria-label={safe[curIdx]}
+      style={w ? ({ width: `${w}px` } as any) : undefined}
+    >
+      {/* hidden measure (plain text) */}
       <span className="svc-pillMeasure" aria-hidden="true">
         {safe.map((t, idx) => (
           <span
@@ -343,7 +349,7 @@ function ServicePage({
             radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
-          overflow:hidden; /* ✅ ölçünü sabit saxlayır */
+          overflow:hidden;
           contain: layout paint style;
         }
         .svc-hero::after{
@@ -357,7 +363,7 @@ function ServicePage({
         .svc-hero__inner{
           position:relative;
           z-index:1;
-          padding: 28px 22px;  /* ✅ əvvəlki ölçü */
+          padding: 30px 22px; /* ✅ azca artırdım ki pill yuxarı qalxsın, amma kəsilməsin */
           display:grid;
           grid-template-columns: 1.02fr .98fr;
           gap: 18px;
@@ -365,12 +371,12 @@ function ServicePage({
           min-width:0;
         }
         @media (max-width: 980px){
-          .svc-hero__inner{ grid-template-columns: 1fr; padding: 22px 16px; }
+          .svc-hero__inner{ grid-template-columns: 1fr; padding: 24px 16px; }
         }
 
         .svc-left{ min-width:0; }
 
-        /* ✅ SERVICES pill — bir az yuxarı, amma hero içində, LENT onu kəsmir */
+        /* ✅ SERVICES pill — kəsilmə YOX */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -378,16 +384,15 @@ function ServicePage({
           padding: 10px 14px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.42); /* glow bleed olmasın */
-          color: rgba(255,255,255,.76);
+          background: rgba(0,0,0,.46);
+          color: rgba(255,255,255,.78);
           font-size: 12px;
           letter-spacing:.14em;
           text-transform: uppercase;
 
-          /* ✅ sadəcə azca yuxarı */
-          transform: translate3d(0,-8px,0);
+          transform: translate3d(0,-6px,0); /* ✅ az yuxarı, artıq kəsmir */
           position: relative;
-          z-index: 10; /* ✅ title shimmer layer-dən yuxarı */
+          z-index: 30; /* ✅ lent nə olursa-olsun bunun üstündə qalacaq */
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }
@@ -397,14 +402,22 @@ function ServicePage({
           box-shadow: 0 0 0 4px rgba(47,184,255,.14), 0 0 18px rgba(47,184,255,.42);
         }
 
-        /* title */
+        /* ✅ IMPORTANT: səndə globalda qalan ribbon varsa — BURDA SÖNDÜRÜRÜK */
+        .svc-grad::before,
+        .svc-grad::after{
+          content: none !important;
+          display: none !important;
+        }
+
         .svc-title{
-          margin-top: 10px; /* ✅ kicker yuxarı qalxdığı üçün balans */
+          margin-top: 10px;
           font-size: 40px;
           line-height: 1.05;
           font-weight: 600;
           letter-spacing: -0.02em;
           color: rgba(255,255,255,.94);
+          position: relative;
+          z-index: 2;
         }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
@@ -419,8 +432,13 @@ function ServicePage({
           z-index: 2;
         }
 
-        /* ✅ shimmer band ONLY on title, and always under kicker (kicker z=10) */
-        .svc-grad.svc-shimmer::after{
+        /* ✅ LENTA/SHINE yalnız title üzərində (pillə yox) */
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
+        .svc-shimmer::after{
           content:"";
           position:absolute;
           inset: -12% -60%;
@@ -440,14 +458,13 @@ function ServicePage({
           transform: translate3d(-40%,0,0);
           will-change: transform;
           ${reduced ? "" : "animation: svcShine 2.8s linear infinite;"}
-          z-index: 1;
         }
         @keyframes svcShine{
           0%{ transform: translate3d(-55%,0,0); }
           100%{ transform: translate3d(55%,0,0); }
         }
         @media (prefers-reduced-motion: reduce){
-          .svc-grad.svc-shimmer::after{ animation:none !important; display:none; }
+          .svc-shimmer::after{ animation:none !important; display:none; }
         }
 
         .svc-sub{
@@ -469,7 +486,7 @@ function ServicePage({
         .svc-pill{
           display:inline-flex; align-items:center; justify-content:center;
           height: 34px;
-          padding: 0 14px;
+          padding: 0 16px; /* ✅ daha rahat */
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
@@ -492,7 +509,6 @@ function ServicePage({
           font-size: 12px;
           font-weight: 800;
         }
-        .svc-pillMeasureItem{ display:inline-block; }
         .svc-pillRot-clip{ height: 34px; overflow:hidden; display:block; width:100%; }
         .svc-pillRot-track{ display:block; will-change: transform; }
         .svc-pillRot-item{
@@ -505,7 +521,7 @@ function ServicePage({
           padding: 0 2px;
         }
 
-        /* buttons (unchanged) */
+        /* buttons (dəymə) */
         .svc-ctaRow{
           margin-top: 18px;
           display:flex;
@@ -788,7 +804,7 @@ function ServicePage({
             </div>
             <div style={{ marginTop: 12 }}>
               {featuresRight.map((f) => (
-                <Feature key={f.title} title={f.title} desc={f.desc} />
+                <Feature key={f.title} title={f.desc} desc={f.desc} />
               ))}
             </div>
           </div>
