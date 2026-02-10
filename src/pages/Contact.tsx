@@ -8,7 +8,6 @@ import {
   CheckCircle,
   CalendarDays,
   Copy,
-  ArrowRight,
   AlertTriangle,
 } from "lucide-react";
 import { useLocation, useParams } from "react-router-dom";
@@ -115,14 +114,14 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
   }, [opts.title, opts.description, opts.canonicalPath, opts.ogImage]);
 }
 
-/* ================= Styles (LIGHT + FPS FRIENDLY) ================= */
+/* ================= Styles (FAST / CLEAN) ================= */
 const CONTACT_CSS = `
   html, body {
     background: #000 !important;
     margin: 0;
     padding: 0;
     width: 100%;
-    overflow-x: clip;
+    overflow-x: hidden;
   }
 
   .ct-page{
@@ -130,66 +129,31 @@ const CONTACT_CSS = `
     color: rgba(255,255,255,.92);
     min-height: 100vh;
     width: 100%;
-    overflow-x: clip;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    isolation: isolate;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   .ct-page *{ min-width:0; max-width:100%; }
 
-  /* ===== Title living effect (no heavy blur) ===== */
-  @keyframes ctGlowPulse {
-    0%   { text-shadow: 0 0 0 rgba(47,184,255,0), 0 0 0 rgba(42,125,255,0); opacity: .96; }
-    40%  { text-shadow: 0 0 18px rgba(47,184,255,.20), 0 0 34px rgba(42,125,255,.14); opacity: 1; }
-    100% { text-shadow: 0 0 0 rgba(47,184,255,0), 0 0 0 rgba(42,125,255,0); opacity: .97; }
-  }
-  @keyframes ctShimmer {
-    0%   { background-position: 0% 50%; }
-    100% { background-position: 100% 50%; }
-  }
-
-  .ct-titleLive{
-    animation: ctGlowPulse 2.8s ease-in-out infinite;
-    will-change: opacity;
-  }
-
+  /* Simple premium gradient text (STATIC) */
   .ct-gradient{
-    background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.98) 25%, rgba(47,184,255,.95) 55%, rgba(42,125,255,.95) 80%, #ffffff 100%);
-    background-size: 220% 100%;
+    background: linear-gradient(90deg, #ffffff 0%, rgba(170,225,255,.98) 35%, rgba(47,184,255,.92) 70%, rgba(42,125,255,.92) 100%);
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    animation: ctShimmer 3.2s linear infinite;
   }
 
-  /* ===== lightweight enter/reveal (NO blur) ===== */
+  /* Lightweight appear (no blur) */
   .ct-enter{
     opacity: 0;
-    transform: translate3d(0,14px,0);
-    transition: opacity .52s ease, transform .62s cubic-bezier(.14,1,.22,1);
+    transform: translateY(10px);
+    transition: opacity .38s ease, transform .46s ease;
     transition-delay: var(--d, 0ms);
-    will-change: opacity, transform;
   }
   .ct-enter.ct-in{
     opacity: 1;
-    transform: translate3d(0,0,0);
+    transform: translateY(0px);
   }
-
-  .ct-reveal{
-    opacity:0;
-    transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-    transition: opacity .50s ease, transform .62s cubic-bezier(.14,1,.22,1);
-    will-change: opacity, transform;
-  }
-  .ct-reveal.is-in{
-    opacity:1;
-    transform: translate3d(0,0,0);
-  }
-  .ct-reveal-left{ --rx:-18px; --ry:0px; }
-  .ct-reveal-right{ --rx:18px; --ry:0px; }
-  .ct-reveal-bottom{ --rx:0px; --ry:14px; }
 
   .ct-crumb{
     display:inline-flex;
@@ -205,9 +169,7 @@ const CONTACT_CSS = `
     height: 8px;
     border-radius: 999px;
     background: rgba(47,184,255,1);
-    box-shadow:
-      0 0 0 4px rgba(47,184,255,.14),
-      0 0 16px rgba(47,184,255,.36);
+    box-shadow: 0 0 0 4px rgba(47,184,255,.14);
     flex: 0 0 auto;
   }
   .ct-crumbText{
@@ -266,11 +228,10 @@ const CONTACT_CSS = `
   }
   .ct-spacer{ height: 28px; }
 
-  /* ===== panels: keep premium but lighter ===== */
   .ct-panel{
     border-radius: 24px;
     border: 1px solid rgba(255,255,255,.10);
-    background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.014));
+    background: linear-gradient(180deg, rgba(255,255,255,.028), rgba(255,255,255,.012));
     box-shadow: 0 14px 54px rgba(0,0,0,.58);
     overflow: hidden;
     position: relative;
@@ -280,10 +241,10 @@ const CONTACT_CSS = `
     position:absolute;
     inset:0;
     pointer-events:none;
-    opacity:.82;
+    opacity:.78;
     background:
       radial-gradient(700px 420px at 60% 0%, rgba(255,255,255,.05), transparent 62%),
-      radial-gradient(700px 420px at 20% 0%, rgba(47,184,255,.055), transparent 70%),
+      radial-gradient(700px 420px at 20% 0%, rgba(47,184,255,.05), transparent 70%),
       linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.40));
   }
 
@@ -293,7 +254,7 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
-  /* ===== buttons: premium (no underline), compact arrows ===== */
+  /* PREMIUM buttons (no underline, no arrows) */
   .ct-btn{
     display:inline-flex; align-items:center; justify-content:center; gap:10px;
     padding: 12px 16px; border-radius: 999px;
@@ -302,13 +263,11 @@ const CONTACT_CSS = `
     color: rgba(255,255,255,.92);
     transition: transform .16s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
     text-decoration:none !important;
-    position: relative;
-    overflow: hidden;
     cursor: pointer;
     user-select: none;
   }
   .ct-btn:hover{
-    transform: translate3d(0,-2px,0);
+    transform: translateY(-2px);
     border-color: rgba(47,184,255,.22);
     background: rgba(255,255,255,.045);
     box-shadow: 0 16px 52px rgba(0,0,0,.52);
@@ -320,17 +279,13 @@ const CONTACT_CSS = `
   }
   .ct-btn--primary{
     border-color: rgba(47,184,255,.22);
-    background:
-      linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
+    background: linear-gradient(180deg, rgba(47,184,255,.16), rgba(42,125,255,.10));
   }
   .ct-btn--square{
     border-radius: 14px;
     padding: 10px 12px;
   }
-  .ct-btn:active{ transform: translate3d(0,-1px,0); }
-
-  /* smaller arrow icon */
-  .ct-arrowTiny{ width: 18px; height: 18px; opacity: .78; }
+  .ct-btn:active{ transform: translateY(-1px); }
 
   .ct-input{
     width:100%;
@@ -344,9 +299,7 @@ const CONTACT_CSS = `
   }
   .ct-input:focus{
     border-color: rgba(47,184,255,.28);
-    box-shadow:
-      0 0 0 4px rgba(47,184,255,.10),
-      0 18px 60px rgba(0,0,0,.36);
+    box-shadow: 0 0 0 4px rgba(47,184,255,.10);
     background: rgba(0,0,0,.44);
   }
   .ct-input--bad{ border-color: rgba(248,113,113,.45) !important; }
@@ -372,65 +325,28 @@ const CONTACT_CSS = `
     background: rgba(255,255,255,.03);
   }
 
-  /* Rotating subtitle phrase */
-  .ct-rotWrap{
-    display:inline-flex;
-    align-items:baseline;
+  /* Rotating word: NO pill, NO animation */
+  .ct-rotLine{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
     gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
   }
-  .ct-rotLead{
-    color: rgba(255,255,255,.70);
-  }
+  .ct-rotLead{ color: rgba(255,255,255,.70); }
   .ct-rotWord{
-    position: relative;
-    display:inline-block;
-    padding: 2px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(47,184,255,.18);
-    background: rgba(47,184,255,.06);
-    color: rgba(255,255,255,.90);
-    white-space: nowrap;
-    transform: translateZ(0);
-  }
-  .ct-rotWord::after{
-    content:"";
-    position:absolute;
-    inset: -1px;
-    border-radius: 999px;
-    pointer-events:none;
-    opacity:.35;
-    background: radial-gradient(120px 40px at 20% 20%, rgba(170,225,255,.18), transparent 60%);
-  }
-  .ct-rotFade{
-    animation: ctRotFade .32s ease;
-  }
-  @keyframes ctRotFade{
-    from { opacity: 0; transform: translate3d(0,6px,0); }
-    to   { opacity: 1; transform: translate3d(0,0,0); }
+    color: rgba(170,225,255,.95);
+    font-weight: 600;
+    letter-spacing: .01em;
   }
 
-  /* Mobile: ensure phone/email fully visible */
+  /* Mobile: never truncate email/phone */
   @media (max-width: 560px){
-    .ct-row .truncate{ white-space: normal !important; overflow: visible !important; text-overflow: initial !important; }
-    .ct-row .ct-mobileBreak{
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
-    .ct-row .ct-mobileStack{
-      flex-direction: column;
-      align-items: flex-start !important;
-      gap: 10px !important;
-    }
+    .ct-mobileBreak{ word-break: break-word; overflow-wrap:anywhere; }
+    .ct-mobileStack{ flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
   }
 
   @media (prefers-reduced-motion: reduce){
     .ct-enter{ opacity:1 !important; transform:none !important; transition:none !important; }
-    .ct-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
-    .ct-titleLive{ animation: none !important; }
-    .ct-gradient{ animation: none !important; }
-    .ct-rotFade{ animation: none !important; }
     .ct-btn{ transition:none !important; }
   }
 `;
@@ -471,7 +387,7 @@ export default function Contact() {
   const [enter, setEnter] = useState(false);
   useEffect(() => {
     if (reduced) return;
-    const tt = window.setTimeout(() => setEnter(true), 180);
+    const tt = window.setTimeout(() => setEnter(true), 120);
     return () => window.clearTimeout(tt);
   }, [reduced]);
 
@@ -503,24 +419,29 @@ export default function Contact() {
 
   const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
-  // ===== Rotating phrase (3s interval) =====
+  // ===== i18n fallback (so keys NEVER show) =====
+  const safeT = (key: string, fallback: string) => {
+    const v = t(key);
+    return v === key ? fallback : v;
+  };
+
+  // ===== Rotating word (3s) =====
   const rotating = useMemo(
     () => [
-      t("contact.hero.rotate.ai_automation"), // e.g. "AI avtomatlaşdırma"
-      t("contact.hero.rotate.agents"),        // e.g. "agentlər"
-      t("contact.hero.rotate.sales"),         // e.g. "satış"
-      t("contact.hero.rotate.support"),       // e.g. "support"
+      safeT("contact.hero.rotate.ai_automation", "AI avtomatlaşdırma"),
+      safeT("contact.hero.rotate.agents", "agentlər"),
+      safeT("contact.hero.rotate.sales", "satış"),
+      safeT("contact.hero.rotate.support", "support"),
     ],
-    [t]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [i18n.language]
   );
   const [rotIdx, setRotIdx] = useState(0);
-  const [rotKey, setRotKey] = useState(0); // for small fade animation restart
 
   useEffect(() => {
     if (reduced) return;
     const id = window.setInterval(() => {
       setRotIdx((p) => (p + 1) % rotating.length);
-      setRotKey((k) => k + 1);
     }, 3000);
     return () => window.clearInterval(id);
   }, [rotating.length, reduced]);
@@ -529,26 +450,22 @@ export default function Contact() {
     const root = pageRef.current;
     if (!root) return;
 
-    const els = Array.from(root.querySelectorAll<HTMLElement>(".ct-reveal"));
+    const els = Array.from(root.querySelectorAll<HTMLElement>(".ct-enter"));
     if (!els.length) return;
 
     if (reduced) {
-      els.forEach((el) => el.classList.add("is-in"));
+      els.forEach((el) => el.classList.add("ct-in"));
       return;
     }
-    if (!enter) return;
-
-    const base = isMobile ? 420 : 340;
-    const step = isMobile ? 85 : 95;
 
     const timers: number[] = [];
     els.forEach((el, i) => {
-      const tt = window.setTimeout(() => el.classList.add("is-in"), base + i * step);
+      const tt = window.setTimeout(() => el.classList.add("ct-in"), 120 + i * (isMobile ? 90 : 110));
       timers.push(tt);
     });
 
     return () => timers.forEach((tt) => window.clearTimeout(tt));
-  }, [enter, reduced, isMobile]);
+  }, [reduced, isMobile]);
 
   useEffect(() => {
     if (isDemo && !formData.message) {
@@ -591,7 +508,7 @@ export default function Contact() {
     } catch {}
   };
 
-  // ✅ Backend base (local by default, prod via VITE_API_BASE)
+  // ✅ Backend base
   const API_BASE_RAW = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:5050";
   const API_BASE = String(API_BASE_RAW).replace(/\/+$/, "");
 
@@ -674,6 +591,10 @@ export default function Contact() {
     }
   };
 
+  // Subtitle text (no key leakage)
+  const subtitleLead = safeT("contact.hero.subtitle_lead", "AI avtomatlaşdırma, agentlər, satış və support prosesləri —");
+  const subtitleTail = safeT("contact.hero.subtitle_tail", "konkret nəticə üçün.");
+
   return (
     <main ref={pageRef as any} className="ct-page">
       <style>{CONTACT_CSS}</style>
@@ -688,31 +609,23 @@ export default function Contact() {
                 <BreadcrumbPill text={t("contact.hero.breadcrumb")} enter={enter} delayMs={0} />
               </div>
 
-              <h1 className={cx("mt-6 text-white break-words ct-enter", enter && "ct-in")} style={d(90)}>
-                <span className={cx("block text-[40px] leading-[1.05] sm:text-[60px] font-semibold ct-titleLive")}>
+              <h1 className="mt-6 text-white break-words ct-enter" style={d(90)}>
+                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
                   {t("contact.hero.title.before")}{" "}
                   <span className="ct-gradient">{t("contact.hero.title.highlight")}</span>
                 </span>
               </h1>
 
-              {/* subtitle with rotating phrase */}
-              <p
-                className={cx(
-                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words ct-enter",
-                  enter && "ct-in"
-                )}
-                style={d(180)}
-              >
-                <span className="ct-rotWrap">
-                  <span className="ct-rotLead">{t("contact.hero.subtitle_lead")}</span>
-                  <span key={rotKey} className={cx("ct-rotWord", !reduced && "ct-rotFade")}>
-                    {rotating[rotIdx]}
-                  </span>
-                  <span className="ct-rotLead">{t("contact.hero.subtitle_tail")}</span>
+              {/* Subtitle with rotation (simple, premium) */}
+              <p className="mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words ct-enter" style={d(180)}>
+                <span className="ct-rotLine">
+                  <span className="ct-rotLead">{subtitleLead}</span>
+                  <span className="ct-rotWord">{rotating[rotIdx]}</span>
+                  <span className="ct-rotLead">{subtitleTail}</span>
                 </span>
               </p>
 
-              <div className={cx("mt-8 flex flex-col sm:flex-row gap-3 justify-center ct-enter", enter && "ct-in")} style={d(270)}>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center ct-enter" style={d(270)}>
                 <a
                   href={WHATSAPP_LINK}
                   target="_blank"
@@ -722,7 +635,6 @@ export default function Contact() {
                 >
                   <CalendarDays className="h-5 w-5" />
                   {t("contact.hero.cta_whatsapp")}
-                  <ArrowRight className="ct-arrowTiny" />
                 </a>
 
                 <button type="button" onClick={copyEmail} className="ct-btn" aria-label={t("contact.hero.cta_email_aria")}>
@@ -742,282 +654,278 @@ export default function Contact() {
       <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-16" aria-label={t("contact.aria.content")}>
         <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-start">
           {/* LEFT */}
-          <div className="ct-reveal ct-reveal-left">
-            <div className="ct-panel p-6 sm:p-8 md:sticky md:top-6">
-              <div className="relative z-[1]">
-                <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
-                <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
+          <div className="ct-panel p-6 sm:p-8 md:sticky md:top-6 ct-enter" style={d(340)}>
+            <div className="relative z-[1]">
+              <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
+              <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
 
-                <div className="mt-6 space-y-4">
-                  {/* Email */}
-                  <div className="ct-row p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                        <Mail className="h-5 w-5 text-white" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
-
-                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
-                          <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
-                          <button
-                            type="button"
-                            onClick={copyEmail}
-                            className="ct-btn ct-btn--square"
-                            style={{ width: "auto" }}
-                            aria-label={t("contact.left.channels.email.copy_aria")}
-                          >
-                            <Copy className="h-4 w-4" />
-                            <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
-                          </button>
-                        </div>
-
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.email.note")}</div>
-                      </div>
+              <div className="mt-6 space-y-4">
+                {/* Email */}
+                <div className="ct-row p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                      <Mail className="h-5 w-5 text-white" />
                     </div>
-                  </div>
 
-                  {/* Phone */}
-                  <div className="ct-row p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                        <Phone className="h-5 w-5 text-white" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
+
+                      <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                        <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
+                        <button
+                          type="button"
+                          onClick={copyEmail}
+                          className="ct-btn ct-btn--square"
+                          style={{ width: "auto" }}
+                          aria-label={t("contact.left.channels.email.copy_aria")}
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                        </button>
                       </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
-
-                        <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
-                          <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
-                          <button
-                            type="button"
-                            onClick={copyPhone}
-                            className="ct-btn ct-btn--square"
-                            style={{ width: "auto" }}
-                            aria-label={t("contact.left.channels.phone.copy_aria")}
-                          >
-                            <Copy className="h-4 w-4" />
-                            <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
-                          </button>
-                        </div>
-
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.phone.note")}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Location */}
-                  <div className="ct-row p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
-                        <MapPin className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
-                        <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
-                      </div>
+                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.email.note")}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* What to expect */}
-                <div
-                  className="mt-6 ct-row p-5"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
-                  }}
-                >
-                  <div className="text-white font-semibold">{t("contact.left.expect.title")}</div>
-                  <ul className="mt-3 space-y-2 text-white/70">
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                      {t("contact.left.expect.items.0")}
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                      {t("contact.left.expect.items.1")}
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
-                      {t("contact.left.expect.items.2")}
-                    </li>
-                  </ul>
+                {/* Phone */}
+                <div className="ct-row p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                      <Phone className="h-5 w-5 text-white" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
+
+                      <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
+                        <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
+                        <button
+                          type="button"
+                          onClick={copyPhone}
+                          className="ct-btn ct-btn--square"
+                          style={{ width: "auto" }}
+                          aria-label={t("contact.left.channels.phone.copy_aria")}
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                        </button>
+                      </div>
+
+                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.phone.note")}</div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-5 text-xs text-white/45">{t("contact.left.footer_note")}</div>
+                {/* Location */}
+                <div className="ct-row p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="h-11 w-11 rounded-xl border border-white/10 bg-gradient-to-br from-[rgba(47,184,255,.40)] to-[rgba(42,125,255,.28)] flex items-center justify-center flex-shrink-0">
+                      <MapPin className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
+                      <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
+                      <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* What to expect */}
+              <div
+                className="mt-6 ct-row p-5"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
+                }}
+              >
+                <div className="text-white font-semibold">{t("contact.left.expect.title")}</div>
+                <ul className="mt-3 space-y-2 text-white/70">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                    {t("contact.left.expect.items.0")}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                    {t("contact.left.expect.items.1")}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="mt-[2px] h-5 w-5 text-[rgba(170,225,255,.95)]" />
+                    {t("contact.left.expect.items.2")}
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-5 text-xs text-white/45">{t("contact.left.footer_note")}</div>
             </div>
           </div>
 
           {/* RIGHT: FORM */}
-          <div className="ct-reveal ct-reveal-right">
-            <div className="ct-panel p-6 sm:p-8">
-              <div className="relative z-[1]">
-                <div className="flex items-start justify-between gap-4">
+          <div className="ct-panel p-6 sm:p-8 ct-enter" style={d(440)}>
+            <div className="relative z-[1]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.form.title")}</h3>
+                  <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.form.subtitle")}</p>
+                </div>
+                <div className="hidden sm:block text-right flex-shrink-0">
+                  <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">{t("contact.form.badge.label")}</div>
+                  <div className="text-white font-semibold">{t("contact.form.badge.value")}</div>
+                </div>
+              </div>
+
+              {/* status */}
+              {status !== "idle" && (
+                <div className="mt-5 ct-status p-4 flex items-start gap-3">
+                  {status === "success" ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
+                      <div className="min-w-0">
+                        <div className="text-emerald-200 font-semibold">{t("contact.form.status.success_title")}</div>
+                        <div className="text-emerald-200/80 text-sm">{t("contact.form.status.success_desc")}</div>
+                      </div>
+                    </>
+                  ) : status === "error" ? (
+                    <>
+                      <AlertTriangle className="h-5 w-5 text-red-300 mt-[2px]" />
+                      <div className="min-w-0">
+                        <div className="text-red-200 font-semibold">{t("contact.form.status.error_title")}</div>
+                        <div className="text-red-200/85 text-sm">{errorMessage || t("contact.form.errors.send_failed")}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className="h-5 w-5 rounded-full border border-white/15"
+                        style={{
+                          background:
+                            "conic-gradient(from 90deg, rgba(47,184,255,.85), rgba(42,125,255,.75), rgba(170,225,255,.80), rgba(47,184,255,.85))",
+                          maskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                          WebkitMaskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-white font-semibold">{t("contact.form.status.loading_title")}</div>
+                        <div className="text-white/65 text-sm">{t("contact.form.status.loading_desc")}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                {/* honeypot */}
+                <input
+                  tabIndex={-1}
+                  autoComplete="off"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleChange}
+                  className="hidden"
+                />
+
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div className="min-w-0">
-                    <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.form.title")}</h3>
-                    <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.form.subtitle")}</p>
+                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.name.label")}</label>
+                    <input
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      onBlur={() => markTouched("name")}
+                      className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
+                      placeholder={t("contact.form.fields.name.placeholder")}
+                    />
+                    {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
                   </div>
-                  <div className="hidden sm:block text-right flex-shrink-0">
-                    <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">{t("contact.form.badge.label")}</div>
-                    <div className="text-white font-semibold">{t("contact.form.badge.value")}</div>
+
+                  <div className="min-w-0">
+                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.email.label")}</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      onBlur={() => markTouched("email")}
+                      className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
+                      placeholder={t("contact.form.fields.email.placeholder")}
+                    />
+                    {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
                   </div>
                 </div>
 
-                {/* status */}
-                {status !== "idle" && (
-                  <div className="mt-5 ct-status p-4 flex items-start gap-3">
-                    {status === "success" ? (
-                      <>
-                        <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
-                        <div className="min-w-0">
-                          <div className="text-emerald-200 font-semibold">{t("contact.form.status.success_title")}</div>
-                          <div className="text-emerald-200/80 text-sm">{t("contact.form.status.success_desc")}</div>
-                        </div>
-                      </>
-                    ) : status === "error" ? (
-                      <>
-                        <AlertTriangle className="h-5 w-5 text-red-300 mt-[2px]" />
-                        <div className="min-w-0">
-                          <div className="text-red-200 font-semibold">{t("contact.form.status.error_title")}</div>
-                          <div className="text-red-200/85 text-sm">{errorMessage || t("contact.form.errors.send_failed")}</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div
-                          className="h-5 w-5 rounded-full border border-white/15"
-                          style={{
-                            background:
-                              "conic-gradient(from 90deg, rgba(47,184,255,.85), rgba(42,125,255,.75), rgba(170,225,255,.80), rgba(47,184,255,.85))",
-                            maskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
-                            WebkitMaskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
-                          }}
-                        />
-                        <div className="min-w-0">
-                          <div className="text-white font-semibold">{t("contact.form.status.loading_title")}</div>
-                          <div className="text-white/65 text-sm">{t("contact.form.status.loading_desc")}</div>
-                        </div>
-                      </>
-                    )}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="min-w-0">
+                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.company.label")}</label>
+                    <input
+                      name="company"
+                      value={formData.company}
+                      onChange={handleChange}
+                      className="ct-input"
+                      placeholder={t("contact.form.fields.company.placeholder")}
+                    />
                   </div>
-                )}
+                  <div className="min-w-0">
+                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.phone.label")}</label>
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="ct-input"
+                      placeholder={t("contact.form.fields.phone.placeholder")}
+                    />
+                  </div>
+                </div>
 
-                <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                  {/* honeypot */}
-                  <input
-                    tabIndex={-1}
-                    autoComplete="off"
-                    name="website"
-                    value={formData.website}
+                <div className="min-w-0">
+                  <div className="flex items-end justify-between gap-3">
+                    <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.message.label")}</label>
+                    <div className="text-xs text-white/45 mb-2">{msgLen}/500</div>
+                  </div>
+
+                  <textarea
+                    name="message"
+                    value={formData.message}
                     onChange={handleChange}
-                    className="hidden"
+                    onBlur={() => markTouched("message")}
+                    rows={6}
+                    className={cx("ct-input", touched.message && !msgOk && "ct-input--bad")}
+                    style={{ resize: "none" }}
+                    placeholder={t("contact.form.fields.message.placeholder")}
                   />
 
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.name.label")}</label>
-                      <input
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        onBlur={() => markTouched("name")}
-                        className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
-                        placeholder={t("contact.form.fields.name.placeholder")}
-                      />
-                      {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
-                    </div>
-
-                    <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.email.label")}</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        onBlur={() => markTouched("email")}
-                        className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
-                        placeholder={t("contact.form.fields.email.placeholder")}
-                      />
-                      {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.company.label")}</label>
-                      <input
-                        name="company"
-                        value={formData.company}
-                        onChange={handleChange}
-                        className="ct-input"
-                        placeholder={t("contact.form.fields.company.placeholder")}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.phone.label")}</label>
-                      <input
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="ct-input"
-                        placeholder={t("contact.form.fields.phone.placeholder")}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-end justify-between gap-3">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.message.label")}</label>
-                      <div className="text-xs text-white/45 mb-2">{msgLen}/500</div>
-                    </div>
-
-                    <textarea
-                      name="message"
-                      value={formData.message}
-                      onChange={handleChange}
-                      onBlur={() => markTouched("message")}
-                      rows={6}
-                      className={cx("ct-input", touched.message && !msgOk && "ct-input--bad")}
-                      style={{ resize: "none" }}
-                      placeholder={t("contact.form.fields.message.placeholder")}
-                    />
-
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      {touched.message && !msgOk ? (
-                        <div className="text-xs text-red-200/90">{t("contact.form.errors.message_short")}</div>
-                      ) : (
-                        <div className="text-xs text-white/45">{t("contact.form.hint")}</div>
-                      )}
-
-                      <div className="w-[120px] ct-meter" aria-label={t("contact.form.message_meter_aria")}>
-                        <i style={{ ["--w" as any]: `${msgPct}%` }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    className={cx("ct-btn ct-btn--primary w-full", "disabled:opacity-50 disabled:cursor-not-allowed")}
-                    aria-label={t("contact.form.submit_aria")}
-                  >
-                    {status === "loading" ? (
-                      t("contact.form.submit_loading")
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    {touched.message && !msgOk ? (
+                      <div className="text-xs text-red-200/90">{t("contact.form.errors.message_short")}</div>
                     ) : (
-                      <>
-                        {t("contact.form.submit")}
-                        <Send className="h-5 w-5" />
-                      </>
+                      <div className="text-xs text-white/45">{t("contact.form.hint")}</div>
                     )}
-                  </button>
 
-                  <div className="text-xs text-white/45">{t("contact.form.legal")}</div>
-                </form>
-              </div>
+                    <div className="w-[120px] ct-meter" aria-label={t("contact.form.message_meter_aria")}>
+                      <i style={{ ["--w" as any]: `${msgPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className={cx("ct-btn ct-btn--primary w-full", "disabled:opacity-50 disabled:cursor-not-allowed")}
+                  aria-label={t("contact.form.submit_aria")}
+                >
+                  {status === "loading" ? (
+                    t("contact.form.submit_loading")
+                  ) : (
+                    <>
+                      {t("contact.form.submit")}
+                      <Send className="h-5 w-5" />
+                    </>
+                  )}
+                </button>
+
+                <div className="text-xs text-white/45">{t("contact.form.legal")}</div>
+              </form>
             </div>
           </div>
         </div>
@@ -1025,7 +933,7 @@ export default function Contact() {
 
       {/* ================= CTA ================= */}
       <section className="relative mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 pb-20" aria-label={t("contact.aria.cta")}>
-        <div className="ct-panel p-8 sm:p-10 text-center ct-reveal ct-reveal-bottom">
+        <div className="ct-panel p-8 sm:p-10 text-center ct-enter" style={d(560)}>
           <div className="relative z-[1]">
             <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">{t("contact.final.title")}</h2>
             <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">{t("contact.final.subtitle")}</p>
@@ -1040,7 +948,6 @@ export default function Contact() {
             >
               <CalendarDays className="h-5 w-5" />
               {t("contact.final.cta")}
-              <ArrowRight className="ct-arrowTiny" />
             </a>
           </div>
         </div>
