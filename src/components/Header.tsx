@@ -12,40 +12,18 @@ function cx(...xs: Array<string | false | null | undefined>) {
 
 type NavDef = { to: string; label: string; end?: boolean; hint?: string };
 
-function getScrollableEl(): HTMLElement | Window {
-  const se = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+type MenuKey = "about" | "services" | "usecases" | "resources" | null;
 
-  const candidates: Array<HTMLElement | null> = [
-    document.querySelector("main"),
-    document.querySelector("#root"),
-    document.querySelector("#app"),
-    document.querySelector(".app"),
-    document.querySelector(".layout"),
-    document.querySelector(".site"),
-    document.querySelector("[data-scroll]"),
-    document.querySelector("[data-scroll-container]"),
-  ];
+type ServiceDef = { id: string; label: string; to: string; hint: string };
 
-  const isScrollable = (el: HTMLElement) => {
-    const st = getComputedStyle(el);
-    const oy = st.overflowY;
-    return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 2;
-  };
-
-  for (const el of candidates) if (el && isScrollable(el)) return el;
-  if (se && isScrollable(se)) return se;
-
-  return window;
-}
+type FlowDef = { id: string; label: string; to: string };
 
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
 }
-
 function isLang(x: string | undefined | null): x is Lang {
   return !!x && (LANGS as readonly string[]).includes(x as any);
 }
-
 function getWindowScrollY() {
   return (
     window.scrollY ||
@@ -71,7 +49,7 @@ function usePrefersReducedMotion() {
 }
 
 /* ===== Desktop language dropdown (single button) =====
-   ✅ UPDATED: Hover opens (like other dropdowns), click still works.
+   Hover opens; click still works.
 */
 function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
@@ -175,24 +153,12 @@ function LangMenu({ lang, onPick }: { lang: Lang; onPick: (l: Lang) => void }) {
   );
 }
 
-type MenuKey = "about" | "services" | "usecases" | "resources" | null;
-
-type ServiceDef = { id: string; label: string; to: string; hint: string };
-
-type ScenarioDef = {
-  id: string;
-  label: string;
-  to: string;
-  subtitle: string;
-  terminal: string[];
-};
-
 /* =========================
    Header
 ========================= */
 export default function Header({ introReady }: { introReady: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const [hdrp, setHdrp] = useState(0); // mobil blur driver
+  const [hdrp, setHdrp] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
   const [open, setOpen] = useState(false);
@@ -200,9 +166,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const prefersReduced = usePrefersReducedMotion();
 
-  // ✅ SINGLE OPEN MENU (fix: dropdownlar qarışmır)
+  // Single open desktop dropdown
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
-
   const closeT = useRef<number | null>(null);
 
   const svcRef = useRef<HTMLDivElement | null>(null);
@@ -210,14 +175,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const resRef = useRef<HTMLDivElement | null>(null);
   const ucRef = useRef<HTMLDivElement | null>(null);
 
-  // UseCases terminal typing state
-  const [ucActive, setUcActive] = useState<string>("healthcare");
-  const [termText, setTermText] = useState<string>("");
-  const [termCursor, setTermCursor] = useState(true);
+  // Desktop right-side “flow marquee” state
+  const [svcActive, setSvcActive] = useState<string>("business-workflows");
 
   // Mobile accordion state
-  const [mobileUcOpen, setMobileUcOpen] = useState(false);
   const [mobileSvcOpen, setMobileSvcOpen] = useState(false);
+  const [mobileUcOpen, setMobileUcOpen] = useState(false);
   const [mobileAboutOpen, setMobileAboutOpen] = useState(false);
   const [mobileResOpen, setMobileResOpen] = useState(false);
 
@@ -230,13 +193,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const panelId = useId();
 
   const headerRef = useRef<HTMLElement | null>(null);
-  const scrollElRef = useRef<HTMLElement | Window | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
   const rafPending = useRef(false);
   const lastPRef = useRef<number>(-1);
 
-  // matchMedia: mobil olub-olmadığını bilək
+  // matchMedia: mobile?
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 920px)");
     const apply = () => setIsMobile(!!mq.matches);
@@ -274,7 +234,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [i18n, lang, location.pathname, navigate]
   );
 
-  // ✅ App.tsx ROUTES-una uyğun 6 services (dəqiq)
+  // Services (6)
   const SERVICES: ServiceDef[] = useMemo(
     () => [
       {
@@ -317,15 +277,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ App.tsx-də /about subpage yoxdur → only /about
+  // About (single)
   const ABOUT_LINKS: NavDef[] = useMemo(
-    () => [
-      { to: "/about", label: "About NEOX", hint: "Company, mission, technology (single page)" },
-    ],
+    () => [{ to: "/about", label: "About NEOX", hint: "Company, mission, technology" }],
     []
   );
 
-  // ✅ App.tsx resources: /resources/docs /resources/faq /resources/guides /privacy
+  // Resources
   const RES_LINKS: NavDef[] = useMemo(
     () => [
       { to: "/resources/docs", label: "Docs", hint: "Documentation & references" },
@@ -336,155 +294,90 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // ✅ Use Cases: sənin istədiyin 5 ssenari (hotel/finance/retail/logistics/healthcare)
-  const SCENARIOS: ScenarioDef[] = useMemo(
-    () => [
-      {
-        id: "healthcare",
-        label: "Healthcare",
-        to: "/use-cases/healthcare",
-        subtitle: "Patient intake, scheduling, triage, secure flows",
-        terminal: [
-          "boot: neox/usecases/healthcare",
-          "init: intake → classify → route",
-          "flow: appointment booking + reminders",
-          "guard: privacy-first, minimal data, secure handoff",
-          "ops: reduce call load, faster response",
-          "ok: satisfaction ↑, waiting ↓",
-        ],
-      },
-      {
-        id: "logistics",
-        label: "Logistics",
-        to: "/use-cases/logistics",
-        subtitle: "Tracking, customer updates, support automation",
-        terminal: [
-          "boot: neox/usecases/logistics",
-          "init: order_id → status lookup",
-          "flow: ETA → notify customer → escalate if delayed",
-          "tool: ticket creation + transcript to operator",
-          "ops: fewer manual calls",
-          "ok: delivery transparency ↑",
-        ],
-      },
-      {
-        id: "finance",
-        label: "Finance",
-        to: "/use-cases/finance",
-        subtitle: "Lead capture, compliance-aware flows, conversion",
-        terminal: [
-          "boot: neox/usecases/finance",
-          "init: intent → risk flags → safe response",
-          "flow: pricing → demo → conversion pipeline",
-          "guard: off-topic refuse, business-only focus",
-          "tool: lead → CRM → follow-up summary",
-          "ok: qualified leads ↑",
-        ],
-      },
-      {
-        id: "retail",
-        label: "Retail",
-        to: "/use-cases/retail",
-        subtitle: "Product help, upsell, order questions, support",
-        terminal: [
-          "boot: neox/usecases/retail",
-          "init: product query → recommend bundles",
-          "flow: sizing/availability → checkout CTA",
-          "support: returns + shipping status",
-          "ops: faster answers, higher AOV",
-          "ok: conversion ↑",
-        ],
-      },
-      {
-        id: "hotels",
-        label: "Hotels & Resorts",
-        to: "/use-cases/hotels",
-        subtitle: "Reservations, concierge, guest experience automation",
-        terminal: [
-          "boot: neox/usecases/hotels",
-          "init: dates → availability → pricing",
-          "flow: booking request → confirmation → reminders",
-          "concierge: services, upgrades, local guide",
-          "handoff: operator for complex requests",
-          "ok: booking rate ↑, workload ↓",
-        ],
-      },
-    ],
+  // “Use Cases” flows that slide right→left (per hovered service)
+  // Business Workflows: 5 items (as requested). Others: 3–4.
+  const FLOWS_BY_SERVICE: Record<string, FlowDef[]> = useMemo(
+    () => ({
+      "business-workflows": [
+        { id: "bw-1", label: "Lead Routing & Qualification", to: "/use-cases/finance" },
+        { id: "bw-2", label: "Support Triage & Escalation", to: "/use-cases/healthcare" },
+        { id: "bw-3", label: "Order Status & Customer Updates", to: "/use-cases/logistics" },
+        { id: "bw-4", label: "Upsell / Cross-sell Automation", to: "/use-cases/retail" },
+        { id: "bw-5", label: "Concierge Requests & Booking Ops", to: "/use-cases/hotels" },
+      ],
+      "chatbot-24-7": [
+        { id: "c-1", label: "Instant FAQ + Smart Handoff", to: "/use-cases/healthcare" },
+        { id: "c-2", label: "Pricing → Demo → Conversion", to: "/use-cases/finance" },
+        { id: "c-3", label: "Abandoned Checkout Recovery", to: "/use-cases/retail" },
+        { id: "c-4", label: "24/7 Reservation Assistant", to: "/use-cases/hotels" },
+      ],
+      websites: [
+        { id: "w-1", label: "High-Conversion Landing Flows", to: "/use-cases/finance" },
+        { id: "w-2", label: "Interactive Product Discovery", to: "/use-cases/retail" },
+        { id: "w-3", label: "Appointment Booking UX", to: "/use-cases/healthcare" },
+      ],
+      "mobile-apps": [
+        { id: "m-1", label: "Push Alerts & Status Tracking", to: "/use-cases/logistics" },
+        { id: "m-2", label: "In-app Support + Operator Mode", to: "/use-cases/healthcare" },
+        { id: "m-3", label: "Wallet / Offers / Loyalty", to: "/use-cases/retail" },
+      ],
+      "smm-automation": [
+        { id: "s-1", label: "DM Auto-Reply → Lead Capture", to: "/use-cases/finance" },
+        { id: "s-2", label: "Content Pipeline & Scheduling", to: "/use-cases/retail" },
+        { id: "s-3", label: "Campaign → Chatbot Funnel", to: "/use-cases/hotels" },
+      ],
+      "technical-support": [
+        { id: "t-1", label: "Uptime Monitoring & Incident Flow", to: "/use-cases/logistics" },
+        { id: "t-2", label: "Release / Deploy Automation", to: "/use-cases/finance" },
+        { id: "t-3", label: "Ticketing + SLA Workflows", to: "/use-cases/healthcare" },
+      ],
+    }),
     []
   );
 
+  const activeFlows: FlowDef[] = useMemo(() => {
+    const list = FLOWS_BY_SERVICE[svcActive] ?? FLOWS_BY_SERVICE["business-workflows"];
+    return list;
+  }, [FLOWS_BY_SERVICE, svcActive]);
+
   // Active checks
-  const isUseCasesActive = useMemo(() => location.pathname.toLowerCase().includes("/use-cases"), [location.pathname]);
-  const isServicesActive = useMemo(() => location.pathname.toLowerCase().includes("/services"), [location.pathname]);
+  const isUseCasesActive = useMemo(
+    () => location.pathname.toLowerCase().includes("/use-cases"),
+    [location.pathname]
+  );
+  const isServicesActive = useMemo(
+    () => location.pathname.toLowerCase().includes("/services"),
+    [location.pathname]
+  );
   const isAboutActive = useMemo(() => location.pathname.toLowerCase().includes("/about"), [location.pathname]);
   const isResActive = useMemo(() => {
     const p = location.pathname.toLowerCase();
     return p.includes("/resources") || p.includes("/privacy");
   }, [location.pathname]);
 
-  const navItem = ({ isActive }: { isActive: boolean }) => cx("nav-link", isActive && "is-active");
-
-  // Header height → CSS var
+  // Header height var
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-
     const apply = () => {
       const h = Math.round(el.getBoundingClientRect().height || 72);
       document.documentElement.style.setProperty("--hdrh", `${h}px`);
     };
     apply();
-
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     window.addEventListener("resize", apply, { passive: true });
-
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", apply as any);
     };
   }, []);
 
-  const ensureSentinel = useCallback(() => {
-    if (sentinelRef.current) return;
-
-    const el = document.createElement("div");
-    el.setAttribute("data-header-sentinel", "1");
-    el.style.position = "absolute";
-    el.style.top = "0";
-    el.style.left = "0";
-    el.style.width = "1px";
-    el.style.height = "1px";
-    el.style.pointerEvents = "none";
-    el.style.opacity = "0";
-    el.style.zIndex = "-1";
-
-    const sc = scrollElRef.current ?? getScrollableEl();
-    scrollElRef.current = sc;
-
-    if (sc === window) document.body.appendChild(el);
-    else {
-      const host = sc as HTMLElement;
-      const st = getComputedStyle(host);
-      if (st.position === "static") host.style.position = "relative";
-      host.appendChild(el);
-    }
-
-    sentinelRef.current = el;
-  }, []);
-
+  // scroll blur
   const computeScrolled = useCallback(() => {
-    const sc = scrollElRef.current ?? getScrollableEl();
-    scrollElRef.current = sc;
-
-    let y = 0;
-    if (sc === window) y = getWindowScrollY();
-    else y = (sc as HTMLElement).scrollTop || 0;
-
+    const y = getWindowScrollY();
     const p = clamp01(y / 180);
-
     if (headerRef.current) headerRef.current.style.setProperty("--hdrp", String(p));
-
     if (Math.abs(p - lastPRef.current) > 0.001) {
       lastPRef.current = p;
       setHdrp(p);
@@ -493,10 +386,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   }, []);
 
   useEffect(() => {
-    scrollElRef.current = getScrollableEl();
-    ensureSentinel();
     computeScrolled();
-
     const schedule = () => {
       if (rafPending.current) return;
       rafPending.current = true;
@@ -505,32 +395,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
         computeScrolled();
       });
     };
-
-    const onResize = () => schedule();
-    const onScroll = () => schedule();
-
-    window.addEventListener("resize", onResize, { passive: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
-    document.addEventListener("scroll", onScroll, { passive: true } as any);
-
-    const sc = scrollElRef.current;
-    if (sc && sc !== window) (sc as HTMLElement).addEventListener("scroll", onScroll, { passive: true });
-
+    window.addEventListener("resize", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true });
     const tick = window.setInterval(() => schedule(), 180);
-
     return () => {
-      window.removeEventListener("resize", onResize as any);
-      window.removeEventListener("scroll", onScroll as any);
-      document.removeEventListener("scroll", onScroll as any);
-      if (sc && sc !== window) (sc as HTMLElement).removeEventListener("scroll", onScroll as any);
+      window.removeEventListener("resize", schedule as any);
+      window.removeEventListener("scroll", schedule as any);
       window.clearInterval(tick);
-
-      if (sentinelRef.current) {
-        sentinelRef.current.remove();
-        sentinelRef.current = null;
-      }
     };
-  }, [ensureSentinel, computeScrolled]);
+  }, [computeScrolled]);
 
   // route change reset
   useEffect(() => {
@@ -538,13 +411,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setSoftOpen(false);
     setOpenMenu(null);
 
-    setMobileUcOpen(false);
     setMobileSvcOpen(false);
+    setMobileUcOpen(false);
     setMobileAboutOpen(false);
     setMobileResOpen(false);
   }, [location.pathname]);
 
-  // lock body scroll when mobile menu open
+  // lock body scroll on mobile overlay
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
@@ -564,7 +437,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => cancelAnimationFrame(raf);
   }, [open]);
 
-  // click outside for desktop dropdowns (single openMenu)
+  // click outside desktop dropdown
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!openMenu) return;
@@ -576,7 +449,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         resources: resRef,
         usecases: ucRef,
       };
-
       const ref = map[openMenu];
       const el = ref?.current;
       if (!el) return;
@@ -586,7 +458,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => window.removeEventListener("mousedown", onDown);
   }, [openMenu]);
 
-  // small helper for hover open/close with tiny delay (✅ closes others)
   const openDrop = (menu: Exclude<MenuKey, null>) => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
@@ -601,59 +472,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
     }, 110) as any;
   };
 
-  // ======= UseCases TERMINAL typing (slow, left→right) =======
-  const activeScenario = useMemo(
-    () => SCENARIOS.find((s) => s.id === ucActive) ?? SCENARIOS[0],
-    [SCENARIOS, ucActive]
-  );
-
-  useEffect(() => {
-    if (openMenu !== "usecases") return;
-    const tmr = window.setInterval(() => setTermCursor((v) => !v), 520);
-    return () => window.clearInterval(tmr);
-  }, [openMenu]);
-
-  useEffect(() => {
-    if (openMenu !== "usecases") return;
-
-    const full = activeScenario.terminal.join("\n");
-    if (prefersReduced) {
-      setTermText(full);
-      return;
-    }
-
-    let i = 0;
-    setTermText("");
-
-    let cancelled = false;
-
-    const step = () => {
-      if (cancelled) return;
-      i += 1;
-      setTermText(full.slice(0, i));
-      if (i >= full.length) return;
-
-      // ✅ very slow typing
-      const ch = full[i] || "";
-      const base = ch === "\n" ? 260 : 48;
-      const jitter = ch === "\n" ? 120 : 32;
-      const delay = base + Math.round(Math.random() * jitter);
-
-      window.setTimeout(step, delay);
-    };
-
-    const start = window.setTimeout(step, 220);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(start);
-    };
-  }, [activeScenario, openMenu, prefersReduced]);
-
-  // mobile styles
+  // Mobile style driver
   const mobileP = clamp01(hdrp);
   const base = 0.03;
-  const mobileBgAlpha = open ? 0.88 : base + 0.68 * mobileP;
+  const mobileBgAlpha = open ? 0.92 : base + 0.70 * mobileP;
   const mobileBlurPx = open ? 18 : 3 + 15 * mobileP;
   const mobileSat = open ? 1.35 : 1 + 0.30 * mobileP;
 
@@ -662,271 +484,324 @@ export default function Header({ introReady }: { introReady: boolean }) {
         backgroundColor: `rgba(10, 12, 18, ${mobileBgAlpha.toFixed(3)})`,
         WebkitBackdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
         backdropFilter: `blur(${mobileBlurPx.toFixed(1)}px) saturate(${mobileSat.toFixed(2)})`,
-        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.09 : 0.06 * mobileP).toFixed(3)})`,
+        borderBottom: `1px solid rgba(255,255,255,${(open ? 0.10 : 0.06 * mobileP).toFixed(3)})`,
       }
     : undefined;
 
-  const logoH = isMobile ? 18 : 28;
-  const logoMaxW = isMobile ? "124px" : "156px";
+  // Logo sizing (mobile: small, top-left)
+  const logoH = isMobile ? 16 : 26;
+  const logoMaxW = isMobile ? "112px" : "156px";
 
-  // ===== Mobile Overlay (same links as desktop) =====
-  const MobileOverlay = (
-    <div className={cx("nav-overlay", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
-      <button className="nav-overlay__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
+  const aboutOpen = openMenu === "about";
+  const svcOpen = openMenu === "services";
+  const ucOpen = openMenu === "usecases";
+  const resOpen = openMenu === "resources";
 
-      <div
-        id={panelId}
-        className={cx("nav-sheet", softOpen && "is-open")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menyu"
-      >
-        <div className="nav-sheet__bg" aria-hidden="true" />
-        <div className="nav-sheet__noise" aria-hidden="true" />
+  const MegaPanel = ({
+    title,
+    activeId,
+    setActiveId,
+    leftItems,
+    rightTitle,
+    rightSubtitle,
+    onPickLeftNavigate,
+  }: {
+    title: string;
+    activeId: string;
+    setActiveId: (id: string) => void;
+    leftItems: ServiceDef[];
+    rightTitle: string;
+    rightSubtitle: string;
+    onPickLeftNavigate: (to: string) => void;
+  }) => {
+    const flows = FLOWS_BY_SERVICE[activeId] ?? activeFlows;
+    const doubled = prefersReduced ? flows : [...flows, ...flows, ...flows];
 
-        <div className="nav-sheet__head">
-          <div className="nav-sheet__brand">
-            <span className="nav-sheet__dot" aria-hidden="true" />
-            <span className="nav-sheet__title">MENYU</span>
+    return (
+      <div className="mega">
+        <div className="mega__left">
+          <div className="mega__head">{title}</div>
+          <div className="mega__list">
+            {leftItems.map((s) => {
+              const active = s.id === activeId;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={cx("megaItem", active && "is-active")}
+                  onMouseEnter={() => setActiveId(s.id)}
+                  onFocus={() => setActiveId(s.id)}
+                  onClick={() => onPickLeftNavigate(s.to)}
+                >
+                  <span className="megaItem__label">{s.label}</span>
+                  <span className="megaItem__hint">{s.hint}</span>
+                </button>
+              );
+            })}
           </div>
-
-          <button className="nav-sheet__close" type="button" aria-label="Bağla" onClick={closeMobile}>
-            <X size={18} />
-          </button>
         </div>
 
-        <div className="nav-sheet__list">
-          <NavLink
-            to={withLang("/")}
-            end
-            className={({ isActive }) => cx("nav-sheetLink", "nav-stagger", isActive && "is-active")}
-            style={{ ["--i" as any]: 0 }}
+        <div className="mega__right">
+          <div className="megaCard">
+            <div className="megaCard__top">
+              <div className="megaCard__title">{rightTitle}</div>
+              <div className="megaCard__sub">{rightSubtitle}</div>
+            </div>
+
+            <div className="flowBox" aria-label="Use-cases flows">
+              <div className="flowMask" aria-hidden="true" />
+              <div className={cx("flowTrack", prefersReduced && "is-static")}>
+                {doubled.map((f, idx) => (
+                  <NavLink
+                    key={`${f.id}-${idx}`}
+                    to={withLang(f.to)}
+                    className="flowPill"
+                    onClick={() => setOpenMenu(null)}
+                  >
+                    <span className="flowPill__dot" aria-hidden="true" />
+                    <span className="flowPill__txt">{f.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+
+            <div className="megaCard__ctaRow">
+              <NavLink to={withLang("/use-cases")} className="megaCta" onClick={() => setOpenMenu(null)}>
+                Explore Use Cases
+              </NavLink>
+              <div className="megaCard__note">Hover an item to preview flows • Tap a flow to open</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ===== Mobile Overlay (root-level rework: scrollable, safe-area, smooth) =====
+  const MobileOverlay = (
+    <div className={cx("mnav", open && "is-mounted", softOpen && "is-open")} aria-hidden={!open}>
+      <button className="mnav__backdrop" type="button" aria-label="Bağla" onClick={closeMobile} />
+
+      <div id={panelId} className={cx("mnav__sheet", softOpen && "is-open")} role="dialog" aria-modal="true">
+        <div className="mnav__bg" aria-hidden="true" />
+        <div className="mnav__head">
+          <Link
+            to={`/${lang}`}
+            className="mnav__brand"
             onClick={() => {
               window.scrollTo({ top: 0, left: 0, behavior: "auto" });
               closeMobile();
             }}
           >
-            <span className="nav-sheetLink__left">
-              <span className="nav-sheetLink__ico" aria-hidden="true">
+            <span className="mnav__brandDot" aria-hidden="true" />
+            <span className="mnav__brandTxt">NEOX</span>
+          </Link>
+
+          <button className="mnav__close" type="button" aria-label="Bağla" onClick={closeMobile}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mnav__body">
+          <NavLink
+            to={withLang("/")}
+            end
+            className={({ isActive }) => cx("mnavLink", isActive && "is-active")}
+            onClick={() => {
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+              closeMobile();
+            }}
+          >
+            <span className="mnavLink__left">
+              <span className="mnavLink__ico" aria-hidden="true">
                 <Home size={18} />
               </span>
-              <span className="nav-sheetLink__label">{t("nav.home")}</span>
-            </span>
-            <span className="nav-sheetLink__chev" aria-hidden="true">
-              →
+              <span className="mnavLink__label">{t("nav.home")}</span>
             </span>
           </NavLink>
 
-          {/* About accordion */}
-          <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 1 }}>
-            <button
-              type="button"
-              className={cx("nav-acc__head", mobileAboutOpen && "is-open")}
-              onClick={() => setMobileAboutOpen((v) => !v)}
-              aria-expanded={mobileAboutOpen}
-            >
-              <span className="nav-sheetLink__left">
-                <span className="nav-sheetLink__ico" aria-hidden="true">
-                  <Info size={18} />
-                </span>
-                <span className="nav-sheetLink__label">{t("nav.about")}</span>
-              </span>
-              <span className="nav-acc__chev" aria-hidden="true">
-                <ChevronDown size={16} />
-              </span>
-            </button>
-
-            <div className={cx("nav-acc__panel", mobileAboutOpen && "is-open")} aria-hidden={!mobileAboutOpen}>
-              {ABOUT_LINKS.map((s) => (
-                <NavLink
-                  key={s.to}
-                  to={withLang(s.to)}
-                  className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                  onClick={() => closeMobile()}
-                >
-                  <span className="nav-acc__bullet" aria-hidden="true" />
-                  <span className="nav-acc__text">{s.label}</span>
-                  <span className="nav-acc__arrow" aria-hidden="true">
-                    →
-                  </span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
           {/* Services accordion */}
-          <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 2 }}>
+          <div className={cx("macc", mobileSvcOpen && "is-open")}>
             <button
               type="button"
-              className={cx("nav-acc__head", mobileSvcOpen && "is-open")}
+              className="macc__head"
               onClick={() => setMobileSvcOpen((v) => !v)}
               aria-expanded={mobileSvcOpen}
             >
-              <span className="nav-sheetLink__left">
-                <span className="nav-sheetLink__ico" aria-hidden="true">
+              <span className="mnavLink__left">
+                <span className="mnavLink__ico" aria-hidden="true">
                   <Sparkles size={18} />
                 </span>
-                <span className="nav-sheetLink__label">{t("nav.services")}</span>
+                <span className="mnavLink__label">{t("nav.services")}</span>
               </span>
-              <span className="nav-acc__chev" aria-hidden="true">
-                <ChevronDown size={16} />
+              <span className="macc__chev" aria-hidden="true">
+                <ChevronDown size={18} />
               </span>
             </button>
-
-            <div className={cx("nav-acc__panel", mobileSvcOpen && "is-open")} aria-hidden={!mobileSvcOpen}>
+            <div className="macc__panel" aria-hidden={!mobileSvcOpen}>
               {SERVICES.map((s) => (
                 <NavLink
                   key={s.id}
                   to={withLang(s.to)}
-                  className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
+                  className={({ isActive }) => cx("macc__item", isActive && "is-active")}
                   onClick={() => closeMobile()}
                 >
-                  <span className="nav-acc__bullet" aria-hidden="true" />
-                  <span className="nav-acc__text">{s.label}</span>
-                  <span className="nav-acc__arrow" aria-hidden="true">
-                    →
-                  </span>
+                  <span className="macc__dot" aria-hidden="true" />
+                  <span className="macc__text">{s.label}</span>
                 </NavLink>
               ))}
             </div>
           </div>
 
           {/* Use Cases accordion */}
-          <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 3 }}>
+          <div className={cx("macc", mobileUcOpen && "is-open")}>
             <button
               type="button"
-              className={cx("nav-acc__head", mobileUcOpen && "is-open")}
+              className="macc__head"
               onClick={() => setMobileUcOpen((v) => !v)}
               aria-expanded={mobileUcOpen}
             >
-              <span className="nav-sheetLink__left">
-                <span className="nav-sheetLink__ico" aria-hidden="true">
+              <span className="mnavLink__left">
+                <span className="mnavLink__ico" aria-hidden="true">
                   <Layers size={18} />
                 </span>
-                <span className="nav-sheetLink__label">{t("nav.useCases")}</span>
+                <span className="mnavLink__label">{t("nav.useCases")}</span>
               </span>
-              <span className="nav-acc__chev" aria-hidden="true">
-                <ChevronDown size={16} />
+              <span className="macc__chev" aria-hidden="true">
+                <ChevronDown size={18} />
               </span>
             </button>
-
-            <div className={cx("nav-acc__panel", mobileUcOpen && "is-open")} aria-hidden={!mobileUcOpen}>
-              <NavLink
-                to={withLang("/use-cases")}
-                className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                onClick={() => closeMobile()}
-              >
-                <span className="nav-acc__bullet" aria-hidden="true" />
-                <span className="nav-acc__text">All Use Cases</span>
-                <span className="nav-acc__arrow" aria-hidden="true">
-                  →
-                </span>
+            <div className="macc__panel" aria-hidden={!mobileUcOpen}>
+              <NavLink to={withLang("/use-cases")} className="macc__item" onClick={() => closeMobile()}>
+                <span className="macc__dot" aria-hidden="true" />
+                <span className="macc__text">All Use Cases</span>
               </NavLink>
-
-              {SCENARIOS.map((s) => (
-                <NavLink
-                  key={s.id}
-                  to={withLang(s.to)}
-                  className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                  onClick={() => closeMobile()}
+              {SERVICES.map((s) => (
+                <button
+                  key={`uc-${s.id}`}
+                  type="button"
+                  className="macc__item macc__itemBtn"
+                  onClick={() => {
+                    // mobile: open /use-cases for now (flows are on desktop hover)
+                    closeMobile();
+                    navigate(withLang("/use-cases"));
+                    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                  }}
                 >
-                  <span className="nav-acc__bullet" aria-hidden="true" />
-                  <span className="nav-acc__text">{s.label}</span>
-                  <span className="nav-acc__arrow" aria-hidden="true">
-                    →
-                  </span>
+                  <span className="macc__dot" aria-hidden="true" />
+                  <span className="macc__text">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* About accordion */}
+          <div className={cx("macc", mobileAboutOpen && "is-open")}>
+            <button
+              type="button"
+              className="macc__head"
+              onClick={() => setMobileAboutOpen((v) => !v)}
+              aria-expanded={mobileAboutOpen}
+            >
+              <span className="mnavLink__left">
+                <span className="mnavLink__ico" aria-hidden="true">
+                  <Info size={18} />
+                </span>
+                <span className="mnavLink__label">{t("nav.about")}</span>
+              </span>
+              <span className="macc__chev" aria-hidden="true">
+                <ChevronDown size={18} />
+              </span>
+            </button>
+            <div className="macc__panel" aria-hidden={!mobileAboutOpen}>
+              {ABOUT_LINKS.map((s) => (
+                <NavLink key={s.to} to={withLang(s.to)} className="macc__item" onClick={() => closeMobile()}>
+                  <span className="macc__dot" aria-hidden="true" />
+                  <span className="macc__text">{s.label}</span>
                 </NavLink>
               ))}
             </div>
           </div>
 
           {/* Resources accordion */}
-          <div className={cx("nav-acc", "nav-stagger")} style={{ ["--i" as any]: 4 }}>
+          <div className={cx("macc", mobileResOpen && "is-open")}>
             <button
               type="button"
-              className={cx("nav-acc__head", mobileResOpen && "is-open")}
+              className="macc__head"
               onClick={() => setMobileResOpen((v) => !v)}
               aria-expanded={mobileResOpen}
             >
-              <span className="nav-sheetLink__left">
-                <span className="nav-sheetLink__ico" aria-hidden="true">
+              <span className="mnavLink__left">
+                <span className="mnavLink__ico" aria-hidden="true">
                   <BookOpen size={18} />
                 </span>
-                <span className="nav-sheetLink__label">Resources</span>
+                <span className="mnavLink__label">Resources</span>
               </span>
-              <span className="nav-acc__chev" aria-hidden="true">
-                <ChevronDown size={16} />
+              <span className="macc__chev" aria-hidden="true">
+                <ChevronDown size={18} />
               </span>
             </button>
-
-            <div className={cx("nav-acc__panel", mobileResOpen && "is-open")} aria-hidden={!mobileResOpen}>
+            <div className="macc__panel" aria-hidden={!mobileResOpen}>
               {RES_LINKS.map((s) => (
-                <NavLink
-                  key={s.to}
-                  to={withLang(s.to)}
-                  className={({ isActive }) => cx("nav-acc__item", isActive && "is-active")}
-                  onClick={() => closeMobile()}
-                >
-                  <span className="nav-acc__bullet" aria-hidden="true" />
-                  <span className="nav-acc__text">{s.label}</span>
-                  <span className="nav-acc__arrow" aria-hidden="true">
-                    →
-                  </span>
+                <NavLink key={s.to} to={withLang(s.to)} className="macc__item" onClick={() => closeMobile()}>
+                  <span className="macc__dot" aria-hidden="true" />
+                  <span className="macc__text">{s.label}</span>
                 </NavLink>
               ))}
             </div>
           </div>
 
-          {/* Blog direct */}
+          {/* Blog */}
           <NavLink
             to={withLang("/blog")}
-            className={cx("nav-sheetLink", "nav-stagger")}
-            style={{ ["--i" as any]: 5 }}
+            className={({ isActive }) => cx("mnavLink", isActive && "is-active")}
             onClick={() => {
               window.scrollTo({ top: 0, left: 0, behavior: "auto" });
               closeMobile();
             }}
           >
-            <span className="nav-sheetLink__left">
-              <span className="nav-sheetLink__ico" aria-hidden="true">
+            <span className="mnavLink__left">
+              <span className="mnavLink__ico" aria-hidden="true">
                 <BookOpen size={18} />
               </span>
-              <span className="nav-sheetLink__label">{t("nav.blog")}</span>
-            </span>
-            <span className="nav-sheetLink__chev" aria-hidden="true">
-              →
+              <span className="mnavLink__label">{t("nav.blog")}</span>
             </span>
           </NavLink>
 
           {/* Contact */}
           <NavLink
             to={withLang("/contact")}
-            className={cx("nav-sheetLink", "nav-sheetLink--contact", "nav-stagger")}
-            style={{ ["--i" as any]: 6 }}
+            className={({ isActive }) => cx("mnavLink", "mnavLink--cta", isActive && "is-active")}
             onClick={() => {
               window.scrollTo({ top: 0, left: 0, behavior: "auto" });
               closeMobile();
             }}
           >
-            <span className="nav-sheetLink__left">
-              <span className="nav-sheetLink__ico" aria-hidden="true">
+            <span className="mnavLink__left">
+              <span className="mnavLink__ico" aria-hidden="true">
                 <PhoneCall size={18} />
               </span>
-              <span className="nav-sheetLink__label">{t("nav.contact")}</span>
-            </span>
-            <span className="nav-sheetLink__chev" aria-hidden="true">
-              →
+              <span className="mnavLink__label">{t("nav.contact")}</span>
             </span>
           </NavLink>
+
+          {/* Mobile language row */}
+          <div className="mnavLangRow" data-wg-notranslate>
+            {LANGS.map((code) => (
+              <button
+                key={code}
+                type="button"
+                className={cx("mnavLang", code === lang && "is-active")}
+                onClick={() => switchLang(code)}
+              >
+                {code.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
-
-  const aboutOpen = openMenu === "about";
-  const svcOpen = openMenu === "services";
-  const ucOpen = openMenu === "usecases";
-  const resOpen = openMenu === "resources";
 
   return (
     <header
@@ -935,9 +810,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
       className={cx("site-header", introReady && "site-header--in", scrolled && "is-scrolled", open && "is-open")}
       data-top={scrolled ? "0" : "1"}
     >
-      {/* ✅ FULL CSS INJECT — updated (terminal + single-open menu behavior) */}
       <style>{`
         :root{ --hdrh: 72px; --hdrp: 0; }
+
+        /* ===== Premium font feel ===== */
+        .site-header, .site-header *{
+          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
 
         .site-header{
           position: sticky; top: 0; z-index: 1100; width: 100%;
@@ -950,19 +831,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .site-header.is-scrolled{
           background: rgba(10, 12, 18, calc(0.08 + 0.26 * var(--hdrp)));
           border-bottom-color: rgba(255,255,255, calc(0.06 + 0.06 * var(--hdrp)));
-          -webkit-backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
-          backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.2);
+          -webkit-backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.18);
+          backdrop-filter: blur(calc(8px + 10px * var(--hdrp))) saturate(1.18);
         }
         .site-header.is-open{
-          background: rgba(10, 12, 18, 0.88);
+          background: rgba(10, 12, 18, 0.92);
           border-bottom-color: rgba(255,255,255,0.10);
-          -webkit-backdrop-filter: blur(18px) saturate(1.35);
-          backdrop-filter: blur(18px) saturate(1.35);
+          -webkit-backdrop-filter: blur(18px) saturate(1.30);
+          backdrop-filter: blur(18px) saturate(1.30);
         }
 
         .container{ max-width: 1180px; margin: 0 auto; padding: 0 18px; }
         .header-inner{ height: var(--hdrh); display: grid; align-items: center; }
-        .header-grid{ grid-template-columns: auto 1fr auto; gap: 16px; }
+        .header-grid{ grid-template-columns: auto 1fr auto; gap: 14px; }
+
         .header-left{ display:flex; align-items:center; }
         .header-mid{ display:flex; align-items:center; justify-content:center; gap: 10px; }
         .header-right{ display:flex; align-items:center; justify-content:flex-end; gap: 12px; }
@@ -972,51 +854,60 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .headerBrand__aura{
           position:absolute; inset:-10px -16px;
           background:
-            radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.16), transparent 60%),
-            radial-gradient(120px 44px at 70% 40%, rgba(167,89,255,.12), transparent 62%);
-          filter: blur(10px); opacity: .7; pointer-events:none;
+            radial-gradient(120px 44px at 28% 60%, rgba(47,184,255,.18), transparent 60%),
+            radial-gradient(120px 44px at 72% 40%, rgba(47,184,255,.10), transparent 62%);
+          filter: blur(11px); opacity: .75; pointer-events:none;
         }
 
+        /* ===== Top nav buttons (no underline, no hard arrows) ===== */
         .nav-link{
           position: relative;
           display: inline-flex; align-items: center; justify-content: center;
           gap: 8px; height: 40px; padding: 0 12px; border-radius: 999px;
           text-decoration: none; color: rgba(255,255,255,.72);
-          font-weight: 600; font-size: 13px; letter-spacing: .02em;
+          font-weight: 750; font-size: 13px; letter-spacing: .01em;
           transition: color .16s ease, background-color .16s ease, transform .16s ease;
+          outline: none;
         }
-        .nav-link:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
-        .nav-link.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
+        .nav-link:hover{
+          color: rgba(255,255,255,.92);
+          background: rgba(255,255,255,.06);
+        }
+        .nav-link.is-active{
+          color: rgba(255,255,255,.94);
+          background: rgba(255,255,255,.08);
+        }
 
         .nav-dd{ position: relative; display:inline-flex; }
         .nav-dd__btn{
           position: relative; display:inline-flex; align-items:center; gap: 8px;
           height: 40px; padding: 0 12px; border-radius: 999px;
           color: rgba(255,255,255,.72); background: transparent; border: 0;
-          cursor: pointer; font: inherit; font-weight: 700; letter-spacing: .02em;
+          cursor: pointer; font: inherit; font-weight: 780; letter-spacing: .01em;
           transition: color .16s ease, background-color .16s ease;
+          outline: none;
         }
-        .nav-dd__btn:hover{ color: rgba(255,255,255,.90); background: rgba(255,255,255,.06); }
-        .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.09); }
+        .nav-dd__btn:hover{ color: rgba(255,255,255,.92); background: rgba(255,255,255,.06); }
+        .nav-dd__btn.is-active{ color: rgba(255,255,255,.94); background: rgba(255,255,255,.08); }
 
-        .nav-dd__chev{ opacity: .8; transition: transform .14s ease; }
+        .nav-dd__chev{ opacity: .75; transition: transform .14s ease; }
         .nav-dd.is-open .nav-dd__chev{ transform: rotate(180deg); }
 
         .nav-dd__panel{
           position:absolute; top: calc(100% + 10px); left: 50%;
           transform: translateX(-50%);
-          width: 380px; border-radius: 18px; padding: 14px;
+          width: 392px; border-radius: 18px; padding: 14px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 90% at 20% 10%, rgba(47,184,255,.14), transparent 55%),
-            radial-gradient(120% 90% at 90% 10%, rgba(167,89,255,.12), transparent 60%),
-            rgba(10,12,18,.88);
-          -webkit-backdrop-filter: blur(18px) saturate(1.25);
-          backdrop-filter: blur(18px) saturate(1.25);
-          box-shadow: 0 24px 80px rgba(0,0,0,.65);
+            radial-gradient(120% 90% at 18% 10%, rgba(47,184,255,.16), transparent 55%),
+            radial-gradient(120% 90% at 82% 10%, rgba(47,184,255,.09), transparent 60%),
+            rgba(10,12,18,.90);
+          -webkit-backdrop-filter: blur(18px) saturate(1.22);
+          backdrop-filter: blur(18px) saturate(1.22);
+          box-shadow: 0 24px 80px rgba(0,0,0,.66);
           opacity: 0; pointer-events: none;
           transform-origin: top center;
-          transform: translateX(-50%) translateY(-6px) scale(.98);
+          transform: translateX(-50%) translateY(-6px) scale(.985);
           transition: opacity .14s ease, transform .14s ease;
           z-index: 1300;
         }
@@ -1024,122 +915,228 @@ export default function Header({ introReady }: { introReady: boolean }) {
           opacity: 1; pointer-events: auto;
           transform: translateX(-50%) translateY(0) scale(1);
         }
-        .nav-dd__title{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.55); padding: 2px 6px 10px; }
+
+        .nav-dd__title{
+          font-size: 11px;
+          letter-spacing: .18em;
+          color: rgba(255,255,255,.55);
+          padding: 2px 6px 10px;
+          font-weight: 800;
+        }
+
         .nav-dd__grid{ display:grid; gap: 8px; }
+
         .nav-dd__item{
           display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
-          padding: 10px 10px; border-radius: 14px;
+          padding: 11px 11px; border-radius: 14px;
           text-decoration:none; border: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.82);
+          color: rgba(255,255,255,.86);
           transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
-        .nav-dd__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
+        .nav-dd__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.11); transform: translateY(-1px); }
         .nav-dd__item.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
 
         .nav-dd__left{ display:flex; align-items:flex-start; gap: 10px; min-width: 0; }
         .nav-dd__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
           box-shadow: 0 0 0 3px rgba(47,184,255,.10);
-          margin-top: 5px; flex: 0 0 auto;
+          margin-top: 6px; flex: 0 0 auto;
         }
         .nav-dd__labelWrap{ display:flex; flex-direction:column; min-width: 0; }
-        .nav-dd__label{ font-weight: 800; font-size: 13px; line-height: 1.15; }
+        .nav-dd__label{ font-weight: 860; font-size: 13px; line-height: 1.15; }
         .nav-dd__hint{
           margin-top: 4px; font-size: 12px; line-height: 1.25;
           color: rgba(255,255,255,.56);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          max-width: 240px;
+          max-width: 260px;
+          font-weight: 600;
         }
-        .nav-dd__arrow{ opacity: .7; margin-top: 2px; }
+        .nav-dd__arrow{ display:none !important; } /* remove hard arrows */
 
-        /* ===== Use Cases mega ===== */
-        .nav-dd--mega .nav-dd__panel{ width: 860px; padding: 14px; border-radius: 20px; }
-        .uc-mega{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 12px; align-items: stretch; }
+        /* ===== Use Cases mega (now: services list + right sliding flows) ===== */
+        .nav-dd--mega .nav-dd__panel{ width: 920px; padding: 14px; border-radius: 20px; }
+        .mega{ display:grid; grid-template-columns: 1fr 1.2fr; gap: 12px; align-items: stretch; }
 
-        .uc-left{ border-radius: 16px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); overflow: hidden; }
-        .uc-leftHead{
-          padding: 10px 12px; font-size: 11px; letter-spacing: .18em;
-          color: rgba(255,255,255,.55);
+        .mega__left{
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+          overflow: hidden;
+        }
+        .mega__head{
+          padding: 10px 12px;
+          font-size: 11px;
+          letter-spacing: .18em;
+          color: rgba(255,255,255,.60);
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
+          font-weight: 900;
         }
-        .uc-item{
+        .mega__list{ display:grid; gap: 2px; padding: 6px; }
+        .megaItem{
           width: 100%;
-          display:flex; align-items:flex-start; justify-content: space-between; gap: 12px;
-          padding: 12px 12px; border: 0; cursor: pointer; text-align: left;
-          background: transparent; color: rgba(255,255,255,.84);
+          text-align: left;
+          border: 0;
+          cursor: pointer;
+          border-radius: 14px;
+          padding: 10px 10px;
+          background: transparent;
+          color: rgba(255,255,255,.88);
           transition: background-color .14s ease, transform .14s ease;
         }
-        .uc-item:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
-        .uc-item.is-active{ background: rgba(47,184,255,.10); }
-        .uc-itemTitle{ font-weight: 900; font-size: 13px; line-height: 1.15; }
-        .uc-itemSub{ margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.56); line-height: 1.2; }
-        .uc-itemIcon{ opacity: .7; margin-top: 2px; flex: 0 0 auto; }
+        .megaItem:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px); }
+        .megaItem.is-active{ background: rgba(47,184,255,.11); }
+        .megaItem__label{ display:block; font-weight: 900; font-size: 13px; letter-spacing: .01em; }
+        .megaItem__hint{ display:block; margin-top: 3px; font-size: 12px; color: rgba(255,255,255,.56); font-weight: 600; }
 
-        /* ===== Terminal (no LIVE) ===== */
-        .uc-right{
-          border-radius: 16px; border: 1px solid rgba(255,255,255,.10);
+        .mega__right{ min-width: 0; }
+        .megaCard{
+          height: 100%;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.10), transparent 55%),
-            radial-gradient(120% 80% at 90% 0%, rgba(167,89,255,.08), transparent 60%),
+            radial-gradient(120% 80% at 10% 0%, rgba(47,184,255,.12), transparent 55%),
+            radial-gradient(120% 80% at 90% 0%, rgba(47,184,255,.08), transparent 60%),
             rgba(0,0,0,.22);
-          overflow: hidden; position: relative;
+          overflow: hidden;
+          position: relative;
+          display:flex;
+          flex-direction: column;
+          min-width: 0;
         }
-        .uc-termTop{
-          padding: 10px 12px; display:flex; align-items:center; justify-content: space-between;
+        .megaCard__top{
+          padding: 12px 12px 10px;
           border-bottom: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.02);
         }
-        .uc-termTitle{ font-size: 11px; letter-spacing: .18em; color: rgba(255,255,255,.64); font-weight: 900; }
+        .megaCard__title{
+          font-weight: 920;
+          letter-spacing: .10em;
+          font-size: 11px;
+          color: rgba(255,255,255,.78);
+          text-transform: uppercase;
+        }
+        .megaCard__sub{
+          margin-top: 6px;
+          font-size: 12px;
+          color: rgba(255,255,255,.58);
+          font-weight: 650;
+          line-height: 1.3;
+        }
 
-        .uc-termBody{
+        .flowBox{
+          position: relative;
           padding: 12px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.84);
-          min-height: 230px;
-          white-space: pre-wrap;
-          word-break: break-word;
+          flex: 1 1 auto;
+          min-height: 220px;
+          overflow: hidden;
         }
-        .uc-prompt{ color: rgba(47,184,255,.92); font-weight: 900; }
-        .uc-cursor{
-          display:inline-block; width: 9px; height: 14px; margin-left: 6px;
-          transform: translateY(2px); background: rgba(255,255,255,.82);
+        .flowMask{
+          position:absolute; inset:0;
+          background:
+            linear-gradient(90deg, rgba(10,12,18,1) 0%, rgba(10,12,18,0) 12%, rgba(10,12,18,0) 88%, rgba(10,12,18,1) 100%);
+          opacity: .45;
+          pointer-events:none;
+        }
+        .flowTrack{
+          display:flex;
+          gap: 10px;
+          align-items:center;
+          width: max-content;
+          animation: flowMarquee 22s linear infinite;
+          will-change: transform;
+          padding-right: 30px;
+        }
+        .flowTrack.is-static{ animation: none; flex-wrap: wrap; width: 100%; }
+
+        @keyframes flowMarquee{
+          from{ transform: translateX(0); }
+          to{ transform: translateX(-33.333%); }
         }
 
-        .uc-footer{
-          padding: 10px 12px; border-top: 1px solid rgba(255,255,255,.06);
-          display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          background: rgba(255,255,255,.02);
-        }
-        .uc-miniLink{
-          display:inline-flex; align-items:center; gap: 8px;
-          text-decoration:none; font-weight: 800; font-size: 12px;
-          color: rgba(255,255,255,.86);
-          padding: 8px 10px; border-radius: 999px;
+        .flowPill{
+          display:inline-flex;
+          align-items:center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 999px;
+          text-decoration:none;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
+          color: rgba(255,255,255,.90);
+          font-weight: 780;
+          font-size: 12px;
+          letter-spacing: .01em;
+          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+          white-space: nowrap;
+        }
+        .flowPill:hover{
+          background: rgba(255,255,255,.06);
+          border-color: rgba(255,255,255,.14);
+          transform: translateY(-1px);
+        }
+        .flowPill__dot{
+          width: 7px; height: 7px; border-radius: 999px;
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.90));
+          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
+          flex: 0 0 auto;
+        }
+        .flowPill__txt{ opacity: .92; }
+
+        .megaCard__ctaRow{
+          padding: 10px 12px;
+          border-top: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.02);
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
+          gap: 10px;
+          min-width: 0;
+        }
+        .megaCta{
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          padding: 9px 12px;
+          border-radius: 999px;
+          text-decoration:none;
+          border: 1px solid rgba(255,255,255,.12);
+          background:
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
+            rgba(255,255,255,.05);
+          color: rgba(255,255,255,.92);
+          font-weight: 850;
+          font-size: 12px;
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
-        .uc-miniLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
-        .uc-miniHint{ font-size: 12px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .megaCta:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.16); }
+        .megaCard__note{
+          font-size: 12px;
+          color: rgba(255,255,255,.55);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-weight: 600;
+        }
 
         .nav-cta{
           display:inline-flex; align-items:center; justify-content:center;
           height: 38px; padding: 0 14px; border-radius: 999px; text-decoration:none;
-          font-weight: 800; font-size: 13px; color: rgba(255,255,255,.92);
+          font-weight: 860; font-size: 13px; color: rgba(255,255,255,.92);
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.24), transparent 60%),
             rgba(255,255,255,.06);
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
         .nav-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .nav-cta--desktopOnly{ display:inline-flex; }
 
+        /* ===== Toggle ===== */
         .nav-toggle{
-          width: 44px; height: 40px; border-radius: 12px;
+          width: 44px; height: 40px; border-radius: 14px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
           display:none; align-items:center; justify-content:center;
@@ -1150,22 +1147,23 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .nav-toggle:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .nav-toggle__bar{ width: 18px; height: 2px; border-radius: 999px; background: rgba(255,255,255,.86); opacity: .9; }
 
+        /* ===== Lang menu (cyan, no purple) ===== */
         .langMenu{ position: relative; }
         .langMenu__btn{
           display:inline-flex; align-items:center; gap: 8px;
           height: 38px; padding: 0 10px; border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.86);
-          font-weight: 800; font-size: 12px;
+          color: rgba(255,255,255,.88);
+          font-weight: 860; font-size: 12px;
           cursor: pointer;
           transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
         }
         .langMenu__btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
         .langMenu__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(167,89,255,.9));
-          box-shadow: 0 0 0 3px rgba(167,89,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(47,184,255,.92));
+          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
         }
         .langMenu__code{ letter-spacing: .08em; }
         .langMenu__chev{ opacity: .75; }
@@ -1174,7 +1172,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           position:absolute; top: calc(100% + 10px); right: 0;
           width: 210px; border-radius: 16px; padding: 10px;
           border: 1px solid rgba(255,255,255,.10);
-          background: rgba(10,12,18,.90);
+          background: rgba(10,12,18,.92);
           -webkit-backdrop-filter: blur(18px) saturate(1.2);
           backdrop-filter: blur(18px) saturate(1.2);
           box-shadow: 0 24px 80px rgba(0,0,0,.65);
@@ -1193,7 +1191,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border: 0;
           background: rgba(255,255,255,.04);
           border: 1px solid rgba(255,255,255,.06);
-          color: rgba(255,255,255,.86);
+          color: rgba(255,255,255,.88);
           padding: 10px 10px;
           border-radius: 12px;
           cursor: pointer;
@@ -1201,140 +1199,211 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .langMenu__item + .langMenu__item{ margin-top: 8px; }
         .langMenu__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .langMenu__item.is-active{ background: rgba(167,89,255,.12); border-color: rgba(167,89,255,.22); }
+        .langMenu__item.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.24); }
         .langMenu__itemCode{ font-weight: 900; letter-spacing: .10em; }
         .langMenu__itemName{ opacity: .85; font-weight: 700; }
 
-        /* ===== Mobile overlay ===== */
-        .nav-overlay{ position: fixed; inset: 0; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
-        .nav-overlay.is-mounted{ display:block; }
-        .nav-overlay.is-open{ opacity: 1; pointer-events: auto; }
-        .nav-overlay__backdrop{
+        /* ===== Mobile rework (scrollable + safe-area) ===== */
+        .mnav{ position: fixed; inset: 0; z-index: 2200; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+        .mnav.is-mounted{ display:block; }
+        .mnav.is-open{ opacity: 1; pointer-events: auto; }
+
+        .mnav__backdrop{
           position:absolute; inset:0; border:0;
-          background: rgba(0,0,0,.45);
+          background: rgba(0,0,0,.52);
           -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
           cursor: pointer;
         }
 
-        .nav-sheet{
-          position:absolute; top: 12px; right: 12px; left: 12px;
-          max-width: 520px; margin-left: auto;
-          border-radius: 22px; border: 1px solid rgba(255,255,255,.10);
+        .mnav__sheet{
+          position:absolute;
+          inset: 10px 10px auto 10px;
+          max-width: 560px;
+          margin-left: auto;
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,.10);
           overflow: hidden;
           transform: translateY(-10px) scale(.985);
           opacity: 0;
           transition: transform .16s ease, opacity .16s ease;
         }
-        .nav-sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
+        .mnav__sheet.is-open{ transform: translateY(0) scale(1); opacity: 1; }
 
-        .nav-sheet__bg{
+        .mnav__bg{
           position:absolute; inset:0;
           background:
-            radial-gradient(120% 90% at 20% 0%, rgba(47,184,255,.16), transparent 55%),
-            radial-gradient(120% 90% at 90% 0%, rgba(167,89,255,.14), transparent 60%),
-            rgba(10,12,18,.92);
+            radial-gradient(120% 90% at 20% 0%, rgba(47,184,255,.18), transparent 55%),
+            radial-gradient(120% 90% at 90% 0%, rgba(47,184,255,.10), transparent 60%),
+            rgba(10,12,18,.94);
           -webkit-backdrop-filter: blur(18px) saturate(1.25);
           backdrop-filter: blur(18px) saturate(1.25);
         }
-        .nav-sheet__noise{
-          position:absolute; inset:0;
-          opacity: .06;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
-          background-size: 160px 160px;
-          pointer-events:none;
-          mix-blend-mode: overlay;
-        }
 
-        .nav-sheet__head{ position: relative; z-index: 2; display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; }
-        .nav-sheet__brand{ display:flex; align-items:center; gap: 10px; }
-        .nav-sheet__dot{
+        .mnav__head{
+          position: relative;
+          z-index: 2;
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
+          padding: calc(12px + env(safe-area-inset-top)) 12px 10px;
+          border-bottom: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.02);
+        }
+        .mnav__brand{
+          display:inline-flex;
+          align-items:center;
+          gap: 10px;
+          text-decoration:none;
+          color: rgba(255,255,255,.92);
+          font-weight: 920;
+          letter-spacing: .12em;
+          font-size: 12px;
+        }
+        .mnav__brandDot{
           width: 10px; height: 10px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.85));
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
           box-shadow: 0 0 0 4px rgba(47,184,255,.10);
         }
-        .nav-sheet__title{ font-weight: 900; letter-spacing: .18em; font-size: 11px; color: rgba(255,255,255,.70); }
-        .nav-sheet__close{
-          width: 40px; height: 38px; border-radius: 12px;
+        .mnav__brandTxt{ opacity: .92; }
+
+        .mnav__close{
+          width: 42px; height: 40px; border-radius: 14px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
-          color: rgba(255,255,255,.88);
+          color: rgba(255,255,255,.90);
           display:flex; align-items:center; justify-content:center;
           cursor: pointer;
           transition: transform .14s ease, background-color .14s ease;
         }
-        .nav-sheet__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
+        .mnav__close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
 
-        .nav-sheet__list{ position: relative; z-index: 2; padding: 8px 14px 14px; display:grid; gap: 10px; }
+        .mnav__body{
+          position: relative;
+          z-index: 2;
+          padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+          display:grid;
+          gap: 10px;
+          max-height: calc(100dvh - 24px - 70px);
+          overflow: auto;
+          -webkit-overflow-scrolling: touch;
+        }
 
-        .nav-stagger{ transform: translateY(6px); opacity: 0; animation: navIn .24s ease forwards; animation-delay: calc(0.03s * var(--i, 0)); }
-        @keyframes navIn{ to{ transform: translateY(0); opacity: 1; } }
-
-        .nav-sheetLink{
-          display:flex; align-items:center; justify-content: space-between; gap: 12px;
-          padding: 12px 12px; border-radius: 16px;
-          text-decoration:none; border: 1px solid rgba(255,255,255,.08);
+        .mnavLink{
+          display:flex; align-items:center; justify-content: space-between;
+          padding: 12px 12px;
+          border-radius: 16px;
+          text-decoration:none;
+          border: 1px solid rgba(255,255,255,.08);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.84);
+          color: rgba(255,255,255,.90);
           transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
-        .nav-sheetLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
-        .nav-sheetLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
-        .nav-sheetLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
-        .nav-sheetLink__ico{
-          width: 32px; height: 32px;
+        .mnavLink:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
+        .mnavLink.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
+
+        .mnavLink__left{ display:flex; align-items:center; gap: 10px; min-width: 0; }
+        .mnavLink__ico{
+          width: 34px; height: 34px;
           display:flex; align-items:center; justify-content:center;
-          border-radius: 12px;
+          border-radius: 14px;
           background: rgba(255,255,255,.05);
           border: 1px solid rgba(255,255,255,.07);
           flex: 0 0 auto;
         }
-        .nav-sheetLink__label{ font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .nav-sheetLink__chev{ opacity: .75; }
+        .mnavLink__label{
+          font-weight: 860;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
 
-        .nav-sheetLink--contact{
+        .mnavLink--cta{
           background:
-            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.22), transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, rgba(47,184,255,.24), transparent 60%),
             rgba(255,255,255,.05);
           border-color: rgba(255,255,255,.12);
         }
 
-        .nav-acc{ border-radius: 18px; overflow:hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
-        .nav-acc__head{
+        .macc{
+          border-radius: 18px;
+          overflow:hidden;
+          border: 1px solid rgba(255,255,255,.08);
+          background: rgba(255,255,255,.03);
+        }
+        .macc__head{
           width: 100%;
-          border:0; background: transparent;
-          display:flex; align-items:center; justify-content: space-between;
+          border:0;
+          background: transparent;
+          display:flex;
+          align-items:center;
+          justify-content: space-between;
           padding: 12px 12px;
-          cursor:pointer; color: rgba(255,255,255,.86);
+          cursor:pointer;
+          color: rgba(255,255,255,.92);
         }
-        .nav-acc__chev{ opacity: .75; transition: transform .14s ease; }
-        .nav-acc__head.is-open .nav-acc__chev{ transform: rotate(180deg); }
-        .nav-acc__panel{
-          display:grid; gap: 8px;
+        .macc__chev{
+          opacity: .75;
+          transition: transform .16s ease;
+        }
+        .macc.is-open .macc__chev{ transform: rotate(180deg); }
+
+        .macc__panel{
+          display:grid;
+          gap: 8px;
           padding: 0 12px 12px;
-          max-height: 0; overflow: hidden;
-          transition: max-height .18s ease;
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height .20s ease;
         }
-        .nav-acc__panel.is-open{ max-height: 720px; }
-        .nav-acc__item{
-          display:flex; align-items:center; justify-content: space-between; gap: 10px;
-          padding: 10px 10px; border-radius: 14px;
-          text-decoration:none; border: 1px solid rgba(255,255,255,.06);
+        .macc.is-open .macc__panel{ max-height: 820px; }
+
+        .macc__item{
+          display:flex; align-items:center; gap: 10px;
+          padding: 11px 10px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,.06);
           background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.82);
-          transition: background-color .14s ease, border-color .14s ease, transform .14s ease;
+          color: rgba(255,255,255,.90);
+          text-decoration:none;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
         }
-        .nav-acc__item:hover{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); transform: translateY(-1px); }
-        .nav-acc__item.is-active{ background: rgba(167,89,255,.12); border-color: rgba(167,89,255,.22); }
-        .nav-acc__bullet{
+        .macc__item:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); }
+        .macc__item.is-active{ background: rgba(47,184,255,.10); border-color: rgba(47,184,255,.22); }
+
+        .macc__itemBtn{
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .macc__dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(167,89,255,.85));
-          box-shadow: 0 0 0 3px rgba(167,89,255,.10);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(47,184,255,.88));
+          box-shadow: 0 0 0 3px rgba(47,184,255,.10);
           flex: 0 0 auto;
-          margin-right: 8px;
         }
-        .nav-acc__text{ font-weight: 800; }
-        .nav-acc__arrow{ opacity: .7; }
+        .macc__text{ font-weight: 840; }
+
+        .mnavLangRow{
+          margin-top: 2px;
+          display:flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          padding: 2px;
+        }
+        .mnavLang{
+          border: 1px solid rgba(255,255,255,.10);
+          background: rgba(255,255,255,.04);
+          color: rgba(255,255,255,.86);
+          border-radius: 999px;
+          padding: 9px 12px;
+          font-weight: 860;
+          letter-spacing: .08em;
+          font-size: 12px;
+          cursor: pointer;
+          transition: transform .14s ease, background-color .14s ease, border-color .14s ease;
+        }
+        .mnavLang:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
+        .mnavLang.is-active{ background: rgba(47,184,255,.12); border-color: rgba(47,184,255,.24); }
 
         @media (max-width: 920px){
           .header-mid{ display:none; }
@@ -1343,6 +1412,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           .langMenu__btn{ height: 40px; }
         }
         @media (max-width: 920px){ .nav-dd__panel{ display:none; } }
+
         @media (max-width: 520px){
           .container{ padding: 0 14px; }
           .header-right{ gap: 10px; }
@@ -1371,20 +1441,22 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   objectFit: "contain",
                   display: "block",
                   userSelect: "none",
-                  filter: "drop-shadow(0 6px 16px rgba(0,0,0,.42)) drop-shadow(0 0 10px rgba(47,184,255,.06))",
-                  transform: isMobile ? "translateY(1px) translateZ(0)" : "translateZ(0)",
+                  filter:
+                    "drop-shadow(0 8px 18px rgba(0,0,0,.50)) drop-shadow(0 0 10px rgba(47,184,255,.08))",
+                  transform: "translateZ(0)",
                 }}
               />
             </span>
           </Link>
         </div>
 
+        {/* Desktop nav */}
         <nav className="header-mid" aria-label="Əsas menyu">
-          <NavLink to={withLang("/")} end className={navItem}>
-            <span className="nav-label nav-label--full">{t("nav.home")}</span>
+          <NavLink to={withLang("/")} end className={({ isActive }) => cx("nav-link", isActive && "is-active")}>
+            {t("nav.home")}
           </NavLink>
 
-          {/* ABOUT dropdown (single link, App.tsx uyğun) */}
+          {/* ABOUT dropdown */}
           <div
             ref={aboutRef}
             className={cx("nav-dd", aboutOpen && "is-open")}
@@ -1399,7 +1471,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "about" ? null : "about"))}
               onFocus={() => openDrop("about")}
             >
-              <span className="nav-label nav-label--full">{t("nav.about")}</span>
+              {t("nav.about")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1423,20 +1495,21 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         <span className="nav-dd__hint">{s.hint ?? "About page"}</span>
                       </span>
                     </span>
-                    <span className="nav-dd__arrow" aria-hidden="true">
-                      →
-                    </span>
                   </NavLink>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* SERVICES dropdown (App.tsx-ə uyğun 6 link) */}
+          {/* SERVICES dropdown (left services + right sliding flows) */}
           <div
             ref={svcRef}
-            className={cx("nav-dd", svcOpen && "is-open")}
-            onMouseEnter={() => openDrop("services")}
+            className={cx("nav-dd", "nav-dd--mega", svcOpen && "is-open")}
+            onMouseEnter={() => {
+              openDrop("services");
+              // default active
+              setSvcActive((cur) => cur || "business-workflows");
+            }}
             onMouseLeave={() => scheduleCloseDrop("services")}
           >
             <button
@@ -1447,7 +1520,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "services" ? null : "services"))}
               onFocus={() => openDrop("services")}
             >
-              <span className="nav-label nav-label--full">{t("nav.services")}</span>
+              {t("nav.services")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1455,36 +1528,30 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!svcOpen}>
               <div className="nav-dd__title">SERVICES</div>
-              <div className="nav-dd__grid">
-                {SERVICES.map((s) => (
-                  <NavLink
-                    key={s.id}
-                    to={withLang(s.to)}
-                    className={({ isActive }) => cx("nav-dd__item", isActive && "is-active")}
-                    role="menuitem"
-                    onClick={() => setOpenMenu(null)}
-                  >
-                    <span className="nav-dd__left">
-                      <span className="nav-dd__dot" aria-hidden="true" />
-                      <span className="nav-dd__labelWrap">
-                        <span className="nav-dd__label">{s.label}</span>
-                        <span className="nav-dd__hint">{s.hint}</span>
-                      </span>
-                    </span>
-                    <span className="nav-dd__arrow" aria-hidden="true">
-                      →
-                    </span>
-                  </NavLink>
-                ))}
-              </div>
+              <MegaPanel
+                title="SERVICES"
+                activeId={svcActive}
+                setActiveId={setSvcActive}
+                leftItems={SERVICES}
+                rightTitle="USE-CASE FLOWS"
+                rightSubtitle="Hover a service — flows will slide right to left. Click a flow to open."
+                onPickLeftNavigate={(to) => {
+                  setOpenMenu(null);
+                  navigate(withLang(to));
+                  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                }}
+              />
             </div>
           </div>
 
-          {/* USE CASES mega dropdown (✅ scenarios list + slow terminal typing; no LIVE) */}
+          {/* USE CASES dropdown (opens same 6 services + flows) */}
           <div
             ref={ucRef}
             className={cx("nav-dd", "nav-dd--mega", ucOpen && "is-open")}
-            onMouseEnter={() => openDrop("usecases")}
+            onMouseEnter={() => {
+              openDrop("usecases");
+              setSvcActive((cur) => cur || "business-workflows");
+            }}
             onMouseLeave={() => scheduleCloseDrop("usecases")}
           >
             <button
@@ -1495,7 +1562,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "usecases" ? null : "usecases"))}
               onFocus={() => openDrop("usecases")}
             >
-              <span className="nav-label nav-label--full">{t("nav.useCases")}</span>
+              {t("nav.useCases")}
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1503,61 +1570,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
             <div className="nav-dd__panel" role="menu" aria-hidden={!ucOpen}>
               <div className="nav-dd__title">USE CASES</div>
-
-              <div className="uc-mega">
-                <div className="uc-left">
-                  <div className="uc-leftHead">SELECT A SCENARIO</div>
-
-                  {SCENARIOS.map((s) => {
-                    const active = s.id === ucActive;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className={cx("uc-item", active && "is-active")}
-                        onMouseEnter={() => setUcActive(s.id)}
-                        onFocus={() => setUcActive(s.id)}
-                        onClick={() => {
-                          setOpenMenu(null);
-                          navigate(withLang(s.to));
-                          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-                        }}
-                      >
-                        <span style={{ minWidth: 0 }}>
-                          <div className="uc-itemTitle">{s.label}</div>
-                          <div className="uc-itemSub">{s.subtitle}</div>
-                        </span>
-                        <span className="uc-itemIcon" aria-hidden="true">
-                          →
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="uc-right">
-                  <div className="uc-termTop">
-                    <div className="uc-termTitle">{activeScenario.label}</div>
-                    {/* ✅ LIVE removed */}
-                    <div style={{ fontSize: 11, letterSpacing: ".12em", color: "rgba(255,255,255,.55)", fontWeight: 800 }}>
-                      TERMINAL
-                    </div>
-                  </div>
-
-                  <div className="uc-termBody" aria-live="polite">
-                    <span className="uc-prompt">$</span>{" "}
-                    {termText}
-                    <span className="uc-cursor" style={{ opacity: termCursor ? 0.9 : 0.2 }} aria-hidden="true" />
-                  </div>
-
-                  <div className="uc-footer">
-                    <NavLink to={withLang("/use-cases")} className="uc-miniLink" onClick={() => setOpenMenu(null)}>
-                      Open {t("nav.useCases")} →
-                    </NavLink>
-                    <div className="uc-miniHint">{activeScenario.subtitle}</div>
-                  </div>
-                </div>
-              </div>
+              <MegaPanel
+                title="SELECT A SERVICE"
+                activeId={svcActive}
+                setActiveId={setSvcActive}
+                leftItems={SERVICES}
+                rightTitle="SCENARIO STREAM"
+                rightSubtitle="Same idea: hover a service, scenarios slide. We'll link them cleanly later."
+                onPickLeftNavigate={(_to) => {
+                  // For Use Cases dropdown: go to /use-cases (service detail can be wired later)
+                  setOpenMenu(null);
+                  navigate(withLang("/use-cases"));
+                  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+                }}
+              />
             </div>
           </div>
 
@@ -1576,7 +1602,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               onClick={() => setOpenMenu((v) => (v === "resources" ? null : "resources"))}
               onFocus={() => openDrop("resources")}
             >
-              <span className="nav-label nav-label--full">Resources</span>
+              Resources
               <span className="nav-dd__chev" aria-hidden="true">
                 <ChevronDown size={16} />
               </span>
@@ -1600,9 +1626,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                         <span className="nav-dd__hint">{s.hint ?? "Guides, docs, policy"}</span>
                       </span>
                     </span>
-                    <span className="nav-dd__arrow" aria-hidden="true">
-                      →
-                    </span>
                   </NavLink>
                 ))}
               </div>
@@ -1610,8 +1633,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           </div>
 
           {/* BLOG direct */}
-          <NavLink to={withLang("/blog")} className={navItem}>
-            <span className="nav-label nav-label--full">{t("nav.blog")}</span>
+          <NavLink to={withLang("/blog")} className={({ isActive }) => cx("nav-link", isActive && "is-active")}>
+            {t("nav.blog")}
           </NavLink>
         </nav>
 
