@@ -11,7 +11,6 @@ function cx(...xs: Array<string | false | null | undefined>) {
 const RAW_VIDEO =
   "https://res.cloudinary.com/dppoomunj/video/upload/v1770679078/neox/media/asset_1770679068213_8656376783645.mp4";
 
-// Cloudinary transform: insert q_auto,f_auto right after /upload/
 function cloudinaryAuto(url: string) {
   try {
     if (!url.includes("/upload/")) return url;
@@ -88,7 +87,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
       <div className="svc-feat__tick" aria-hidden="true">
-        <CheckCircle2 size={16} />
+        <CheckCircle2 size={18} strokeWidth={2.6} />
       </div>
       <div className="svc-feat__body">
         <div className="svc-feat__t">{title}</div>
@@ -98,7 +97,11 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-/** ✅ FIXED rotator: pixel-perfect slide (34px) */
+/**
+ * ✅ Robust rotator:
+ * - uses "ghost" last item == first item
+ * - when it reaches ghost, instantly jump to 0 with transition off
+ */
 function PillRotator({
   items,
   intervalMs = 2200,
@@ -109,31 +112,48 @@ function PillRotator({
   disabled: boolean;
 }) {
   const safe = items.length ? items : [""];
+  const track = safe.length > 1 ? [...safe, safe[0]] : safe; // ghost
+
   const [i, setI] = useState(0);
+  const [noTrans, setNoTrans] = useState(false);
 
   useEffect(() => {
     if (disabled) return;
     if (safe.length <= 1) return;
-    const t = window.setInterval(() => setI((p) => (p + 1) % safe.length), intervalMs);
+    const t = window.setInterval(() => setI((p) => p + 1), intervalMs);
     return () => window.clearInterval(t);
   }, [disabled, intervalMs, safe.length]);
 
-  // 34px pill height -> move by 34px each step
-  const y = -i * 34;
+  // when we hit the ghost (index == safe.length), snap back to 0
+  useEffect(() => {
+    if (safe.length <= 1) return;
+    if (i === safe.length) {
+      const snap = window.setTimeout(() => {
+        setNoTrans(true);
+        setI(0);
+        // re-enable transition next tick
+        requestAnimationFrame(() => setNoTrans(false));
+      }, 560); // must be >= transition duration
+      return () => window.clearTimeout(snap);
+    }
+  }, [i, safe.length]);
+
+  const step = 34; // exact pill height
+  const y = -i * step;
 
   return (
-    <span className="svc-pill svc-pill--rot" aria-label={safe[i]}>
+    <span className="svc-pill svc-pill--rot" aria-label={safe[Math.min(i, safe.length - 1)]}>
       <span className="svc-pillRot-clip">
         <span
           className="svc-pillRot-track"
           style={{
             transform: `translate3d(0, ${y}px, 0)`,
-            transition: disabled ? "none" : "transform 520ms cubic-bezier(.2,.8,.2,1)",
+            transition: disabled || noTrans ? "none" : "transform 520ms cubic-bezier(.2,.8,.2,1)",
           }}
         >
-          {safe.map((t, idx) => (
+          {track.map((t, idx) => (
             <span className="svc-pillRot-item" key={`${t}-${idx}`}>
-              <span className="svc-grad svc-shimmer">{t}</span>
+              <span className="svc-textSnake">{t}</span>
             </span>
           ))}
         </span>
@@ -207,7 +227,17 @@ function ServicePage({
       : "Pricing";
 
   return (
-    <section className="svc">
+    <section
+      className="svc"
+      style={
+        {
+          ["--tA" as any]: T.a,
+          ["--tB" as any]: T.b,
+          ["--tC" as any]: T.c,
+          ["--tD" as any]: T.d,
+        } as React.CSSProperties
+      }
+    >
       <style>{`
         .svc{ padding: calc(var(--hdrh,72px) + 28px) 0 84px; overflow-x:hidden; }
         .svc *{ box-sizing:border-box; }
@@ -225,51 +255,43 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
-        /* ===== “ilan kimi” gradient + shimmer (loop) ===== */
-        .svc-grad{
-          background: linear-gradient(
-            90deg,
-            rgba(255,255,255,.98) 0%,
-            rgba(170,225,255,.96) 30%,
-            rgba(47,184,255,.95) 62%,
-            rgba(42,125,255,.95) 100%
-          );
+        /* ================================
+           ✅ TEXT-ONLY “snake” shimmer
+           - NO overlay behind text
+           - uses YOUR tint palette (tA..tD)
+        ================================= */
+        .svc-textSnake{
+          display:inline-block;
+          background-image:
+            linear-gradient(90deg,
+              rgba(255,255,255,.98) 0%,
+              var(--tB) 28%,
+              var(--tD) 60%,
+              var(--tA) 100%
+            ),
+            linear-gradient(110deg,
+              transparent 0%,
+              transparent 40%,
+              rgba(255,255,255,.18) 47%,
+              rgba(255,255,255,.52) 50%,
+              rgba(255,255,255,.18) 53%,
+              transparent 60%,
+              transparent 100%
+            );
+          background-size: 100% 100%, 240% 100%;
+          background-position: 0 0, -140% 0;
           -webkit-background-clip:text;
           background-clip:text;
           color: transparent;
+          will-change: background-position;
+          ${reduced ? "" : "animation: svcSnake 2.9s linear infinite;"}
         }
-        .svc-shimmer{
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
-        .svc-shimmer::after{
-          content:"";
-          position:absolute;
-          inset:-18% -60%;
-          pointer-events:none;
-          background: linear-gradient(
-            110deg,
-            transparent 0%,
-            transparent 35%,
-            rgba(255,255,255,.28) 45%,
-            rgba(170,225,255,.58) 50%,
-            rgba(47,184,255,.42) 55%,
-            transparent 65%,
-            transparent 100%
-          );
-          mix-blend-mode: screen;
-          opacity: .92;
-          transform: translate3d(-55%,0,0);
-          will-change: transform;
-          ${reduced ? "" : "animation: svcShine 2.9s linear infinite;"}
-        }
-        @keyframes svcShine{
-          0%{ transform: translate3d(-55%,0,0); }
-          100%{ transform: translate3d(55%,0,0); }
+        @keyframes svcSnake{
+          0%   { background-position: 0 0, -140% 0; }
+          100% { background-position: 0 0,  140% 0; }
         }
         @media (prefers-reduced-motion: reduce){
-          .svc-shimmer::after{ animation:none !important; display:none; }
+          .svc-textSnake{ animation:none !important; }
         }
 
         .svc-hero{
@@ -277,7 +299,7 @@ function ServicePage({
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,.08);
           background:
-            radial-gradient(120% 90% at 18% 10%, ${T.a}, transparent 55%),
+            radial-gradient(120% 90% at 18% 10%, var(--tA), transparent 55%),
             radial-gradient(120% 90% at 86% 10%, rgba(167,89,255,.12), transparent 60%),
             rgba(10,12,18,.55);
           box-shadow: 0 26px 120px rgba(0,0,0,.55);
@@ -286,7 +308,7 @@ function ServicePage({
         .svc-hero::before{
           content:"";
           position:absolute; inset:-2px;
-          background: radial-gradient(620px 260px at 22% 18%, ${T.b}, transparent 60%);
+          background: radial-gradient(620px 260px at 22% 18%, var(--tB), transparent 60%);
           opacity:.85;
           filter: blur(14px);
           pointer-events:none;
@@ -313,17 +335,17 @@ function ServicePage({
         }
         .svc-kdot{
           width:10px; height:10px; border-radius:999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
+          box-shadow: 0 0 0 4px var(--tC);
         }
 
         .svc-title{
           margin-top: 10px;
           font-size: clamp(28px, 3.2vw, 44px);
           line-height: 1.06;
-          color: rgba(255,255,255,.94);
           font-weight: 900;
           letter-spacing: -0.02em;
+          color: rgba(255,255,255,.94);
         }
         .svc-sub{
           margin-top: 10px;
@@ -343,18 +365,19 @@ function ServicePage({
         }
         .svc-pill{
           display:inline-flex; align-items:center; justify-content:center;
-          height: 34px; padding: 0 12px;
+          height: 34px;
+          padding: 0 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(255,255,255,.05);
           color: rgba(255,255,255,.86);
-          font-weight: 800;
+          font-weight: 900;
           font-size: 12px;
           white-space: nowrap;
         }
         .svc-pill--rot{
-          min-width: 160px;
-          padding: 0 12px;
+          min-width: 170px;
+          padding: 0 14px;
         }
         .svc-pillRot-clip{
           height: 34px;
@@ -367,9 +390,16 @@ function ServicePage({
         }
         .svc-pillRot-item{
           height: 34px;
+          line-height: 34px;
           display:flex;
           align-items:center;
           justify-content:center;
+        }
+        /* Make snake span fill “whole pill width” visually */
+        .svc-pillRot-item .svc-textSnake{
+          background-size: 100% 100%, 320% 100%;
+          background-position: 0 0, -170% 0;
+          ${reduced ? "" : "animation-duration: 2.6s;"}
         }
 
         .svc-ctaRow{
@@ -388,7 +418,7 @@ function ServicePage({
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
           background:
-            radial-gradient(120% 120% at 20% 10%, ${T.a}, transparent 60%),
+            radial-gradient(120% 120% at 20% 10%, var(--tA), transparent 60%),
             rgba(255,255,255,.06);
           color: rgba(255,255,255,.92);
           font-weight: 900;
@@ -398,7 +428,9 @@ function ServicePage({
         .svc-cta:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
         .svc-cta--ghost{ background: rgba(255,255,255,.04); }
 
-        /* right video */
+        /* =========================
+           ✅ VIDEO fully inside frame
+        ========================= */
         .svc-right{
           min-width:0;
           border-radius: 22px;
@@ -423,15 +455,17 @@ function ServicePage({
           width:100%; height:100%;
           object-fit: cover;
           display:block;
+          border-radius: inherit;
           transform: translateZ(0);
         }
         .svc-videoScrim{
           position:absolute; inset:0;
           background:
             radial-gradient(120% 90% at 20% 15%, rgba(47,184,255,.14), transparent 55%),
-            linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.46) 92%);
+            linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.46) 92%);
           pointer-events:none;
         }
+
         .svc-badge{
           position:absolute; top:12px; left:12px; right:12px;
           display:flex; align-items:center; justify-content: space-between; gap:10px;
@@ -460,8 +494,8 @@ function ServicePage({
         }
         .svc-dot{
           width: 8px; height: 8px; border-radius: 999px;
-          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), ${T.d});
-          box-shadow: 0 0 0 4px ${T.c};
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), var(--tD));
+          box-shadow: 0 0 0 4px var(--tC);
           ${reduced ? "" : "animation: svcBreath 1.6s ease-in-out infinite;"}
         }
         @keyframes svcBreath{
@@ -499,6 +533,7 @@ function ServicePage({
           font-size: 14px;
         }
 
+        /* feature list */
         .svc-feat{
           display:flex; gap:10px; align-items:flex-start;
           padding:10px 10px;
@@ -508,14 +543,20 @@ function ServicePage({
         }
         .svc-feat + .svc-feat{ margin-top: 10px; }
         .svc-feat__tick{
-          width:30px; height:30px; border-radius:12px;
+          width:30px; height:30px; border-radius: 12px;
           display:flex; align-items:center; justify-content:center;
-          border: 1px solid rgba(255,255,255,.10);
-          background: ${T.c};
-          color: rgba(255,255,255,.92);
+          border: 1px solid rgba(255,255,255,.12);
+          background: var(--tC);
+          color: rgba(255,255,255,.95);
           flex: 0 0 auto;
+          ${reduced ? "" : "animation: svcTickBreath 1.55s ease-in-out infinite;"}
+          will-change: transform, filter;
         }
-        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.90); }
+        @keyframes svcTickBreath{
+          0%,100%{ transform: translateZ(0) scale(1); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+          50%{ transform: translateZ(0) scale(1.10); filter: drop-shadow(0 0 10px var(--tD)); }
+        }
+        .svc-feat__t{ font-weight: 900; color: rgba(255,255,255,.92); }
         .svc-feat__d{ margin-top: 4px; color: rgba(255,255,255,.66); line-height: 1.65; font-size: 13.5px; }
       `}</style>
 
@@ -529,14 +570,14 @@ function ServicePage({
               </div>
 
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-grad svc-shimmer">{title}</span>
+                <span className="svc-textSnake">{title}</span>
               </div>
 
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
-              {/* ✅ 1 pill only, rotating text */}
+              {/* ✅ single pill, rotating text */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
                 <PillRotator items={pills} disabled={reduced} />
               </div>
@@ -583,7 +624,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Clock size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "Sürətli cavab" : "Fast response"}</span>
+              <span className="svc-textSnake">{lang === "az" ? "Sürətli cavab" : "Fast response"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
@@ -600,7 +641,7 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span className="svc-grad svc-shimmer">{lang === "az" ? "Stabil sistem" : "Stable system"}</span>
+              <span className="svc-textSnake">{lang === "az" ? "Stabil sistem" : "Stable system"}</span>
             </div>
             <div className="svc-card__desc">
               {lang === "az"
