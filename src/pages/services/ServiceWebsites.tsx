@@ -1,5 +1,12 @@
 // src/pages/services/ServiceWebsites.tsx
-import React, { memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import React, {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useLayoutEffect,
+} from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Globe2, ShieldCheck, CheckCircle2 } from "lucide-react";
@@ -96,7 +103,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
   );
 }
 
-/** ✅ Rotator pill — en sözə görə böyüyür/kiçilir + son hərf kəsilmir */
+/** ✅ Rotator pill — eni əvvəlcədən ölçür (söz gəlir→sonra böyüyür YOX) */
 function PillRotator({
   items,
   intervalMs = 2200,
@@ -113,39 +120,38 @@ function PillRotator({
   const [noTrans, setNoTrans] = useState(false);
 
   const measureRefs = useRef<Array<HTMLSpanElement | null>>([]);
-  const [w, setW] = useState<number | null>(null);
-
+  const [widths, setWidths] = useState<number[]>([]);
   const curIdx = Math.min(i, safe.length - 1);
 
-  const doMeasure = () => {
-    const el = measureRefs.current[curIdx];
-    if (!el) return;
-
-    const textW = Math.ceil(el.getBoundingClientRect().width);
-
-    const PAD = 40;   // rahat padding
-    const FUDGE = 10; // son hərf kəsilməsin
-    const MIN = 60;   // "SEO" üçün daha kiçik
+  const measureAll = () => {
+    const PAD = 40;   // pill padding
+    const FUDGE = 12; // son hərf kəsilməsin
+    const MIN = 58;   // SEO kimi qısa sözlər üçün
     const MAX = 420;
 
-    const next = Math.max(MIN, Math.min(MAX, textW + PAD + FUDGE));
-    setW(next);
+    const next: number[] = safe.map((_, idx) => {
+      const el = measureRefs.current[idx];
+      const w = el ? Math.ceil(el.getBoundingClientRect().width) : 0;
+      return Math.max(MIN, Math.min(MAX, w + PAD + FUDGE));
+    });
+
+    setWidths(next);
   };
 
   useLayoutEffect(() => {
-    doMeasure();
+    measureAll();
     const fonts = (document as any).fonts;
-    if (fonts?.ready?.then) fonts.ready.then(() => doMeasure()).catch(() => {});
+    if (fonts?.ready?.then) fonts.ready.then(() => measureAll()).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curIdx]);
+  }, [safe.join("|")]);
 
   useEffect(() => {
     if (disabled) return;
-    const on = () => doMeasure();
+    const on = () => measureAll();
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disabled, curIdx]);
+  }, [disabled, safe.join("|")]);
 
   useEffect(() => {
     if (disabled) return;
@@ -168,6 +174,7 @@ function PillRotator({
 
   const step = 34;
   const y = -i * step;
+  const w = widths[curIdx];
 
   return (
     <span
@@ -175,7 +182,6 @@ function PillRotator({
       aria-label={safe[curIdx]}
       style={w ? ({ width: `${w}px` } as any) : undefined}
     >
-      {/* hidden measure */}
       <span className="svc-pillMeasure" aria-hidden="true">
         {safe.map((t, idx) => (
           <span
@@ -370,7 +376,7 @@ function ServicePage({
 
         .svc-left{ min-width:0; }
 
-        /* ✅ SERVICES pill — heç vaxt kəsilmir */
+        /* ✅ SERVICES pill — kəsilmə yoxdur */
         .svc-kicker{
           display:inline-flex;
           align-items:center;
@@ -383,12 +389,9 @@ function ServicePage({
           font-size: 12px;
           letter-spacing:.14em;
           text-transform: uppercase;
-
-          /* az yuxarı, amma təhlükəsiz */
-          transform: translate3d(0,-8px,0);
-
+          transform: translate3d(0,-10px,0);
           position: relative;
-          z-index: 50; /* ✅ lentadan həmişə yuxarı */
+          z-index: 50;
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }
@@ -399,9 +402,6 @@ function ServicePage({
           flex: 0 0 auto;
         }
 
-        /* ✅ Globalda qalan .svc-grad::before/after varsa — burada söndürürük (amma lentanı başqa siniflə veririk) */
-        .svc-grad::before, .svc-grad::after{ content:none !important; display:none !important; }
-
         /* title */
         .svc-title{
           margin-top: 10px;
@@ -410,7 +410,7 @@ function ServicePage({
           font-weight: 600;
           letter-spacing: -0.02em;
           position: relative;
-          z-index: 5;
+          z-index: 6;
         }
         @media (min-width: 640px){ .svc-title{ font-size: 60px; } }
 
@@ -420,96 +420,101 @@ function ServicePage({
           background-clip:text;
           color:transparent;
           position: relative;
-          display: inline-block;
-          isolation: isolate;
+          display: inline;
           z-index: 6;
         }
 
-        /* ✅ LENTA — title arxasında (pillə DƏYMİR) */
-        .svc-lenta{
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
-        .svc-lenta::before{
+        /* ✅ LENTA — yumşaq, mətni boğmur, videoya tərəf fade */
+        .svc-title::before{
           content:"";
           position:absolute;
 
-          /* sola çıxıb panel kənarından başlasın */
-          left: -34px;
-          right: -22px;
+          left: -24px;            /* panel edge hissini verir */
+          right: -26px;
+          top: 52px;              /* 2 sətirli title üçün ideal xətt */
+          height: 44px;           /* çox qalın YOX */
+          border-radius: 16px;
 
-          top: 62%;
-          height: 56px;
-          border-radius: 18px;
-          transform: translate3d(-52%, -50%, 0);
+          background:
+            linear-gradient(90deg,
+              rgba(255,255,255,.08) 0%,
+              rgba(170,225,255,.20) 26%,
+              rgba(47,184,255,.24) 54%,
+              rgba(42,125,255,.18) 100%
+            );
 
-          background: linear-gradient(90deg,
-            rgba(255,255,255,.12) 0%,
-            rgba(170,225,255,.26) 28%,
-            rgba(47,184,255,.32) 55%,
-            rgba(42,125,255,.28) 100%
-          );
           box-shadow:
-            0 14px 60px rgba(0,0,0,.36),
-            0 0 0 1px rgba(255,255,255,.06) inset;
-          opacity: .95;
+            0 10px 45px rgba(0,0,0,.38),
+            0 0 0 1px rgba(255,255,255,.05) inset;
+
+          opacity: .55;           /* ✅ mətni BOĞMUR */
           pointer-events:none;
+          z-index: 1;
 
           /* videoya girəndə tez itir */
-          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
-          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 46%, rgba(0,0,0,.55) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 46%, rgba(0,0,0,.55) 60%, rgba(0,0,0,0) 76%);
 
+          transform: translate3d(-34%,0,0);
           will-change: transform, opacity;
-          ${reduced ? "" : "animation: svcRibbonLoop 3.2s linear infinite;"}
-          z-index: 1;
+          ${reduced ? "" : "animation: svcRibbonMove 3.2s linear infinite;"}
         }
-        .svc-lenta::after{
+
+        .svc-title::after{
           content:"";
           position:absolute;
-          left: -34px;
-          right: -22px;
-          top: 62%;
-          height: 56px;
-          border-radius: 18px;
-          transform: translate3d(-62%, -50%, 0);
+          left: -24px;
+          right: -26px;
+          top: 52px;
+          height: 44px;
+          border-radius: 16px;
 
           background: linear-gradient(
             110deg,
             transparent 0%,
-            transparent 35%,
-            rgba(255,255,255,.22) 45%,
-            rgba(170,225,255,.55) 50%,
-            rgba(47,184,255,.45) 55%,
-            transparent 65%,
+            transparent 36%,
+            rgba(255,255,255,.14) 46%,
+            rgba(170,225,255,.34) 52%,
+            rgba(47,184,255,.28) 56%,
+            transparent 66%,
             transparent 100%
           );
-          opacity: .85;
+
+          opacity: .55;
           mix-blend-mode: screen;
           pointer-events:none;
+          z-index: 2;
 
-          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
-          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,.75) 60%, rgba(0,0,0,0) 76%);
+          -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 46%, rgba(0,0,0,.55) 60%, rgba(0,0,0,0) 76%);
+          mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 46%, rgba(0,0,0,.55) 60%, rgba(0,0,0,0) 76%);
 
+          transform: translate3d(-64%,0,0);
           will-change: transform, opacity;
           ${reduced ? "" : "animation: svcRibbonShine 3.2s linear infinite;"}
-          z-index: 2;
         }
-        @keyframes svcRibbonLoop{
-          0%   { transform: translate3d(-52%, -50%, 0); opacity: .92; }
-          62%  { transform: translate3d(-6%,  -50%, 0); opacity: .92; }
-          76%  { transform: translate3d(  2%,  -50%, 0); opacity: .00; }
-          100% { transform: translate3d(-52%, -50%, 0); opacity: .92; }
+
+        @keyframes svcRibbonMove{
+          0%   { transform: translate3d(-34%,0,0); opacity:.55; }
+          62%  { transform: translate3d(-2%, 0,0); opacity:.55; }
+          76%  { transform: translate3d( 6%, 0,0); opacity:0; }
+          100% { transform: translate3d(-34%,0,0); opacity:.55; }
         }
         @keyframes svcRibbonShine{
-          0%   { transform: translate3d(-62%, -50%, 0); opacity: .86; }
-          62%  { transform: translate3d(-6%,  -50%, 0); opacity: .86; }
-          76%  { transform: translate3d(  2%,  -50%, 0); opacity: .00; }
-          100% { transform: translate3d(-62%, -50%, 0); opacity: .86; }
+          0%   { transform: translate3d(-64%,0,0); opacity:.55; }
+          62%  { transform: translate3d(-2%, 0,0); opacity:.55; }
+          76%  { transform: translate3d( 6%, 0,0); opacity:0; }
+          100% { transform: translate3d(-64%,0,0); opacity:.55; }
         }
         @media (prefers-reduced-motion: reduce){
-          .svc-lenta::before, .svc-lenta::after{ animation:none !important; }
-          .svc-lenta::after{ display:none; }
+          .svc-title::before, .svc-title::after{ animation:none !important; }
+          .svc-title::after{ display:none; }
+        }
+        @media (max-width: 520px){
+          .svc-title::before, .svc-title::after{
+            top: 44px;
+            height: 40px;
+            left: -16px;
+          }
         }
 
         /* subtitle */
@@ -550,7 +555,8 @@ function ServicePage({
         .svc-pill--rot{
           width: auto;
           max-width: min(420px, 92vw);
-          transition: width 220ms cubic-bezier(.2,.8,.2,1);
+          transition: width 180ms cubic-bezier(.2,.8,.2,1);
+          overflow: visible;
         }
         .svc-pillMeasure{
           position:absolute;
@@ -782,15 +788,13 @@ function ServicePage({
                 <span>{kicker}</span>
               </div>
 
-              <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                <span className="svc-lenta">
-                  <span className="svc-grad">{title}</span>
-                </span>
-              </div>
+              <h1 className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
+                <span className="svc-grad">{title}</span>
+              </h1>
 
-              <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
+              <p className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
-              </div>
+              </p>
 
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
                 <PillRotator items={pills} disabled={reduced} />
@@ -808,7 +812,16 @@ function ServicePage({
 
             <div className="svc-right" data-reveal style={{ transitionDelay: "120ms" }}>
               <div className="svc-videoWrap">
-                <video ref={vidRef} className="svc-video" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
+                <video
+                  ref={vidRef}
+                  className="svc-video"
+                  src={videoUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
                 <div className="svc-videoScrim" aria-hidden="true" />
                 <div className="svc-badge" aria-hidden="true">
                   <div className="svc-badgeLeft">
