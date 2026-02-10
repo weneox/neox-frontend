@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, X, Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LANGS, DEFAULT_LANG, type Lang } from "../i18n/lang";
+import { DEFAULT_LANG, type Lang } from "../i18n/lang";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -12,8 +12,11 @@ function cx(...xs: Array<string | false | null | undefined>) {
 
 type MenuKey = "services" | "scenarios" | "resources" | "lang" | null;
 
+/** ✅ FIX: LANGS map -> never problemi olmasın deyə, burada konkret siyahı saxlayırıq */
+const LANG_MENU: Lang[] = ["az", "tr", "ru", "en", "es"];
+
 function isLang(x: string | undefined | null): x is Lang {
-  return !!x && (LANGS as readonly string[]).includes(x as any);
+  return !!x && (LANG_MENU as readonly string[]).includes(String(x).toLowerCase());
 }
 
 function langFullName(c: Lang) {
@@ -29,7 +32,7 @@ function langFullName(c: Lang) {
     case "es":
       return "Spanish";
     default:
-      return c.toUpperCase();
+      return String(c).toUpperCase();
   }
 }
 
@@ -79,7 +82,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const [mSvc, setMSvc] = useState(false);
   const [mScn, setMScn] = useState(false);
   const [mRes, setMRes] = useState(false);
-  const [mLang, setMLang] = useState(false);
 
   const svcRef = useRef<HTMLDivElement | null>(null);
   const scnRef = useRef<HTMLDivElement | null>(null);
@@ -122,56 +124,31 @@ export default function Header({ introReady }: { introReady: boolean }) {
     [lang]
   );
 
+  /** ✅ Lang switch: həm i18n, həm route */
   const switchLang = useCallback(
     (next: Lang) => {
       if (next === lang) return;
+
       const rest = location.pathname.replace(/^\/[a-z]{2}(\/|$)/i, "/");
       const cleaned = rest.endsWith("/") && rest !== "/" ? rest.slice(0, -1) : rest;
       const target = cleaned === "/" ? `/${next}` : `/${next}${cleaned}`;
-      i18n.changeLanguage(next);
-      navigate(target, { replace: false });
+
+      // i18n-i əvvəl dəyiş (bəzi setup-larda vacibdir)
+      Promise.resolve(i18n.changeLanguage(next)).finally(() => {
+        navigate(target, { replace: false });
+      });
     },
     [i18n, lang, location.pathname, navigate]
   );
 
   const SERVICES: ItemDef[] = useMemo(
     () => [
-      {
-        id: "chatbot-24-7",
-        label: "Chatbot 24/7",
-        to: "/services/chatbot-24-7",
-        preview: "> webhook • whatsapp • web • crm • operator",
-      },
-      {
-        id: "business-workflows",
-        label: "Business Workflows",
-        to: "/services/business-workflows",
-        preview: "> routing • approvals • sla • sync • reports",
-      },
-      {
-        id: "websites",
-        label: "Websites",
-        to: "/services/websites",
-        preview: "> landing • seo • performance • cms • analytics",
-      },
-      {
-        id: "mobile-apps",
-        label: "Mobile Apps",
-        to: "/services/mobile-apps",
-        preview: "> ios • android • push • auth • payments",
-      },
-      {
-        id: "smm-automation",
-        label: "SMM Automation",
-        to: "/services/smm-automation",
-        preview: "> scheduling • captions • dm flow • insights • ai",
-      },
-      {
-        id: "technical-support",
-        label: "Technical Support",
-        to: "/services/technical-support",
-        preview: "> tickets • triage • kb • escalation • monitoring",
-      },
+      { id: "chatbot-24-7", label: "Chatbot 24/7", to: "/services/chatbot-24-7", preview: "> webhook • whatsapp • web • crm • operator" },
+      { id: "business-workflows", label: "Business Workflows", to: "/services/business-workflows", preview: "> routing • approvals • sla • sync • reports" },
+      { id: "websites", label: "Websites", to: "/services/websites", preview: "> landing • seo • performance • cms • analytics" },
+      { id: "mobile-apps", label: "Mobile Apps", to: "/services/mobile-apps", preview: "> ios • android • push • auth • payments" },
+      { id: "smm-automation", label: "SMM Automation", to: "/services/smm-automation", preview: "> scheduling • captions • dm flow • insights • ai" },
+      { id: "technical-support", label: "Technical Support", to: "/services/technical-support", preview: "> tickets • triage • kb • escalation • monitoring" },
     ],
     []
   );
@@ -187,11 +164,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
+  /** ✅ Resources: yalnız Docs + Guides */
   const RESOURCES: ItemDef[] = useMemo(
     () => [
-      { id: "resources", label: "Resurslar", to: "/resources", preview: "> library • articles • updates • assets" },
-      { id: "docs", label: "Docs", to: "/resources/docs", preview: "> api • setup • integrations • guides" },
-      { id: "guides", label: "Guides", to: "/resources/guides", preview: "> best practices • playbooks • templates" },
+      { id: "docs", label: "Docs", to: "/resources/docs", preview: "> api • setup • integrations • reference" },
+      { id: "guides", label: "Guides", to: "/resources/guides", preview: "> playbooks • templates • best practices" },
     ],
     []
   );
@@ -233,7 +210,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setMSvc(false);
     setMScn(false);
     setMRes(false);
-    setMLang(false);
   }, [location.pathname, location.search]);
 
   // lock scroll on mobile overlay
@@ -288,7 +264,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     setOpenMenu((cur) => (cur === k ? null : k));
   };
 
-  // keep dropdown open when moving to panel (no "gap close")
+  // keep dropdown open when moving to panel (no gap close)
   const bindHover = (k: Exclude<MenuKey, null>, ref: React.RefObject<HTMLDivElement>) => {
     return {
       onMouseEnter: () => {
@@ -312,29 +288,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
     } as const;
   };
 
-  const ElitePanel = ({
-    items,
-    k,
-    alignRight,
-  }: {
-    items: ItemDef[];
-    k: Exclude<MenuKey, null>;
-    alignRight?: boolean;
-  }) => {
+  const ElitePanel = ({ items, k }: { items: ItemDef[]; k: Exclude<MenuKey, null> }) => {
     const open = openMenu === k;
 
     useEffect(() => {
-      if (open) {
-        // default preview: first item
-        setHoverPreview(items[0]?.preview || "");
-      } else if (openMenu !== k) {
-        setHoverPreview("");
-      }
+      if (open) setHoverPreview(items[0]?.preview || "");
+      else if (openMenu !== k) setHoverPreview("");
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     return (
-      <div className={cx("neoElitePanel", alignRight && "is-right")} role="menu" aria-hidden={!open}>
+      <div className="neoElitePanel" role="menu" aria-hidden={!open}>
         <div className="neoEliteGrid">
           <div className="neoEliteList" role="none">
             {items.map((it) => (
@@ -355,7 +319,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
             ))}
           </div>
 
-          {/* inline “terminal” preview (NOT a big block, no pills, no dots) */}
           <div className="neoEliteTicker" aria-hidden="true">
             <div className={cx("neoEliteTickerInner", !reduced && "is-anim")}>
               <span className="neoEliteTickerLine">{hoverPreview || "> ready"}</span>
@@ -370,9 +333,10 @@ export default function Header({ introReady }: { introReady: boolean }) {
     );
   };
 
+  /** ✅ Lang panel: AZ TR RU EN ES; hover-da full name çıxır */
   const LangPanel = (
     <div className="neoLangPanel" role="menu" aria-label="Language menu" aria-hidden={openMenu !== "lang"}>
-      {LANGS.map((code) => (
+      {LANG_MENU.map((code) => (
         <button
           key={code}
           type="button"
@@ -383,7 +347,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             setOpenMenu(null);
           }}
         >
-          <span className="neoLangCode">{code.toUpperCase()}</span>
+          <span className="neoLangCode">{String(code).toUpperCase()}</span>
           <span className="neoLangName">{langFullName(code)}</span>
         </button>
       ))}
@@ -391,10 +355,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
   );
 
   const headerNode = (
-    <header
-      ref={headerRef}
-      className={cx("neoHdr", introReady && "neoHdr--in", scrolled && "is-scrolled", mobileOpen && "is-open")}
-    >
+    <header ref={headerRef} className={cx("neoHdr", introReady && "neoHdr--in", scrolled && "is-scrolled", mobileOpen && "is-open")}>
       <style>{`
         :root{ --hdrp: 0; }
 
@@ -403,7 +364,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoHdr a{ color: inherit; }
         .neoHdr :focus-visible{ outline:none; box-shadow: 0 0 0 3px rgba(120,170,255,.18); border-radius: 12px; }
 
-        /* ===== Header frame ===== */
         .neoHdr{
           position: fixed;
           top: 0; left: 0; right: 0;
@@ -425,6 +385,34 @@ export default function Header({ introReady }: { introReady: boolean }) {
           border-bottom-color: rgba(255,255,255,.12);
           -webkit-backdrop-filter: blur(18px) saturate(1.12);
           backdrop-filter: blur(18px) saturate(1.12);
+        }
+
+        /* ✅ Premium moving hairline (right -> left) */
+        .neoHdr::after{
+          content:"";
+          position:absolute;
+          left: 0; right: 0; bottom: -1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events:none;
+          background: linear-gradient(90deg,
+            rgba(255,255,255,0),
+            rgba(120,170,255,.22),
+            rgba(255,255,255,.10),
+            rgba(120,170,255,.18),
+            rgba(255,255,255,0)
+          );
+          transform: translateX(35%);
+          transition: opacity .18s ease;
+        }
+        .neoHdr.is-scrolled::after,
+        .neoHdr.is-open::after{
+          opacity: .95;
+          animation: neoHair 2.8s linear infinite;
+        }
+        @keyframes neoHair{
+          from{ transform: translateX(35%); }
+          to{ transform: translateX(-35%); }
         }
 
         .neoInner{
@@ -451,7 +439,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           white-space: nowrap;
         }
 
-        /* ===== Brand (clean) ===== */
         .neoBrand{
           display:inline-flex; align-items:center;
           padding: 10px 10px;
@@ -463,13 +450,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .neoBrand:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
 
-        /* ===== Top links (NO pill feeling) ===== */
         .neoTop{
           position: relative;
           display:inline-flex;
           align-items:center;
           height: 40px;
-          padding: 0 6px;             /* <- more “text” feel */
+          padding: 0 6px;
           background: transparent;
           border: 0;
           color: rgba(255,255,255,.78);
@@ -483,7 +469,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoTop:hover{ color: rgba(255,255,255,.94); transform: translateY(-1px); }
         .neoTop.is-active{ color: rgba(255,255,255,.96); }
 
-        /* subtle underline on hover/active */
         .neoTop::after{
           content:"";
           position:absolute;
@@ -516,8 +501,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoDD.is-open .neoChev{ transform: rotate(180deg); opacity: .9; }
 
         .neoDD{ position: relative; display:inline-flex; }
-
-        /* bridge area (no accidental close) */
         .neoDD::after{
           content:"";
           position:absolute;
@@ -528,7 +511,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           pointer-events: auto;
         }
 
-        /* ===== Elite dropdown panel: small, text-sized, no “block list” ===== */
         .neoPanelWrap{
           position:absolute;
           top: calc(100% + 6px);
@@ -555,22 +537,17 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
 
         .neoElitePanel{ padding: 10px 10px 10px; }
-        .neoElitePanel.is-right{ right: -10px; left: auto; }
-
         .neoEliteGrid{
           display:grid;
-          grid-template-columns: auto 160px; /* list + thin ticker */
+          grid-template-columns: auto 160px;
           gap: 10px;
           align-items: stretch;
         }
-
         .neoEliteList{
           display:grid;
           gap: 2px;
           padding: 4px 2px;
         }
-
-        /* items: NOT pills, NOT blocks — just clean rows */
         .neoEliteItem{
           display:flex;
           align-items:center;
@@ -581,8 +558,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.90);
           font-weight: 760;
           font-size: 13px;
-          background: transparent;               /* <- important */
-          border: 1px solid rgba(255,255,255,0);/* <- important */
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0);
           transition: transform .12s ease, color .12s ease, background-color .12s ease;
           will-change: transform;
         }
@@ -594,11 +571,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoEliteItem.is-active{
           background: rgba(120,170,255,.075);
         }
-
-        .neoEliteText{
-          line-height: 1;
-          letter-spacing: .01em;
-        }
+        .neoEliteText{ line-height: 1; letter-spacing: .01em; }
         .neoEliteArrow{
           opacity: .38;
           transform: translateX(-2px);
@@ -609,7 +582,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateX(0);
         }
 
-        /* thin inline terminal ticker */
         .neoEliteTicker{
           border-left: 1px solid rgba(255,255,255,.08);
           padding-left: 10px;
@@ -630,20 +602,15 @@ export default function Header({ introReady }: { introReady: boolean }) {
           color: rgba(255,255,255,.62);
           transform: translateZ(0);
         }
-        .neoEliteTickerInner.is-anim{
-          animation: neoTicker 5.4s linear infinite;
-        }
+        .neoEliteTickerInner.is-anim{ animation: neoTicker 5.4s linear infinite; }
         .neoEliteTickerLine{ opacity: .92; }
         .neoEliteTickerSep{ opacity: .35; }
+        @keyframes neoTicker{ from{ transform: translateX(0%); } to{ transform: translateX(-34%); } }
 
-        @keyframes neoTicker{
-          from{ transform: translateX(0%); }
-          to{ transform: translateX(-34%); }
-        }
-
-        /* ===== Language (hover open, compact, not pill-blocky) ===== */
+        /* Language */
         .neoLangWrap{ position: relative; display:inline-flex; }
         .neoLangBtn{
+          position: relative;
           display:inline-flex;
           align-items:center;
           gap: 8px;
@@ -672,10 +639,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: opacity .16s ease, transform .16s ease;
         }
         .neoDD.is-open .neoLangBtn::after,
-        .neoLangBtn:hover::after{
-          opacity: 1;
-          transform: scaleX(1);
-        }
+        .neoLangBtn:hover::after{ opacity: 1; transform: scaleX(1); }
 
         .neoLangPanel{
           position:absolute;
@@ -696,11 +660,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: opacity .14s ease, transform .14s ease;
           overflow:hidden;
         }
-        .neoDD.is-open .neoLangPanel{
-          opacity: 1;
-          pointer-events:auto;
-          transform: translateY(0) scale(1);
-        }
+        .neoDD.is-open .neoLangPanel{ opacity: 1; pointer-events:auto; transform: translateY(0) scale(1); }
 
         .neoLangItem{
           width: 100%;
@@ -723,14 +683,8 @@ export default function Header({ introReady }: { introReady: boolean }) {
           background: rgba(255,255,255,.035);
           color: rgba(255,255,255,.98);
         }
-        .neoLangItem.is-active{
-          background: rgba(120,170,255,.075);
-        }
-        .neoLangCode{
-          font-weight: 880;
-          letter-spacing: .14em;
-          opacity: .92;
-        }
+        .neoLangItem.is-active{ background: rgba(120,170,255,.075); }
+        .neoLangCode{ font-weight: 880; letter-spacing: .14em; opacity: .92; }
         .neoLangName{
           opacity: .70;
           font-size: 12px;
@@ -740,7 +694,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .neoLangItem:hover .neoLangName{ transform: translateX(0); opacity: .90; }
 
-        /* ===== Mobile button ===== */
+        /* Mobile */
         .neoBurger{
           width: 46px; height: 40px;
           border-radius: 12px;
@@ -755,7 +709,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .neoBurger:hover{ transform: translateY(-1px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
 
-        /* ===== Mobile overlay ===== */
         .neoMOv{ position: fixed; inset: 0; z-index: 100000; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
         .neoMOv.is-open{ opacity: 1; pointer-events: auto; }
         .neoBg{ position:absolute; inset:0; border:0; background: rgba(0,0,0,.46); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
@@ -845,6 +798,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           .neoTop, .neoBrand, .neoLangBtn, .neoEliteItem, .neoLangItem, .neoBurger{ transition:none !important; }
           .neoPanelWrap, .neoLangPanel, .neoSheet{ transition:none !important; transform:none !important; }
           .neoEliteTickerInner{ animation: none !important; }
+          .neoHdr::after{ animation:none !important; }
           .neoDD::after{ display:none !important; }
           .neoLangName{ transition:none !important; transform:none !important; }
         }
@@ -862,7 +816,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               decoding="async"
               draggable={false}
               style={{
-                height: isMobile ? 18 : 26,
+                height: isMobile ? 14 : 26, // ✅ mobil logo balaca
                 width: "auto",
                 objectFit: "contain",
                 display: "block",
@@ -940,6 +894,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
             FAQ
           </NavLink>
 
+          {/* ✅ “Resurslar” adlı ayrıca link varsa artıq olmayacaq — Blog saxlayırıq */}
           <NavLink to={withLang("/blog")} className={({ isActive }) => cx("neoTop", isActive && "is-active")}>
             {t("nav.blog") || "Blog"}
           </NavLink>
@@ -950,7 +905,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </nav>
 
         <div className="neoRight">
-          <div ref={langRef} className={cx("neoDD", "neoLangWrap", openMenu === "lang" && "is-open")} {...bindHover("lang", langRef)} data-wg-notranslate>
+          {/* ✅ Lang switcher: yalnız burada (mobil overlay-dən sildik) */}
+          <div
+            ref={langRef}
+            className={cx("neoDD", "neoLangWrap", openMenu === "lang" && "is-open")}
+            {...bindHover("lang", langRef)}
+            data-wg-notranslate
+          >
             <button
               type="button"
               className="neoLangBtn"
@@ -958,7 +919,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
               aria-expanded={openMenu === "lang"}
               onClick={() => openOnly("lang")}
             >
-              {lang.toUpperCase()}
+              {String(lang).toUpperCase()}
               <span aria-hidden="true" style={{ opacity: 0.72 }}>
                 <ChevronDown size={14} />
               </span>
@@ -1055,27 +1016,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
                 {t("nav.contact") || "Əlaqə"} <span aria-hidden="true">•</span>
               </NavLink>
 
-              <div className="neoAcc" data-wg-notranslate>
-                <button className="neoAccHead" type="button" onClick={() => setMLang((v) => !v)} aria-expanded={mLang}>
-                  Language ({lang.toUpperCase()}) <span aria-hidden="true">{mLang ? "−" : "+"}</span>
-                </button>
-                <div className={cx("neoAccPanel", mLang && "is-open")} aria-hidden={!mLang}>
-                  {LANGS.map((code) => (
-                    <button
-                      key={code}
-                      type="button"
-                      className="neoAccItem"
-                      onClick={() => {
-                        switchLang(code);
-                        closeMobile();
-                      }}
-                      style={{ width: "100%", textAlign: "left" as any }}
-                    >
-                      {code.toUpperCase()} — {langFullName(code)} <span aria-hidden="true">•</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* ✅ Mobil overlay-dən Language bölməsini TAM çıxartdıq (2 dəfə görünməsin) */}
             </div>
           </div>
         </div>,
