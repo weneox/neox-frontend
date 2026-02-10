@@ -2,16 +2,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Globe2,
-  Rocket,
-  ShieldCheck,
-  Search,
-  ArrowRight,
-  CheckCircle2,
-  LayoutTemplate,
-  Gauge,
-} from "lucide-react";
+import { Globe2, ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -93,10 +84,6 @@ function useRevealOnScroll(disabled: boolean) {
   }, [disabled]);
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="svc-pill">{children}</span>;
-}
-
 function Feature({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="svc-feat" data-reveal>
@@ -108,6 +95,49 @@ function Feature({ title, desc }: { title: string; desc: string }) {
         <div className="svc-feat__d">{desc}</div>
       </div>
     </div>
+  );
+}
+
+/** ✅ FIXED rotator: pixel-perfect slide (34px) */
+function PillRotator({
+  items,
+  intervalMs = 2200,
+  disabled,
+}: {
+  items: string[];
+  intervalMs?: number;
+  disabled: boolean;
+}) {
+  const safe = items.length ? items : [""];
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    if (disabled) return;
+    if (safe.length <= 1) return;
+    const t = window.setInterval(() => setI((p) => (p + 1) % safe.length), intervalMs);
+    return () => window.clearInterval(t);
+  }, [disabled, intervalMs, safe.length]);
+
+  const y = -i * 34;
+
+  return (
+    <span className="svc-pill svc-pill--rot" aria-label={safe[i]}>
+      <span className="svc-pillRot-clip">
+        <span
+          className="svc-pillRot-track"
+          style={{
+            transform: `translate3d(0, ${y}px, 0)`,
+            transition: disabled ? "none" : "transform 520ms cubic-bezier(.2,.8,.2,1)",
+          }}
+        >
+          {safe.map((t, idx) => (
+            <span className="svc-pillRot-item" key={`${t}-${idx}`}>
+              <span className="svc-grad svc-shimmer">{t}</span>
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -194,6 +224,53 @@ function ServicePage({
           [data-reveal]{ opacity: 1; transform: none; transition: none; }
         }
 
+        /* ===== “ilan kimi” gradient + shimmer (loop) ===== */
+        .svc-grad{
+          background: linear-gradient(
+            90deg,
+            rgba(255,255,255,.98) 0%,
+            rgba(224,205,255,.96) 28%,
+            rgba(167,89,255,.95) 58%,
+            rgba(84,165,255,.95) 100%
+          );
+          -webkit-background-clip:text;
+          background-clip:text;
+          color: transparent;
+        }
+        .svc-shimmer{
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+        }
+        .svc-shimmer::after{
+          content:"";
+          position:absolute;
+          inset:-18% -60%;
+          pointer-events:none;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 35%,
+            rgba(255,255,255,.22) 45%,
+            rgba(224,205,255,.60) 50%,
+            rgba(167,89,255,.42) 55%,
+            transparent 65%,
+            transparent 100%
+          );
+          mix-blend-mode: screen;
+          opacity: .92;
+          transform: translate3d(-55%,0,0);
+          will-change: transform;
+          ${reduced ? "" : "animation: svcShine 3.0s linear infinite;"}
+        }
+        @keyframes svcShine{
+          0%{ transform: translate3d(-55%,0,0); }
+          100%{ transform: translate3d(55%,0,0); }
+        }
+        @media (prefers-reduced-motion: reduce){
+          .svc-shimmer::after{ animation:none !important; display:none; }
+        }
+
         .svc-hero{
           position: relative;
           border-radius: 26px;
@@ -255,14 +332,16 @@ function ServicePage({
           max-width: 74ch;
         }
 
+        /* pills */
         .svc-pills{
           margin-top: 14px;
           display:flex;
           flex-wrap: wrap;
           gap: 10px;
+          align-items:center;
         }
         .svc-pill{
-          display:inline-flex; align-items:center;
+          display:inline-flex; align-items:center; justify-content:center;
           height: 34px; padding: 0 12px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,.10);
@@ -271,6 +350,25 @@ function ServicePage({
           font-weight: 800;
           font-size: 12px;
           white-space: nowrap;
+        }
+        .svc-pill--rot{
+          min-width: 170px;
+          padding: 0 12px;
+        }
+        .svc-pillRot-clip{
+          height: 34px;
+          overflow:hidden;
+          display:block;
+        }
+        .svc-pillRot-track{
+          display:block;
+          will-change: transform;
+        }
+        .svc-pillRot-item{
+          height: 34px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
         }
 
         .svc-ctaRow{
@@ -430,16 +528,16 @@ function ServicePage({
               </div>
 
               <div className="svc-title" data-reveal style={{ transitionDelay: "40ms" }}>
-                {title}
+                <span className="svc-grad svc-shimmer">{title}</span>
               </div>
+
               <div className="svc-sub" data-reveal style={{ transitionDelay: "90ms" }}>
                 {subtitle}
               </div>
 
+              {/* ✅ 1 pill only, rotating text + shimmer */}
               <div className="svc-pills" data-reveal style={{ transitionDelay: "140ms" }}>
-                {pills.map((p) => (
-                  <Pill key={p}>{p}</Pill>
-                ))}
+                <PillRotator items={pills} disabled={reduced} />
               </div>
 
               <div className="svc-ctaRow" data-reveal style={{ transitionDelay: "190ms" }}>
@@ -484,7 +582,7 @@ function ServicePage({
           <div className="svc-card" data-reveal>
             <div className="svc-card__title">
               <Globe2 size={18} />
-              <span>Frontend & UX</span>
+              <span className="svc-grad svc-shimmer">Frontend & UX</span>
             </div>
             <div className="svc-card__desc">
               Mobil-first premium dizayn, smooth animasiyalar və yüksək performans məqsədi (Lighthouse 9/10+).
@@ -499,7 +597,7 @@ function ServicePage({
           <div className="svc-card" data-reveal style={{ transitionDelay: "60ms" }}>
             <div className="svc-card__title">
               <ShieldCheck size={18} />
-              <span>Backend & Admin</span>
+              <span className="svc-grad svc-shimmer">Backend & Admin</span>
             </div>
             <div className="svc-card__desc">
               Leads, blog, media library, multi-lang və deploy flow (Netlify/Cloudflare + Railway) — hamısı hazır sistem.
