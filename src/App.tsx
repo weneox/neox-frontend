@@ -32,8 +32,11 @@ import ServiceMobileApps from "./pages/services/ServiceMobileApps";
 import ServiceSmmAutomation from "./pages/services/ServiceSmmAutomation";
 // ⚠️ Səndə fayl adı ServiceTechSupport.tsx olduğu üçün bu import belədir:
 import ServiceTechnicalSupport from "./pages/services/ServiceTechSupport";
-// Əgər sən faylı rename edib ServiceTechnicalSupport.tsx etmisənsə, yuxarıdakı sətri belə elə:
-// import ServiceTechnicalSupport from "./pages/services/ServiceTechnicalSupport";
+
+// ✅ Resources pages (SƏNDƏ VAR, ROUTE YOX İDİ)
+import ResourcesDocs from "./pages/resources/ResourcesDocs";
+import ResourcesGuides from "./pages/resources/ResourcesGuides";
+import ResourcesFaq from "./pages/resources/ResourcesFaq";
 
 // ✅ ADMIN
 import AdminLayout from "./pages/Admin/AdminLayout";
@@ -218,7 +221,7 @@ export default function App() {
                   <Route path="about" element={<About />} />
 
                   {/* Services */}
-                  <Route path="services" element={<Navigate to="chatbot-24-7" replace />} />
+                  <Route path="services" element={<Navigate to="services/chatbot-24-7" replace />} />
                   <Route path="services/chatbot-24-7" element={<ServiceChatbot247 />} />
                   <Route path="services/business-workflows" element={<ServiceBusinessWorkflows />} />
                   <Route path="services/websites" element={<ServiceWebsites />} />
@@ -233,6 +236,16 @@ export default function App() {
                   <Route path="use-cases/finance" element={<UseCaseFinance />} />
                   <Route path="use-cases/retail" element={<UseCaseRetail />} />
                   <Route path="use-cases/hotels" element={<UseCaseHotel />} />
+
+                  {/* Resources */}
+                  <Route path="resources/docs" element={<ResourcesDocs />} />
+                  <Route path="resources/guides" element={<ResourcesGuides />} />
+
+                  {/* ✅ FAQ səndə headerdə ayrıca olduğu üçün əsas route budur */}
+                  <Route path="faq" element={<ResourcesFaq />} />
+
+                  {/* ✅ compat: köhnə linklər qırılmasın (Resources daxilindən gələn /resources/faq) */}
+                  <Route path="resources/faq" element={<ResourcesFaq />} />
 
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="contact" element={<Contact />} />
