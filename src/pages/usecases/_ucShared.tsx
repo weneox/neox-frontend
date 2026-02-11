@@ -1,18 +1,20 @@
 // src/pages/usecases/_ucShared.tsx
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
 
+/* tiny helper */
 export function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
+/* langs */
 export const LANGS = ["az", "tr", "en", "ru", "es"] as const;
 export type Lang = (typeof LANGS)[number];
 
 export function getLangFromPath(pathname: string): Lang {
   const seg = (pathname || "/").split("/")[1] || "az";
-  return (LANGS as readonly string[]).includes(seg) ? (seg as Lang) : "az";
+  return (LANGS as readonly string[]).includes(seg as any) ? (seg as Lang) : "az";
 }
 
 export function withLang(path: string, lang: Lang) {
@@ -20,6 +22,7 @@ export function withLang(path: string, lang: Lang) {
   return `/${lang}${p}`;
 }
 
+/* motion pref */
 export function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -35,6 +38,7 @@ export function usePrefersReducedMotion() {
   return reduced;
 }
 
+/* media query */
 export function useMedia(query: string, initial = false) {
   const [v, setV] = useState(initial);
   useEffect(() => {
@@ -203,6 +207,7 @@ export type CaseItem = {
   tint: Tint;
 };
 
+/* ---------------- styles ---------------- */
 export const UC_STYLES = `
 html, body{
   background:#000 !important;
@@ -230,8 +235,16 @@ html, body{
 }
 .uc-page *{ min-width:0; max-width:100%; }
 
+.uc-stack{ position: relative; isolation: isolate; overflow: clip; }
+
 .uc-page .uc-grad{
-  background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    rgba(170,225,255,.96) 34%,
+    rgba(47,184,255,.95) 68%,
+    rgba(42,125,255,.95) 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -239,10 +252,10 @@ html, body{
 
 .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
 
-/* hero enter (sequence) */
+/* hero enter (only for hero) */
 .uc-enter{
   opacity: 0;
-  transform: translate3d(0, 18px, 0);
+  transform: translate3d(0, 16px, 0);
   filter: blur(7px);
   transition: opacity .62s ease, transform .62s ease, filter .62s ease;
   transition-delay: var(--d, 0ms);
@@ -250,20 +263,57 @@ html, body{
 }
 .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-/* Reveal (scroll) */
-.uc-reveal{ opacity: 1; transform: none; }
-.uc-page.uc-io .uc-reveal{
-  opacity: 0;
-  transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-  transition: opacity .52s ease, transform .52s ease;
-  will-change: transform, opacity;
+.uc-pop{
+  position: relative;
+  z-index: 1;
+  transform: translate3d(0,0,0) scale(1);
+  transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
+  will-change: transform;
 }
-.uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
-.reveal-left{ --rx: -18px; --ry: 0px; }
-.reveal-right{ --rx: 18px; --ry: 0px; }
-.reveal-bottom{ --rx: 0px; --ry: 14px; }
+.uc-pop:hover, .uc-pop:focus-within{
+  z-index: 60;
+  transform: translate3d(0,-10px,0) scale(1.03);
+}
 
-/* ---------------- Shared small UI ---------------- */
+.uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
+.uc-heroInner{
+  min-height: clamp(520px, 78vh, 860px);
+  display: grid;
+  place-items: center;
+  padding: 64px 0 26px;
+}
+@media (max-width: 560px){
+  .uc-heroInner{ min-height:auto; padding-top: 84px; padding-bottom: 18px; }
+}
+
+.uc-heroBG{ pointer-events:none; position:absolute; inset:0; opacity: 1; }
+.uc-heroBG::before{
+  content:"";
+  position:absolute;
+  inset:-10% -10%;
+  background:
+    radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.09), transparent 62%),
+    radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
+    radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
+  opacity: .92;
+}
+.uc-heroBG::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
+}
+
+.uc-divider{
+  height: 1px;
+  width: 100%;
+  max-width: 920px;
+  margin: 42px auto 0;
+  background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
+  opacity: .95;
+}
+.uc-spacer{ height: 34px; }
+
 .uc-crumb{
   display:inline-flex;
   align-items:center;
@@ -310,6 +360,8 @@ html, body{
   border-color: rgba(47,184,255,.46);
   box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 22px rgba(47,184,255,.12);
 }
+.uc-btn:active{ transform: translate3d(0,-1px,0); }
+
 .uc-btnGhost{
   border-color: rgba(255,255,255,.14);
   background: rgba(255,255,255,.03);
@@ -320,42 +372,6 @@ html, body{
   box-shadow: 0 14px 34px rgba(0,0,0,.62);
 }
 
-.uc-divider{
-  height: 1px;
-  width: 100%;
-  max-width: 920px;
-  margin: 34px 0 0;
-  background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
-  opacity: .95;
-}
-
-/* ---------------- Card system (for CaseRow legacy pages) ---------------- */
-.uc-pop{
-  position: relative;
-  z-index: 1;
-  transform: translate3d(0,0,0) scale(1);
-  transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
-  will-change: transform;
-}
-.uc-pop:hover, .uc-pop:focus-within{
-  z-index: 60;
-  transform: translate3d(0,-10px,0) scale(1.03);
-}
-
-.uc-card{
-  position: relative;
-  border: 1px solid rgba(255,255,255,.10);
-  background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.016));
-  box-shadow: 0 16px 56px rgba(0,0,0,.60);
-  border-radius: 22px;
-  overflow: hidden;
-  padding: 18px;
-}
-.uc-line{
-  height: 1px;
-  background: linear-gradient(90deg, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18));
-  opacity: .95;
-}
 .uc-ic{
   width: 40px; height: 40px; border-radius: 14px;
   display: grid; place-items: center;
@@ -364,191 +380,234 @@ html, body{
   box-shadow: 0 12px 36px rgba(0,0,0,.45);
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
-.uc-pop:hover .uc-ic{
-  transform: translate3d(0,-2px,0);
-  border-color: rgba(47,184,255,.22);
-  box-shadow: 0 16px 44px rgba(0,0,0,.60);
+
+/* Reveal (FPS safe): only transform+opacity */
+.uc-reveal{ opacity: 1; transform: none; }
+.uc-page.uc-io .uc-reveal{
+  opacity: 0;
+  transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
+  transition: opacity .45s ease, transform .45s ease;
+  will-change: transform, opacity;
+}
+.uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
+.reveal-left{ --rx: -18px; --ry: 0px; }
+.reveal-right{ --rx: 18px; --ry: 0px; }
+.reveal-bottom{ --rx: 0px; --ry: 14px; }
+
+/* ===== NEW: Canva-like about section ===== */
+.uc-aboutGrid{
+  display:grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 960px){
+  .uc-aboutGrid{ grid-template-columns: 1fr; }
 }
 
-/* tiles */
-.uc-tile{
-  border-radius: 16px;
+.uc-aboutText{
   border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.02);
-  box-shadow: 0 12px 36px rgba(0,0,0,.45);
-  padding: 12px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+  border-radius: 22px;
+  padding: 22px;
 }
-.uc-tileK{
-  font-weight: 900;
-  font-size: 22px;
-  line-height: 1;
-  background: linear-gradient(90deg, #fff 0%, rgba(47,184,255,.98) 60%, rgba(42,125,255,.95) 100%);
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-}
-.uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
-/* video panel (legacy CaseRow) */
-.uc-video{
+.uc-aboutTitle{
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.uc-aboutList{
+  margin-top: 16px;
+  display:grid;
+  gap: 12px;
+}
+
+.uc-imgWrap{
+  position: relative;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px){
+  .uc-imgWrap{ grid-template-columns: 1fr; }
+}
+
+.uc-imgCard{
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.22);
-  transform: translate3d(0,0,0);
+  background: rgba(255,255,255,.04);
   overflow: hidden;
-}
-.uc-videoInner{
-  position: relative;
-  min-height: 360px;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  overflow: hidden;
-}
-@media (max-width: 560px){
-  .uc-videoInner{ min-height: 320px; }
-}
-.uc-videoEl{
-  width: 100%;
-  height: 100%;
-  min-height: 360px;
-  object-fit: cover;
-  display: block;
+  min-height: 280px;
   transform: translateZ(0);
-}
-@media (max-width: 560px){
-  .uc-videoEl{ min-height: 320px; }
-}
-.uc-videoShade{
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.08), rgba(0,0,0,.70)),
-    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.52));
-  opacity: .92;
+  will-change: transform, opacity;
 }
 
-/* ---- NEW: Healthcare hero layout (keeps legacy too) ---- */
-.uc-hHero{
-  position: relative;
-  padding: 22px 0 0;
-}
-.uc-hHeroBG{
-  pointer-events:none;
+.uc-imgPh{
   position:absolute;
   inset:0;
+  display:grid;
+  place-items:center;
+  color: rgba(255,255,255,.55);
+  font-size: 13px;
+  letter-spacing:.14em;
+  text-transform: uppercase;
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
 }
+
+/* soldakı yuxarıdan düşür, sağdakı aşağıdan qalxır */
+.reveal-drop{ --rx: 0px; --ry: -22px; }
+.reveal-rise{ --rx: 0px; --ry: 22px; }
+
+/* Canva-like bottom bar */
+.uc-barWrap{
+  grid-column: 1 / -1;
+}
+.uc-bar{
+  height: 78px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(42,125,255,.55), rgba(42,125,255,.35));
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+}
+
+/* ====== NEW: healthcare-style hero (text + media) ====== */
+.uc-hHero{
+  position: relative;
+  padding: 110px 0 28px;
+  overflow: hidden;
+}
+@media (max-width: 560px){
+  .uc-hHero{ padding-top: 92px; }
+}
+
+.uc-hHeroBG{ pointer-events:none; position:absolute; inset:0; opacity: 1; }
 .uc-hHeroBG::before{
   content:"";
   position:absolute;
-  inset:-12% -10%;
+  inset:-12% -12%;
   background:
-    radial-gradient(900px 520px at 22% 10%, rgba(47,184,255,.10), transparent 62%),
-    radial-gradient(980px 560px at 80% 0%, rgba(42,125,255,.08), transparent 70%),
-    radial-gradient(980px 560px at 60% 40%, rgba(170,225,255,.06), transparent 72%);
+    radial-gradient(900px 520px at 30% 0%, rgba(47,184,255,.10), transparent 64%),
+    radial-gradient(900px 520px at 70% 0%, rgba(42,125,255,.08), transparent 66%),
+    radial-gradient(1100px 600px at 50% 10%, rgba(170,225,255,.06), transparent 70%);
   opacity: .95;
 }
 .uc-hHeroBG::after{
   content:"";
   position:absolute;
   inset:0;
-  background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.22), rgba(0,0,0,.94));
+  background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.22), rgba(0,0,0,.92));
 }
 
 .uc-hGrid{
   position: relative;
-  z-index: 1;
-  display:grid;
-  grid-template-columns: 1.05fr .95fr;
-  gap: 28px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 34px;
   align-items: start;
-  padding: 86px 0 26px;
 }
-@media (max-width: 980px){
-  .uc-hGrid{ grid-template-columns: 1fr; padding-top: 92px; }
+@media (max-width: 960px){
+  .uc-hGrid{ grid-template-columns: 1fr; gap: 22px; }
 }
 
-.uc-hLeft{ max-width: 560px; }
-@media (max-width: 980px){
-  .uc-hLeft{ max-width: 720px; margin: 0 auto; text-align: left; }
+.uc-hLeft{
+  max-width: 620px;
 }
 
 .uc-hBullets{
   margin-top: 18px;
-  display:grid;
+  display: grid;
   gap: 12px;
 }
 .uc-hBullet{
   display:flex;
-  gap: 12px;
   align-items:flex-start;
-  color: rgba(255,255,255,.72);
+  gap: 10px;
+  color: rgba(255,255,255,.75);
   line-height: 1.65;
 }
 .uc-hBulletIcon{
-  width: 22px; height: 22px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
-  margin-top: 2px;
+  margin-top: 4px;
   color: rgba(170,225,255,.95);
 }
 
 .uc-hCTA{
-  margin-top: 18px;
+  margin-top: 22px;
   display:flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.uc-hMediaGrid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  align-items: stretch;
-}
-@media (max-width: 560px){
-  .uc-hMediaGrid{ grid-template-columns: 1fr; gap: 12px; }
-}
-
+/* media cards */
 .uc-mediaCard{
-  position: relative;
-  border-radius: 26px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
   overflow: hidden;
-  border: 1px solid rgba(47,184,255,.28);
-  background: rgba(255,255,255,.03);
-  box-shadow: 0 18px 70px rgba(0,0,0,.65);
-  transform: translateZ(0);
+  box-shadow: 0 20px 70px rgba(0,0,0,.55);
 }
 .uc-mediaInner{
-  height: clamp(520px, 66vh, 780px);
+  position: relative;
+  width: 100%;
+  height: clamp(380px, 46vh, 560px);
+  overflow: hidden;
+  transform: translateZ(0);
 }
 @media (max-width: 560px){
-  .uc-mediaInner{ height: clamp(560px, 72vh, 860px); }
+  .uc-mediaInner{ height: clamp(300px, 38vh, 520px); }
 }
+
 .uc-mediaVideo{
-  width: 100%;
-  height: 100%;
-  display:block;
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
   object-fit: cover;
   transform: translateZ(0);
 }
 .uc-mediaShade{
-  pointer-events:none;
   position:absolute;
   inset:0;
-  background:
-    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.10), rgba(0,0,0,.56)),
-    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.38));
-  opacity: .92;
+  background: radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.10), transparent 62%),
+              linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,.35));
+  pointer-events:none;
+}
+
+/* two media grid (healthcare) */
+.uc-hMediaGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 560px){
+  .uc-hMediaGrid{ grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* ---- rect media (single video pages) ---- */
+.uc-mediaInner--rect{ height: clamp(360px, 44vh, 540px); }
+@media (max-width: 560px){
+  .uc-mediaInner--rect{ height: clamp(320px, 46vh, 560px); }
 }
 
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
+  .uc-pop{ transition:none !important; transform:none !important; }
+  .uc-btn{ transition:none !important; }
 }
 `;
 
+/* ---------------- UI bits ---------------- */
 export const BreadcrumbPill = memo(function BreadcrumbPill({
   text,
   enter,
@@ -572,24 +631,40 @@ export const BreadcrumbPill = memo(function BreadcrumbPill({
 
 export const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
-    <div className="flex items-start gap-2">
+    <div className="uc-bullet flex items-start gap-2">
       <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
       <span className="text-white/75 leading-[1.65] break-words">{text}</span>
     </div>
   );
 });
 
-export const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
-  return (
-    <div className="uc-tile uc-pop uc-contain">
-      <div className="uc-tileK">{k}</div>
-      <div className="uc-tileV mt-1">{v}</div>
-      <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
-    </div>
-  );
-});
+/* ======================================================================================
+   CaseRow — Köhnə səhifələr sındırılmasın deyə saxlanır.
+   Sən indi yeni “Healthcare-style” səhifələrdən istifadə edirsən,
+   amma build error-u bağlamaq üçün export olmalıdır.
+====================================================================================== */
 
-/* ✅ LEGACY: CaseRow is BACK (so Logistics etc build succeeds) */
+function tintToHex(t: Tint) {
+  switch (t) {
+    case "amber":
+      return "#ffbe6e";
+    case "pink":
+      return "#ff4fd8";
+    case "violet":
+      return "#7b68ff";
+    case "cyan":
+    default:
+      return "#00f0ff";
+  }
+}
+
+function autoCloudinary(url: string) {
+  if (!url) return url;
+  if (!url.includes("/upload/")) return url;
+  if (url.includes("/upload/q_auto,f_auto/")) return url;
+  return url.replace("/upload/", "/upload/q_auto,f_auto/");
+}
+
 export const CaseRow = memo(function CaseRow({
   c,
   flip,
@@ -601,7 +676,7 @@ export const CaseRow = memo(function CaseRow({
   videoUrl,
 }: {
   c: CaseItem;
-  flip: boolean;
+  flip?: boolean;
   tRealScenario: string;
   toContact: string;
   toServices: string;
@@ -610,72 +685,145 @@ export const CaseRow = memo(function CaseRow({
   videoUrl?: string;
 }) {
   const Icon = c.icon;
+  const accent = tintToHex(c.tint);
+  const v = autoCloudinary(videoUrl || "");
+  const leftFirst = !flip;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-center" style={{ isolation: "isolate" as any }}>
-      {/* TEXT */}
-      <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <article className="uc-card uc-pop uc-contain" aria-label={`${c.sektor} use case`}>
-          <header className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="uc-ic" aria-hidden="true">
-                <Icon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
-                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
-              </div>
-            </div>
-            <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] tracking-[.08em] uppercase text-white/80">
-              Case
+    <section
+      className="uc-reveal reveal-bottom"
+      style={{
+        borderRadius: 26,
+        border: "1px solid rgba(255,255,255,.10)",
+        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015))",
+        boxShadow: "0 18px 70px rgba(0,0,0,.55)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 18,
+          padding: 18,
+          alignItems: "stretch",
+        }}
+      >
+        {/* left */}
+        <div style={{ order: leftFirst ? 1 : 2, minWidth: 0 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(255,255,255,.04)",
+              padding: "10px 14px",
+              borderRadius: 999,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: accent,
+                boxShadow: `0 0 0 4px ${accent}22, 0 0 18px ${accent}55`,
+              }}
+            />
+            <span style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(255,255,255,.70)" }}>
+              {tRealScenario}
             </span>
-          </header>
+          </div>
 
-          <div className="mt-4 uc-line" />
+          <h2 style={{ marginTop: 14, fontSize: 34, lineHeight: 1.05, fontWeight: 800, color: "rgba(255,255,255,.95)" }}>
+            {c.basliq}
+          </h2>
 
-          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
-          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
+          <p style={{ marginTop: 10, color: "rgba(255,255,255,.72)", lineHeight: 1.7 }}>{c.hekayə}</p>
 
-          <div className="mt-5 space-y-3">
-            {c.maddeler.map((b) => (
-              <Bullet key={b} text={b} />
+          <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+            {c.maddeler.map((m) => (
+              <div key={m} style={{ display: "flex", gap: 10, alignItems: "flex-start", color: "rgba(255,255,255,.76)", lineHeight: 1.6 }}>
+                <CheckCircle style={{ width: 18, height: 18, marginTop: 3, color: "rgba(170,225,255,.95)" }} />
+                <span>{m}</span>
+              </div>
             ))}
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            {c.neticeler.map((r) => (
-              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
-            ))}
-          </div>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <a href={toContact} className="uc-btn">
+          <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a className="uc-btn" href={toContact}>
               {ctaPrimary} <span aria-hidden="true">→</span>
             </a>
-            <a href={toServices} className="uc-btn uc-btnGhost">
+            <a className="uc-btn uc-btnGhost" href={toServices}>
               {ctaSecondary}
             </a>
           </div>
-        </article>
+        </div>
+
+        {/* right media */}
+        <div style={{ order: leftFirst ? 2 : 1, minWidth: 0 }}>
+          <div className="uc-mediaCard uc-contain">
+            <div className="uc-mediaInner uc-mediaInner--rect">
+              {v ? (
+                <video className="uc-mediaVideo" src={v} autoPlay muted loop playsInline preload="metadata" />
+              ) : (
+                <div className="uc-imgPh">MEDIA</div>
+              )}
+              <div className="uc-mediaShade" aria-hidden="true" />
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 12,
+            }}
+          >
+            {c.neticeler.map((r) => (
+              <div
+                key={r.v}
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid rgba(255,255,255,.10)",
+                  background: "rgba(0,0,0,.22)",
+                  padding: 14,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 14,
+                      display: "grid",
+                      placeItems: "center",
+                      border: "1px solid rgba(255,255,255,.10)",
+                      background: "rgba(255,255,255,.03)",
+                    }}
+                  >
+                    <Icon style={{ width: 18, height: 18, color: "rgba(170,225,255,.95)" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: 18, color: "rgba(255,255,255,.95)" }}>{r.k}</div>
+                    <div style={{ fontWeight: 700, color: "rgba(255,255,255,.78)" }}>{r.v}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, color: "rgba(255,255,255,.62)", lineHeight: 1.55 }}>{r.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* VISUAL */}
-      <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        {videoUrl ? (
-          <div className="uc-video uc-pop uc-contain" aria-label="Scenario video">
-            <div className="uc-videoInner">
-              <video className="uc-videoEl" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
-              <div className="uc-videoShade" aria-hidden="true" />
-            </div>
-          </div>
-        ) : (
-          <div className="uc-video uc-pop uc-contain" aria-label="Scenario video placeholder">
-            <div className="uc-videoInner">
-              <div className="text-white/60 text-sm">Video placeholder</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      <style>{`
+        @media (max-width: 960px){
+          .uc-page section > div{ grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </section>
   );
 });
