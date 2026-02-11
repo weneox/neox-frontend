@@ -55,76 +55,6 @@ function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Premium wheel scroll (PERF SAFE) ---------------- */
-function usePremiumWheelScroll(enabled: boolean) {
-  const rafRef = useRef<number | null>(null);
-  const targetRef = useRef<number>(0);
-  const currentRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (prefersReduced) return;
-    if (window.innerWidth < 980) return;
-
-    const fine = window.matchMedia?.("(pointer: fine)")?.matches;
-    const hover = window.matchMedia?.("(hover: hover)")?.matches;
-    if (!fine || !hover) return;
-
-    const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-
-    const DIST_MULT = 1.25;
-    const DAMPING = 0.14;
-    const MAX_STEP = 1500;
-
-    const onWheel = (e: WheelEvent) => {
-      const raw = e.deltaY;
-      if (Math.abs(raw) < 18) return;
-      if (Math.abs((e as any).deltaX || 0) > Math.abs(raw)) return;
-
-      e.preventDefault();
-
-      const step = clamp(raw * DIST_MULT, -MAX_STEP, MAX_STEP);
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-
-      targetRef.current = clamp((targetRef.current || window.scrollY) + step, 0, maxScroll);
-
-      if (rafRef.current) return;
-
-      currentRef.current = window.scrollY;
-
-      const tick = () => {
-        const cur = currentRef.current;
-        const tgt = targetRef.current;
-        const next = cur + (tgt - cur) * DAMPING;
-
-        if (Math.abs(tgt - next) < 0.75) {
-          window.scrollTo(0, tgt);
-          currentRef.current = tgt;
-          rafRef.current = null;
-          return;
-        }
-
-        window.scrollTo(0, next);
-        currentRef.current = next;
-        rafRef.current = requestAnimationFrame(tick);
-      };
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    targetRef.current = window.scrollY;
-    window.addEventListener("wheel", onWheel, { passive: false });
-
-    return () => {
-      window.removeEventListener("wheel", onWheel as any);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-  }, [enabled]);
-}
-
 /* ---------------- Reveal IO (PERF SAFE) ---------------- */
 function useRevealIO(enabled: boolean) {
   useEffect(() => {
@@ -133,6 +63,7 @@ function useRevealIO(enabled: boolean) {
     const els = Array.from(document.querySelectorAll<HTMLElement>(".reveal:not(.is-in)"));
     if (!els.length) return;
 
+    // ✅ Sənin qaydan: ən azı ~30% görünmədən açılmasın
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -142,7 +73,7 @@ function useRevealIO(enabled: boolean) {
           }
         }
       },
-      { threshold: 0.14, rootMargin: "0px 0px -12% 0px" }
+      { threshold: 0.3, rootMargin: "0px 0px -18% 0px" }
     );
 
     els.forEach((el) => io.observe(el));
@@ -150,24 +81,15 @@ function useRevealIO(enabled: boolean) {
   }, [enabled]);
 }
 
-/* ========================= SOCIAL DEMO (typing source) ========================= */
+/* ========================= SOCIAL DEMO (typing feed) ========================= */
 type SocialMsg = { from: "client" | "ai"; text: string };
 type Plat = "WHATSAPP" | "FACEBOOK" | "INSTAGRAM";
 
-/* NOTE:
-   Biz indi SocialThread UI-ni göstərmirik.
-   Amma onun typing mexanizmini saxlayırıq ki LiveChat-i qidalandıraq.
-*/
-function useSocialTypingFeed(opts: {
-  script: SocialMsg[];
-  baseSpeedMs?: number;
-  active: boolean;
-}) {
+function useSocialTypingFeed(opts: { script: SocialMsg[]; baseSpeedMs?: number; active: boolean }) {
   const { script, baseSpeedMs = 900, active } = opts;
 
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState<"client" | "ai" | null>(null);
-  const [typingText, setTypingText] = useState("");
 
   const timersRef = useRef<number[]>([]);
   const clearAll = () => {
@@ -184,14 +106,12 @@ function useSocialTypingFeed(opts: {
     if (!active) {
       setCount(0);
       setTyping(null);
-      setTypingText("");
       return () => clearAll();
     }
 
     if (count >= script.length) {
       const t = window.setTimeout(() => {
         setTyping(null);
-        setTypingText("");
         setCount(0);
       }, jitter(1500, 420));
       timersRef.current.push(t);
@@ -202,31 +122,13 @@ function useSocialTypingFeed(opts: {
 
     const tStart = window.setTimeout(() => {
       setTyping(next.from);
-      setTypingText("");
 
-      let i = 0;
-      const perChar = () => Math.max(12, Math.floor(rand(16, 28)));
+      const tCommit = window.setTimeout(() => {
+        setCount((c) => c + 1);
+        setTyping(null);
+      }, jitter(baseSpeedMs, 260));
 
-      const tick = () => {
-        i++;
-        setTypingText(next.text.slice(0, i));
-
-        if (i < next.text.length) {
-          const t = window.setTimeout(tick, perChar());
-          timersRef.current.push(t);
-          return;
-        }
-
-        const tCommit = window.setTimeout(() => {
-          setCount((c) => c + 1);
-          setTyping(null);
-          setTypingText("");
-        }, jitter(320, 160));
-        timersRef.current.push(tCommit);
-      };
-
-      const tFirst = window.setTimeout(tick, jitter(baseSpeedMs, 220));
-      timersRef.current.push(tFirst);
+      timersRef.current.push(tCommit);
     }, jitter(520, 220));
 
     timersRef.current.push(tStart);
@@ -237,7 +139,7 @@ function useSocialTypingFeed(opts: {
   const MAX_VISIBLE = 4;
   const shown = useMemo(() => script.slice(0, count).slice(-MAX_VISIBLE), [script, count]);
 
-  return { shown, typing, typingText };
+  return { shown, typing };
 }
 
 /* ========================= PIPELINE DIAGRAM ========================= */
@@ -506,18 +408,16 @@ function SocialAutomationSection({
     return () => window.clearInterval(tmr);
   }, [order, reducedMotion]);
 
-  const visibleScript = useMemo(() => demos[platform].slice(-4), [demos, platform]);
+  const visibleScript = useMemo(() => (demos[platform] || []).slice(-4), [demos, platform]);
 
   const meta = useMemo(() => {
-    if (platform === "WHATSAPP")
-      return { dot: "rgba(170,225,255,.95)", clientName: t("home.social.clientName.whatsapp") as string };
-    if (platform === "FACEBOOK")
-      return { dot: "rgba(47,184,255,.95)", clientName: t("home.social.clientName.default") as string };
-    return { dot: "rgba(42,125,255,.95)", clientName: t("home.social.clientName.default") as string };
-  }, [platform, t]);
+    if (platform === "WHATSAPP") return { dot: "rgba(170,225,255,.95)" };
+    if (platform === "FACEBOOK") return { dot: "rgba(47,184,255,.95)" };
+    return { dot: "rgba(42,125,255,.95)" };
+  }, [platform]);
 
-  // --- typing feed (we render LiveChat, but keep typing realism)
-  const { shown, typing, typingText } = useSocialTypingFeed({
+  // typing feed -> LiveChat
+  const { shown, typing } = useSocialTypingFeed({
     script: visibleScript,
     baseSpeedMs: 920,
     active: !reducedMotion,
@@ -534,7 +434,6 @@ function SocialAutomationSection({
 
   const liveTyping = useMemo(() => {
     if (!typing) return null;
-    // LiveChat typing bubble text-i özü idarə edir, biz sadəcə kim typing edir deyirik
     return typing === "ai" ? ("agent" as const) : ("customer" as const);
   }, [typing]);
 
@@ -609,10 +508,7 @@ function SocialAutomationSection({
               }}
             >
               <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 0 }}>
-                <div
-                  className="neo-tabletCard neo-tabletCard--premium"
-                  style={{ width: "100%", height: "100%" } as React.CSSProperties}
-                >
+                <div className="neo-tabletCard neo-tabletCard--premium">
                   <div className="neo-tabletTop" aria-hidden="true">
                     <span className="neo-tabletCamPill">
                       <i className="neo-tabletCamDot" />
@@ -623,27 +519,8 @@ function SocialAutomationSection({
                   </div>
 
                   <div className="neo-tabletScreen">
-                    <div className="neo-tabletScreenInner" style={{ padding: 10 }}>
-                      <LiveChat
-                        title="LIVE / CUSTOMER CHAT"
-                        messages={
-                          // typing zamanı yazı da “real” görünsün deyə
-                          // typingText-i son bubble-a əlavə edirik (çox az yüklə)
-                          typing && typingText
-                            ? [
-                                ...liveChatMsgs,
-                                {
-                                  id: `typing-preview`,
-                                  role: typing === "ai" ? ("agent" as const) : ("customer" as const),
-                                  text: typingText,
-                                  time: "",
-                                },
-                              ].slice(-4)
-                            : liveChatMsgs
-                        }
-                        typing={reducedMotion ? null : liveTyping}
-                        visibleSlots={4}
-                      />
+                    <div className="neo-tabletScreenInner">
+                      <LiveChat title="LIVE / CUSTOMER CHAT" messages={liveChatMsgs} typing={reducedMotion ? null : liveTyping} visibleSlots={4} />
                     </div>
                   </div>
 
@@ -652,8 +529,9 @@ function SocialAutomationSection({
                     <span className="neo-tabletHome" />
                   </div>
 
-                  <div className="neo-tabletVignette" aria-hidden="true" />
-                  <div className="neo-tabletShine" aria-hidden="true" />
+                  {/* ✅ çıxartdım: bunlar çox vaxt “arxada blok” effekti yaradır */}
+                  {/* <div className="neo-tabletVignette" aria-hidden="true" /> */}
+                  {/* <div className="neo-tabletShine" aria-hidden="true" /> */}
                 </div>
               </div>
             </div>
@@ -778,6 +656,15 @@ const HOME_CSS = `
     --neo-c2: rgba(47,184,255,1);
     --neo-c3: rgba(42,125,255,1);
     background:#000 !important;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y;
+  }
+
+  /* ✅ hero bg heç nə tutmasın (scroll + click) */
+  .neo-heroMatrix,
+  .neo-heroBg,
+  .neo-heroMatrix canvas{
+    pointer-events: none !important;
   }
 
   .neo-gradient{
@@ -844,7 +731,7 @@ const HOME_CSS = `
     padding-bottom: clamp(24px, 4vh, 44px);
     position:relative;
     background:#000;
-    overflow: visible !important;
+    overflow: hidden; /* ✅ daha stabil (FPS + overlay) */
   }
   .neo-hero-inner{ position:relative; z-index:5; }
 
@@ -914,6 +801,22 @@ const HOME_CSS = `
     from{ transform: translate3d(0,0,0); }
     to{ transform: translate3d(-50%,0,0); }
   }
+
+  /* ✅ tablet içində “extra blok” olmasın: sərt clip + contain */
+  .neo-tabletCard{
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    contain: paint;
+  }
+  .neo-tabletScreenInner{
+    overflow: hidden;
+  }
+
+  /* ✅ LiveChat-in tablet içində artıq “ikinci panel” kimi görünməməsi üçün yüngül override */
+  .neo-tabletScreenInner .lcx{
+    box-shadow: none !important;
+  }
 `;
 
 /* ========================= HOME ========================= */
@@ -935,7 +838,9 @@ export default function Home() {
     return () => cancelAnimationFrame(raf);
   }, [location.key]);
 
-  usePremiumWheelScroll(false);
+  // Premium wheel scroll OFF (səndə belə istənilib)
+  // (scroll bloklanmasın deyə burada false saxlayırıq)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useRevealIO(!reduced);
 
   const [enter, setEnter] = useState(false);
@@ -949,10 +854,10 @@ export default function Home() {
     return Array.isArray(arr) ? arr : [];
   }, [t]);
 
-  // ✅ HERO: only desktop (mobil/reduced => 0)
+  // HERO intensity
   const heroIntensity = reduced || isMobile ? 0 : 1.05;
 
-  // ✅ HERO: pause when not visible
+  // HERO pause when not visible
   const heroRef = useRef<HTMLElement | null>(null);
   const [heroInView, setHeroInView] = useState(true);
 
@@ -985,7 +890,12 @@ export default function Home() {
       {/* HERO */}
       <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} paused={!heroInView} maxFps={isMobile ? 30 : 60} />
+          <HeroSystemBackground
+            className="neo-heroBg"
+            intensity={heroIntensity}
+            paused={!heroInView}
+            maxFps={isMobile ? 30 : 60}
+          />
         </div>
 
         <div className="container neo-hero-inner">
