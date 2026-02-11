@@ -3,6 +3,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import HeroSystemBackground from "../components/HeroSystemBackground";
+import LiveChat from "../components/LiveChat";
 
 /* ---------------- helpers ---------------- */
 function cx(...xs: Array<string | false | null | undefined>) {
@@ -149,72 +150,20 @@ function useRevealIO(enabled: boolean) {
   }, [enabled]);
 }
 
-/* ========================= SOCIAL DEMO ========================= */
+/* ========================= SOCIAL DEMO (typing source) ========================= */
 type SocialMsg = { from: "client" | "ai"; text: string };
 type Plat = "WHATSAPP" | "FACEBOOK" | "INSTAGRAM";
 
-const MsgBubble = memo(function MsgBubble({
-  side,
-  from,
-  who,
-  text,
-  isTyping,
-  isWA,
-  typingLabel,
-  nowLabel,
-}: {
-  side: "left" | "right";
-  from: "client" | "ai";
-  who: string;
-  text: string;
-  isTyping: boolean;
-  isWA: boolean;
-  typingLabel: string;
-  nowLabel: string;
-}) {
-  return (
-    <div className={`neo-msg-row is-${side}`}>
-      <div
-        className={[
-          "neo-social-bubble",
-          from === "ai" ? "is-ai" : "is-client",
-          isTyping ? "is-typing is-typewrite" : "",
-          isWA ? "neo-wa-bubble" : "",
-        ].join(" ")}
-      >
-        <div className="neo-social-who">{who}</div>
-        <div className="neo-social-text">
-          {text} {isTyping && <span className="neo-caret" aria-hidden="true" />}
-        </div>
-        <div className="neo-social-time">{isTyping ? typingLabel : nowLabel}</div>
-      </div>
-    </div>
-  );
-});
-
-function SocialThread({
-  platform,
-  script,
-  baseSpeedMs = 900,
-  clientName,
-  agentName,
-  active = true,
-  ariaLabel,
-  typingLabel,
-  nowLabel,
-}: {
-  platform: Plat;
+/* NOTE:
+   Biz indi SocialThread UI-ni göstərmirik.
+   Amma onun typing mexanizmini saxlayırıq ki LiveChat-i qidalandıraq.
+*/
+function useSocialTypingFeed(opts: {
   script: SocialMsg[];
   baseSpeedMs?: number;
-  clientName: string;
-  agentName: string;
-  active?: boolean;
-  ariaLabel: string;
-  typingLabel: string;
-  nowLabel: string;
+  active: boolean;
 }) {
-  const isWA = platform === "WHATSAPP";
-  const platformLower = platform.toLowerCase();
+  const { script, baseSpeedMs = 900, active } = opts;
 
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState<"client" | "ai" | null>(null);
@@ -228,14 +177,6 @@ function SocialThread({
 
   const rand = (a: number, b: number) => a + Math.random() * (b - a);
   const jitter = (ms: number, j = 240) => Math.max(200, Math.floor(ms + rand(-j, j)));
-
-  const MAX_VISIBLE = useMemo(() => (platform === "WHATSAPP" ? 4 : 5), [platform]);
-  const startIndex = Math.max(0, count - MAX_VISIBLE);
-
-  const shown = useMemo(() => {
-    const all = script.slice(0, count);
-    return all.slice(-MAX_VISIBLE);
-  }, [script, count, MAX_VISIBLE]);
 
   useEffect(() => {
     clearAll();
@@ -293,75 +234,11 @@ function SocialThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, script, baseSpeedMs, active]);
 
-  const Pill = () => {
-    const src =
-      platform === "WHATSAPP"
-        ? "/image/photo.1.webp"
-        : platform === "FACEBOOK"
-        ? "/image/photo.2.png"
-        : "/image/photo.3.png";
+  const MAX_VISIBLE = 4;
+  const shown = useMemo(() => script.slice(0, count).slice(-MAX_VISIBLE), [script, count]);
 
-    const alt =
-      platform === "WHATSAPP"
-        ? "WhatsApp Business"
-        : platform === "FACEBOOK"
-        ? "Facebook Messenger"
-        : "Instagram DM";
-
-    return (
-      <div className={`neo-pill neo-pill--logo neo-pill-${platformLower}`} aria-label={alt} title={alt}>
-        <img className="neo-pill-logo" src={src} alt={alt} />
-      </div>
-    );
-  };
-
-  return (
-    <div className={`neo-social-card is-${platformLower}`} style={{ position: "relative" }}>
-      <div className="neo-social-card-head">
-        <Pill />
-        <div className={`neo-auto neo-auto-${platformLower}`}>
-          <span className="neo-auto-dot" /> AVTOMAT
-        </div>
-      </div>
-
-      <div className="neo-social-card-body" role="log" aria-label={ariaLabel}>
-        {shown.map((m, i) => {
-          const side = m.from === "ai" ? "right" : "left";
-          const who = m.from === "client" ? clientName : agentName;
-          const idx = startIndex + i;
-          return (
-            <MsgBubble
-              key={`${platform}-${idx}`}
-              side={side}
-              from={m.from}
-              who={who}
-              text={m.text}
-              isTyping={false}
-              isWA={isWA}
-              typingLabel={typingLabel}
-              nowLabel={nowLabel}
-            />
-          );
-        })}
-
-        {typing && (
-          <MsgBubble
-            key="typing"
-            side={typing === "ai" ? "right" : "left"}
-            from={typing}
-            who={typing === "client" ? clientName : agentName}
-            text={typingText.length ? typingText : "…"}
-            isTyping={true}
-            isWA={isWA}
-            typingLabel={typingLabel}
-            nowLabel={nowLabel}
-          />
-        )}
-      </div>
-    </div>
-  );
+  return { shown, typing, typingText };
 }
-const SocialThreadMemo = memo(SocialThread);
 
 /* ========================= PIPELINE DIAGRAM ========================= */
 function PipelineDiagram({
@@ -598,7 +475,7 @@ function OpsAutomationDiagram({ reduced, t }: { reduced: boolean; t: (k: string,
 }
 const OpsAutomationDiagramMemo = memo(OpsAutomationDiagram);
 
-/* ========================= SOCIAL + PIPELINE + SMM + OPS + FINAL CTA ========================= */
+/* ========================= SOCIAL + PIPELINE + SMM + OPS ========================= */
 function SocialAutomationSection({
   reducedMotion = false,
   isMobile = false,
@@ -638,6 +515,28 @@ function SocialAutomationSection({
       return { dot: "rgba(47,184,255,.95)", clientName: t("home.social.clientName.default") as string };
     return { dot: "rgba(42,125,255,.95)", clientName: t("home.social.clientName.default") as string };
   }, [platform, t]);
+
+  // --- typing feed (we render LiveChat, but keep typing realism)
+  const { shown, typing, typingText } = useSocialTypingFeed({
+    script: visibleScript,
+    baseSpeedMs: 920,
+    active: !reducedMotion,
+  });
+
+  const liveChatMsgs = useMemo(() => {
+    return shown.map((m, idx) => ({
+      id: `${platform}-${idx}`,
+      role: m.from === "ai" ? ("agent" as const) : ("customer" as const),
+      text: m.text,
+      time: "",
+    }));
+  }, [shown, platform]);
+
+  const liveTyping = useMemo(() => {
+    if (!typing) return null;
+    // LiveChat typing bubble text-i özü idarə edir, biz sadəcə kim typing edir deyirik
+    return typing === "ai" ? ("agent" as const) : ("customer" as const);
+  }, [typing]);
 
   const BOX = isMobile ? 360 : 520;
 
@@ -699,6 +598,7 @@ function SocialAutomationSection({
               </div>
             </header>
 
+            {/* TABLET CARD */}
             <div
               style={{
                 width: "100%",
@@ -709,7 +609,10 @@ function SocialAutomationSection({
               }}
             >
               <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 0 }}>
-                <div className="neo-tabletCard neo-tabletCard--premium" style={{ width: "100%", height: "100%" } as React.CSSProperties}>
+                <div
+                  className="neo-tabletCard neo-tabletCard--premium"
+                  style={{ width: "100%", height: "100%" } as React.CSSProperties}
+                >
                   <div className="neo-tabletTop" aria-hidden="true">
                     <span className="neo-tabletCamPill">
                       <i className="neo-tabletCamDot" />
@@ -720,17 +623,26 @@ function SocialAutomationSection({
                   </div>
 
                   <div className="neo-tabletScreen">
-                    <div className="neo-tabletScreenInner">
-                      <SocialThreadMemo
-                        platform={platform}
-                        script={visibleScript}
-                        baseSpeedMs={920}
-                        clientName={meta.clientName}
-                        agentName={t("home.social.agentName")}
-                        active={!reducedMotion}
-                        ariaLabel={t("home.social.threadAria", { platform })}
-                        typingLabel={t("home.social.typing")}
-                        nowLabel={t("home.social.now")}
+                    <div className="neo-tabletScreenInner" style={{ padding: 10 }}>
+                      <LiveChat
+                        title="LIVE / CUSTOMER CHAT"
+                        messages={
+                          // typing zamanı yazı da “real” görünsün deyə
+                          // typingText-i son bubble-a əlavə edirik (çox az yüklə)
+                          typing && typingText
+                            ? [
+                                ...liveChatMsgs,
+                                {
+                                  id: `typing-preview`,
+                                  role: typing === "ai" ? ("agent" as const) : ("customer" as const),
+                                  text: typingText,
+                                  time: "",
+                                },
+                              ].slice(-4)
+                            : liveChatMsgs
+                        }
+                        typing={reducedMotion ? null : liveTyping}
+                        visibleSlots={4}
                       />
                     </div>
                   </div>
@@ -1002,8 +914,6 @@ const HOME_CSS = `
     from{ transform: translate3d(0,0,0); }
     to{ transform: translate3d(-50%,0,0); }
   }
-
-  @keyframes neoFlowDash{ to{ stroke-dashoffset:-140; } }
 `;
 
 /* ========================= HOME ========================= */
@@ -1019,15 +929,12 @@ export default function Home() {
 
   // ✅ ALWAYS start from top when entering Home
   useEffect(() => {
-    // 1 frame: layout tam otursun
     const raf = requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     });
     return () => cancelAnimationFrame(raf);
-    // location.key dəyişəndə (hər navigation) yenidən işləsin
   }, [location.key]);
 
-  // səndə false idi -> saxladım
   usePremiumWheelScroll(false);
   useRevealIO(!reduced);
 
@@ -1078,12 +985,7 @@ export default function Home() {
       {/* HERO */}
       <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground
-            className="neo-heroBg"
-            intensity={heroIntensity}
-            paused={!heroInView}
-            maxFps={isMobile ? 30 : 60}
-          />
+          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} paused={!heroInView} maxFps={isMobile ? 30 : 60} />
         </div>
 
         <div className="container neo-hero-inner">
@@ -1140,7 +1042,7 @@ export default function Home() {
 
       <div style={{ height: "clamp(22px, 3.5vh, 46px)", background: "#000" }} />
 
-      {/* flow (connectors removed) */}
+      {/* flow */}
       <div
         className="neo-flowWrap"
         style={{
