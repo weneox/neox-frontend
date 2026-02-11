@@ -278,9 +278,7 @@ html, body{
   .uc-canva{ grid-template-columns: 1fr; }
 }
 
-.uc-canvaLeft{
-  padding-top: 10px;
-}
+.uc-canvaLeft{ padding-top: 10px; }
 
 .uc-canvaTitle{
   font-size: clamp(40px, 4.4vw, 64px);
@@ -337,21 +335,15 @@ html, body{
   .uc-mediaCard{ height: clamp(420px, 62vh, 680px); }
 }
 
-.uc-mediaPh{
-  position:absolute;
-  inset:0;
-  display:grid;
-  place-items:center;
-  color: rgba(255,255,255,.55);
-  font-size: 12px;
-  letter-spacing:.18em;
-  text-transform: uppercase;
-  background:
-    radial-gradient(700px 360px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
+/* ✅ make video crisp + FPS friendly */
+.uc-mediaVideo{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateZ(0);
 }
 
-/* bottom long bar */
 .uc-canvaBar{
   grid-column: 1 / -1;
   margin-top: 16px;
@@ -420,7 +412,6 @@ html, body{
   box-shadow: 0 14px 34px rgba(0,0,0,.62);
 }
 
-/* reduce motion */
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
@@ -514,7 +505,15 @@ export const CaseRow = memo(function CaseRow({
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
         <div className="rounded-[22px] border border-white/10 bg-white/[0.04] overflow-hidden h-[420px] sm:h-[520px]">
           {videoUrl ? (
-            <video src={videoUrl} autoPlay muted loop playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <video
+              src={videoUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           ) : (
             <div className="w-full h-full grid place-items-center text-white/55 text-[12px] tracking-[.18em] uppercase">
               VISUAL PLACEHOLDER

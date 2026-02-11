@@ -17,6 +17,12 @@ import {
   useSeo,
 } from "./_ucShared";
 
+function toQAutoFauto(url: string) {
+  // if already contains q_auto,f_auto then keep
+  if (url.includes("/q_auto,f_auto/")) return url;
+  return url.replace("/upload/", "/upload/q_auto,f_auto/");
+}
+
 export default function UseCaseHealthcare() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -37,9 +43,13 @@ export default function UseCaseHealthcare() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
-  // ✅ later we will put real media
-  const LEFT_MEDIA_URL = "";  // e.g. image or video
-  const RIGHT_MEDIA_URL = ""; // e.g. image or video
+  // ✅ YOUR VIDEOS
+  const LEFT_MEDIA_URL = toQAutoFauto(
+    "https://res.cloudinary.com/dppoomunj/video/upload/v1770779385/neox/media/asset_1770779384389_adf30cfde805b.mp4"
+  );
+  const RIGHT_MEDIA_URL = toQAutoFauto(
+    "https://res.cloudinary.com/dppoomunj/video/upload/v1770779377/neox/media/asset_1770779374106_614590aaa295f.mp4"
+  );
 
   useSeo({
     title: "NEOX — Healthcare Scenario",
@@ -73,7 +83,7 @@ export default function UseCaseHealthcare() {
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="uc-canva">
-            {/* LEFT: your existing title + description (NOT "ABOUT PROJECT") */}
+            {/* LEFT: your title + description */}
             <div className="uc-canvaLeft">
               <div className="inline-flex">
                 <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Scenario" })} enter={enter} delayMs={0} />
@@ -87,7 +97,6 @@ export default function UseCaseHealthcare() {
                 {item.hekayə}
               </p>
 
-              {/* bullets = like Canva left side */}
               <div className={cx("uc-canvaList uc-reveal reveal-left")} style={{ transitionDelay: reduced ? "0ms" : "40ms" }}>
                 {item.maddeler.map((m) => (
                   <Bullet key={m} text={m} />
@@ -104,51 +113,35 @@ export default function UseCaseHealthcare() {
               </div>
             </div>
 
-            {/* RIGHT: 2 tall media blocks + bottom bar */}
+            {/* RIGHT: 2 tall video blocks + bottom bar */}
             <div className="uc-canvaMedia">
-              {/* LEFT MEDIA (drops from top) */}
+              {/* LEFT VIDEO (drops from top) */}
               <div className={cx("uc-reveal reveal-drop")} style={{ transitionDelay: reduced ? "0ms" : "120ms" }}>
                 <div className="uc-mediaCard">
-                  {LEFT_MEDIA_URL ? (
-                    LEFT_MEDIA_URL.endsWith(".mp4") ? (
-                      <video
-                        src={LEFT_MEDIA_URL}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    ) : (
-                      <img src={LEFT_MEDIA_URL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    )
-                  ) : (
-                    <div className="uc-mediaPh">MEDIA 1 (DROP)</div>
-                  )}
+                  <video
+                    className="uc-mediaVideo"
+                    src={LEFT_MEDIA_URL}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                  />
                 </div>
               </div>
 
-              {/* RIGHT MEDIA (rises from bottom) */}
+              {/* RIGHT VIDEO (rises from bottom) */}
               <div className={cx("uc-reveal reveal-rise")} style={{ transitionDelay: reduced ? "0ms" : "220ms" }}>
                 <div className="uc-mediaCard">
-                  {RIGHT_MEDIA_URL ? (
-                    RIGHT_MEDIA_URL.endsWith(".mp4") ? (
-                      <video
-                        src={RIGHT_MEDIA_URL}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    ) : (
-                      <img src={RIGHT_MEDIA_URL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    )
-                  ) : (
-                    <div className="uc-mediaPh">MEDIA 2 (RISE)</div>
-                  )}
+                  <video
+                    className="uc-mediaVideo"
+                    src={RIGHT_MEDIA_URL}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                  />
                 </div>
               </div>
 
