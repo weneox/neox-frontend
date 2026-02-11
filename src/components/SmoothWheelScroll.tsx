@@ -8,7 +8,7 @@ type Props = {
 
   // tuning
   strength?: number;     // wheel -> accel
-  friction?: number;     // inertia decay (0.86..0.93)
+  friction?: number;     // inertia decay (0.80..0.92)  (aşağı = tez dayanır)
   maxVelocity?: number;  // clamp
   softCap?: number;      // yumuşatma həddi
 };
@@ -45,21 +45,28 @@ function shouldIgnoreTarget(target: EventTarget | null, ignoreSelectors: string[
 
 function normalizeDelta(e: WheelEvent) {
   let dy = e.deltaY;
-  if (e.deltaMode === 1) dy *= 16; // lines -> px
-  else if (e.deltaMode === 2) dy *= window.innerHeight; // page -> px
+
+  // firefox / line-mode
+  if (e.deltaMode === 1) dy *= 16;
+  // page-mode
+  else if (e.deltaMode === 2) dy *= window.innerHeight;
+
+  // ultra böyük wheel-ləri (free-spin) dərhal kəs
+  dy = clamp(dy, -260, 260);
+
   return dy;
 }
 
-// velocity yumşaltma: böyük dəyərləri “kivam”a salır
+// böyük dəyərləri daha sərt yumşalt (sürət “uçmasın”)
 function soften(v: number, softCap: number) {
   const s = Math.sign(v);
   const a = Math.abs(v);
 
   if (a <= softCap) return v;
 
-  // soft knee: cap-dən sonra artım yavaşıyır (log-like)
+  // cap-dən sonra artım çox yavaşıyır
   const extra = a - softCap;
-  const damped = softCap + extra * 0.35; // 0.35 = daha ağır hiss
+  const damped = softCap + extra * 0.22; // əvvəl 0.35 idi -> daha yavaş
   return s * damped;
 }
 
@@ -69,11 +76,11 @@ export default function SmoothWheelScroll({
   locationKey,
   ignoreSelectors,
 
-  // ✅ default: “hezin-hezin”
-  strength = 0.22,     // çox aşağı
-  friction = 0.92,     // yavaş sönmə
-  maxVelocity = 85,    // çox aşağı clamp
-  softCap = 120,       // wheel böyük gəlsə yumşalt
+  // ✅ YEKUN: daha yavaş, daha kontrollu
+  strength = 0.12,    // daha az impuls
+  friction = 0.88,    // daha tez dayanır
+  maxVelocity = 45,   // maksimum sürət aşağı
+  softCap = 70,       // böyük delta yumşaldılır
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -95,6 +102,9 @@ export default function SmoothWheelScroll({
   const velocityRef = useRef(0);
   const posRef = useRef(0);
   const lastYRef = useRef(0);
+
+  // əlavə: wheel ardıcıllığı sürəti yığmasın deyə “qapı”
+  const lastWheelTsRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -123,7 +133,6 @@ export default function SmoothWheelScroll({
       lastYRef.current = y;
     };
 
-    // route dəyişəndə reset
     syncToNative();
     stop();
 
@@ -136,8 +145,8 @@ export default function SmoothWheelScroll({
       // inertia
       velocityRef.current *= friction;
 
-      // dayandırma həddi (çox yumşaq)
-      if (Math.abs(velocityRef.current) < 0.08) {
+      // dayandırma həddi
+      if (Math.abs(velocityRef.current) < 0.12) {
         stop();
         return;
       }
@@ -150,7 +159,6 @@ export default function SmoothWheelScroll({
       lastYRef.current = clamped;
       window.scrollTo(0, clamped);
 
-      // sərhəddə tam dayansın
       if (clamped <= 0 || clamped >= mx) {
         stop();
         return;
@@ -170,7 +178,7 @@ export default function SmoothWheelScroll({
       let dy = normalizeDelta(e);
 
       // xırda trackpad noise -> native
-      if (Math.abs(dy) < 2.5) return;
+      if (Math.abs(dy) < 3.5) return;
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
@@ -182,20 +190,26 @@ export default function SmoothWheelScroll({
         return;
       }
 
-      // ✅ smooth only here
       e.preventDefault();
 
       syncToNative();
 
-      // ✅ wheel impulsunu yumşalt
+      // ✅ yumşalt
       dy = soften(dy, softCap);
 
-      // accel çox az
+      // ✅ impuls daha aşağı
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
-      // ✅ toplama yox, “blend” (birdən sürətlənməsin)
-      // yeni velocity = köhnənin 70%-i + add
-      velocityRef.current = clamp(velocityRef.current * 0.70 + add, -maxVelocity, maxVelocity);
+      // ✅ ardıcıl wheel-lərdə sürət yığılmasını azalt (cooldown blend)
+      const now = performance.now();
+      const dt = now - (lastWheelTsRef.current || 0);
+      lastWheelTsRef.current = now;
+
+      // dt kiçikdirsə (ard-arda), köhnə sürəti daha çox “kəs”
+      // 0ms..80ms => 0.45; 200ms+ => 0.70
+      const blend = dt < 80 ? 0.45 : dt < 140 ? 0.55 : 0.70;
+
+      velocityRef.current = clamp(velocityRef.current * blend + add, -maxVelocity, maxVelocity);
 
       if (!rafRef.current) rafRef.current = requestAnimationFrame(step);
     };
