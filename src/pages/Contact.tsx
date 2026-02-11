@@ -104,36 +104,21 @@ function useSeo(opts: { title: string; description: string; canonicalPath: strin
   }, [opts.title, opts.description, opts.canonicalPath, opts.ogImage]);
 }
 
-/* ================= Styles (FIX container + scrollbar + symmetry) ================= */
+/* ================= Styles (Contact isolated; no global html/body overrides) ================= */
 const CONTACT_CSS = `
-  /* ✅ GLOBAL FIX: sağ boş zolaq / 100vw daşması */
-  html, body {
-    background:#000 !important;
-    margin:0;
-    padding:0;
-    width:100%;
-    max-width:100%;
-    overflow-x: clip;
-  }
-  @supports not (overflow-x: clip){
-    html, body { overflow-x: hidden; }
-  }
-
-  /* ✅ scrollbar “gutter” stabil olsun (layout shift olmasın) */
-  html { scrollbar-gutter: stable; }
-
+  /* Page wrapper only — izolasiya */
   .ct-page{
-    background:#000 !important;
+    background:#000;
     color: rgba(255,255,255,.92);
     min-height: 100vh;
     width: 100%;
-    max-width: 100%;
-    overflow-x: clip;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  .ct-page *{ box-sizing: border-box; }
 
-  /* container: həmişə simmetrik */
+  /* container: simmetrik */
   .ct-container{
     width: 100%;
     max-width: 1200px;
@@ -314,6 +299,13 @@ const CONTACT_CSS = `
     padding: 10px 12px;
   }
   .ct-btn:active{ transform: translate3d(0,-1px,0); }
+
+  /* Disabled: hover/active öldür */
+  .ct-btn:disabled{
+    pointer-events:none;
+    transform:none;
+    box-shadow:none;
+  }
 
   .ct-input{
     width:100%;
@@ -551,6 +543,7 @@ export default function Contact() {
     e.preventDefault();
     setErrorMessage("");
 
+    // honeypot
     if (formData.website) {
       setStatus("success");
       setFormData({ name: "", email: "", company: "", phone: "", message: "", website: "" });
@@ -661,7 +654,12 @@ export default function Contact() {
                   {t("contact.hero.cta_whatsapp")}
                 </a>
 
-                <button type="button" onClick={copyEmail} className="ct-btn" aria-label={t("contact.hero.cta_email_aria")}>
+                <button
+                  type="button"
+                  onClick={copyEmail}
+                  className="ct-btn"
+                  aria-label={t("contact.hero.cta_email_aria")}
+                >
                   <Mail className="h-5 w-5 opacity-80" />
                   {copiedEmail ? t("contact.common.copied") : email}
                 </button>
@@ -674,15 +672,19 @@ export default function Contact() {
         <div className="ct-spacer" />
       </section>
 
-      {/* ================= CONTENT (✅ symmetry fix: NO sticky) ================= */}
+      {/* ================= CONTENT ================= */}
       <section className="pb-16" aria-label={t("contact.aria.content")}>
         <div className="ct-container">
           <div className="grid md:grid-cols-2 gap-6 lg:gap-10 items-stretch">
             {/* LEFT */}
             <div className="ct-panel p-6 sm:p-8 ct-reveal self-stretch">
               <div className="relative z-[1] h-full flex flex-col">
-                <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.left.title")}</h2>
-                <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.left.subtitle")}</p>
+                <h2 className="text-[22px] sm:text-[26px] font-semibold text-white">
+                  {t("contact.left.title")}
+                </h2>
+                <p className="mt-2 text-white/70 leading-[1.7] break-words">
+                  {t("contact.left.subtitle")}
+                </p>
 
                 <div className="mt-6 space-y-4">
                   {/* Email */}
@@ -692,15 +694,26 @@ export default function Contact() {
                         <Mail className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.email.title")}</div>
+                        <div className="text-white font-semibold">
+                          {t("contact.left.channels.email.title")}
+                        </div>
                         <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
                           <div className="text-white/75 text-sm ct-mobileBreak">{email}</div>
-                          <button type="button" onClick={copyEmail} className="ct-btn ct-btn--square" aria-label={t("contact.left.channels.email.copy_aria")}>
+                          <button
+                            type="button"
+                            onClick={copyEmail}
+                            className="ct-btn ct-btn--square"
+                            aria-label={t("contact.left.channels.email.copy_aria")}
+                          >
                             <Copy className="h-4 w-4" />
-                            <span className="text-xs">{copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                            <span className="text-xs">
+                              {copiedEmail ? t("contact.common.copied") : t("contact.common.copy")}
+                            </span>
                           </button>
                         </div>
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.email.note")}</div>
+                        <div className="text-white/45 text-xs mt-1">
+                          {t("contact.left.channels.email.note")}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -712,15 +725,26 @@ export default function Contact() {
                         <Phone className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.phone.title")}</div>
+                        <div className="text-white font-semibold">
+                          {t("contact.left.channels.phone.title")}
+                        </div>
                         <div className={cx("mt-2 flex items-center justify-between gap-3", "ct-mobileStack")}>
                           <div className="text-white/75 text-sm ct-mobileBreak">{phone}</div>
-                          <button type="button" onClick={copyPhone} className="ct-btn ct-btn--square" aria-label={t("contact.left.channels.phone.copy_aria")}>
+                          <button
+                            type="button"
+                            onClick={copyPhone}
+                            className="ct-btn ct-btn--square"
+                            aria-label={t("contact.left.channels.phone.copy_aria")}
+                          >
                             <Copy className="h-4 w-4" />
-                            <span className="text-xs">{copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}</span>
+                            <span className="text-xs">
+                              {copiedPhone ? t("contact.common.copied") : t("contact.common.copy")}
+                            </span>
                           </button>
                         </div>
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.phone.note")}</div>
+                        <div className="text-white/45 text-xs mt-1">
+                          {t("contact.left.channels.phone.note")}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -732,9 +756,15 @@ export default function Contact() {
                         <MapPin className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold">{t("contact.left.channels.location.title")}</div>
-                        <div className="mt-2 text-white/75 text-sm break-words">{t("contact.left.channels.location.value")}</div>
-                        <div className="text-white/45 text-xs mt-1">{t("contact.left.channels.location.note")}</div>
+                        <div className="text-white font-semibold">
+                          {t("contact.left.channels.location.title")}
+                        </div>
+                        <div className="mt-2 text-white/75 text-sm break-words">
+                          {t("contact.left.channels.location.value")}
+                        </div>
+                        <div className="text-white/45 text-xs mt-1">
+                          {t("contact.left.channels.location.note")}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -744,7 +774,8 @@ export default function Contact() {
                 <div
                   className="mt-6 ct-row p-5"
                   style={{
-                    background: "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
+                    background:
+                      "linear-gradient(135deg, rgba(47,184,255,.10), rgba(42,125,255,.06), rgba(255,255,255,.02))",
                   }}
                 >
                   <div className="text-white font-semibold">{t("contact.left.expect.title")}</div>
@@ -773,11 +804,17 @@ export default function Contact() {
               <div className="relative z-[1] h-full flex flex-col">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">{t("contact.form.title")}</h3>
-                    <p className="mt-2 text-white/70 leading-[1.7] break-words">{t("contact.form.subtitle")}</p>
+                    <h3 className="text-[22px] sm:text-[26px] font-semibold text-white">
+                      {t("contact.form.title")}
+                    </h3>
+                    <p className="mt-2 text-white/70 leading-[1.7] break-words">
+                      {t("contact.form.subtitle")}
+                    </p>
                   </div>
                   <div className="hidden sm:block text-right flex-shrink-0">
-                    <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">{t("contact.form.badge.label")}</div>
+                    <div className="text-[12px] tracking-[0.14em] uppercase text-white/55">
+                      {t("contact.form.badge.label")}
+                    </div>
                     <div className="text-white font-semibold">{t("contact.form.badge.value")}</div>
                   </div>
                 </div>
@@ -788,16 +825,24 @@ export default function Contact() {
                       <>
                         <CheckCircle className="h-5 w-5 text-emerald-300 mt-[2px]" />
                         <div className="min-w-0">
-                          <div className="text-emerald-200 font-semibold">{t("contact.form.status.success_title")}</div>
-                          <div className="text-emerald-200/80 text-sm">{t("contact.form.status.success_desc")}</div>
+                          <div className="text-emerald-200 font-semibold">
+                            {t("contact.form.status.success_title")}
+                          </div>
+                          <div className="text-emerald-200/80 text-sm">
+                            {t("contact.form.status.success_desc")}
+                          </div>
                         </div>
                       </>
                     ) : status === "error" ? (
                       <>
                         <AlertTriangle className="h-5 w-5 text-red-300 mt-[2px]" />
                         <div className="min-w-0">
-                          <div className="text-red-200 font-semibold">{t("contact.form.status.error_title")}</div>
-                          <div className="text-red-200/85 text-sm">{errorMessage || t("contact.form.errors.send_failed")}</div>
+                          <div className="text-red-200 font-semibold">
+                            {t("contact.form.status.error_title")}
+                          </div>
+                          <div className="text-red-200/85 text-sm">
+                            {errorMessage || t("contact.form.errors.send_failed")}
+                          </div>
                         </div>
                       </>
                     ) : (
@@ -807,8 +852,10 @@ export default function Contact() {
                           style={{
                             background:
                               "conic-gradient(from 90deg, rgba(47,184,255,.85), rgba(42,125,255,.75), rgba(170,225,255,.80), rgba(47,184,255,.85))",
-                            maskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
-                            WebkitMaskImage: "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                            maskImage:
+                              "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
+                            WebkitMaskImage:
+                              "radial-gradient(circle at 50% 50%, transparent 58%, black 60%)",
                           }}
                         />
                         <div className="min-w-0">
@@ -821,11 +868,20 @@ export default function Contact() {
                 )}
 
                 <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                  <input tabIndex={-1} autoComplete="off" name="website" value={formData.website} onChange={handleChange} className="hidden" />
+                  <input
+                    tabIndex={-1}
+                    autoComplete="off"
+                    name="website"
+                    value={formData.website}
+                    onChange={handleChange}
+                    className="hidden"
+                  />
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.name.label")}</label>
+                      <label className="block text-sm text-white/70 mb-2">
+                        {t("contact.form.fields.name.label")}
+                      </label>
                       <input
                         name="name"
                         value={formData.name}
@@ -834,11 +890,15 @@ export default function Contact() {
                         className={cx("ct-input", touched.name && !nameOk && "ct-input--bad")}
                         placeholder={t("contact.form.fields.name.placeholder")}
                       />
-                      {touched.name && !nameOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>}
+                      {touched.name && !nameOk && (
+                        <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.name_short")}</div>
+                      )}
                     </div>
 
                     <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.email.label")}</label>
+                      <label className="block text-sm text-white/70 mb-2">
+                        {t("contact.form.fields.email.label")}
+                      </label>
                       <input
                         type="email"
                         name="email"
@@ -848,24 +908,44 @@ export default function Contact() {
                         className={cx("ct-input", touched.email && !emailOk && "ct-input--bad")}
                         placeholder={t("contact.form.fields.email.placeholder")}
                       />
-                      {touched.email && !emailOk && <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>}
+                      {touched.email && !emailOk && (
+                        <div className="mt-1 text-xs text-red-200/90">{t("contact.form.errors.email_bad")}</div>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.company.label")}</label>
-                      <input name="company" value={formData.company} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.company.placeholder")} />
+                      <label className="block text-sm text-white/70 mb-2">
+                        {t("contact.form.fields.company.label")}
+                      </label>
+                      <input
+                        name="company"
+                        value={formData.company}
+                        onChange={handleChange}
+                        className="ct-input"
+                        placeholder={t("contact.form.fields.company.placeholder")}
+                      />
                     </div>
                     <div className="min-w-0">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.phone.label")}</label>
-                      <input name="phone" value={formData.phone} onChange={handleChange} className="ct-input" placeholder={t("contact.form.fields.phone.placeholder")} />
+                      <label className="block text-sm text-white/70 mb-2">
+                        {t("contact.form.fields.phone.label")}
+                      </label>
+                      <input
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="ct-input"
+                        placeholder={t("contact.form.fields.phone.placeholder")}
+                      />
                     </div>
                   </div>
 
                   <div className="min-w-0">
                     <div className="flex items-end justify-between gap-3">
-                      <label className="block text-sm text-white/70 mb-2">{t("contact.form.fields.message.label")}</label>
+                      <label className="block text-sm text-white/70 mb-2">
+                        {t("contact.form.fields.message.label")}
+                      </label>
                       <div className="text-xs text-white/45 mb-2">{msgLen}/500</div>
                     </div>
 
@@ -922,8 +1002,12 @@ export default function Contact() {
         <div className="ct-container">
           <div className="ct-panel p-8 sm:p-10 text-center ct-reveal">
             <div className="relative z-[1]">
-              <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">{t("contact.final.title")}</h2>
-              <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">{t("contact.final.subtitle")}</p>
+              <h2 className="text-[22px] sm:text-[28px] font-semibold text-white break-words">
+                {t("contact.final.title")}
+              </h2>
+              <p className="mt-3 text-white/70 max-w-[760px] mx-auto leading-[1.7] break-words">
+                {t("contact.final.subtitle")}
+              </p>
 
               <a
                 href={WHATSAPP_LINK}
