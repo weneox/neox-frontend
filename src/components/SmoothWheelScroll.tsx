@@ -6,15 +6,16 @@ type Props = {
   locationKey?: string;
   ignoreSelectors?: string[];
 
-  // tuning
-  strength?: number;       // wheel -> accel
-  friction?: number;       // inertia decay (0.86..0.92)  (yuxarı = daha çox sürüşmə)
-  maxVelocity?: number;    // clamp
-  softCap?: number;        // yumuşatma həddi
+  strength?: number;
+  friction?: number;
+  maxVelocity?: number;
+  softCap?: number;
 
-  // ✅ “1 scroll = azca sürüşüb dayansın” üçün limitlər
-  maxTravelPerWheel?: number; // px — bir wheel jestində maksimum neçə px "sürüşə" bilər
-  idleBrakeMs?: number;       // ms — wheel gəlməsə əlavə əyləc başlasın
+  maxTravelPerWheel?: number;
+  idleBrakeMs?: number;
+
+  // ✅ travel bitəndə “sürüşərək dayanma”
+  stopEaseMs?: number; // 120..220
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -49,25 +50,24 @@ function shouldIgnoreTarget(target: EventTarget | null, ignoreSelectors: string[
 
 function normalizeDelta(e: WheelEvent) {
   let dy = e.deltaY;
-
   if (e.deltaMode === 1) dy *= 16;
   else if (e.deltaMode === 2) dy *= window.innerHeight;
-
-  // free-spin wheel spike-ləri kəs
   dy = clamp(dy, -240, 240);
   return dy;
 }
 
-// böyük dəyərləri yumşalt (uçmasın)
 function soften(v: number, softCap: number) {
   const s = Math.sign(v);
   const a = Math.abs(v);
   if (a <= softCap) return v;
-
   const extra = a - softCap;
-  // cap-dən sonra artım yavaşıyır
   const damped = softCap + extra * 0.22;
   return s * damped;
+}
+
+// 0..1 -> easeOutCubic
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 export default function SmoothWheelScroll({
@@ -76,15 +76,18 @@ export default function SmoothWheelScroll({
   locationKey,
   ignoreSelectors,
 
-  // ✅ sürət: səndə “ela” olan kimi — yavaş, kontrollu
+  // ✅ sürət yavaşdır
   strength = 0.12,
   friction = 0.90,
   maxVelocity = 42,
   softCap = 70,
 
-  // ✅ 1 scroll jestində maksimum məsafə (buz kimi azca sürüşüb dayansın)
-  maxTravelPerWheel = 420, // px (istəsən 320/500 eləyə bilərsən)
+  // ✅ 1 scrollda limit
+  maxTravelPerWheel = 420,
   idleBrakeMs = 110,
+
+  // ✅ “sürüşərək dayan”
+  stopEaseMs = 170,
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -107,9 +110,15 @@ export default function SmoothWheelScroll({
   const posRef = useRef(0);
   const lastYRef = useRef(0);
 
-  // ✅ “1 wheel jestinin” qalan məsafə büdcəsi
   const travelLeftRef = useRef(0);
   const lastWheelTsRef = useRef(0);
+
+  // ✅ slip-stop state
+  const easingStopRef = useRef<{
+    active: boolean;
+    t0: number;
+    v0: number;
+  }>({ active: false, t0: 0, v0: 0 });
 
   useEffect(() => {
     if (!enabled) return;
@@ -126,10 +135,18 @@ export default function SmoothWheelScroll({
     const docEl = document.documentElement;
     const maxScroll = () => Math.max(0, docEl.scrollHeight - window.innerHeight);
 
-    const stop = () => {
+    const stopHard = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       velocityRef.current = 0;
+      travelLeftRef.current = 0;
+      easingStopRef.current.active = false;
+    };
+
+    const startSlipStop = () => {
+      const now = performance.now();
+      easingStopRef.current = { active: true, t0: now, v0: velocityRef.current };
+      // travelLeftRef bitdi deyə artıq “yeni” məsafə vermirik
       travelLeftRef.current = 0;
     };
 
@@ -140,7 +157,7 @@ export default function SmoothWheelScroll({
     };
 
     syncToNative();
-    stop();
+    stopHard();
 
     const step = () => {
       const nativeY = window.scrollY || 0;
@@ -148,26 +165,38 @@ export default function SmoothWheelScroll({
         posRef.current = nativeY;
       }
 
-      // ✅ idle əyləc: wheel gəlmirsə daha tez dayansın
       const now = performance.now();
-      const idleFor = now - (lastWheelTsRef.current || 0);
-      const extraBrake = idleFor > idleBrakeMs ? 0.86 : 1; // idle olanda əlavə friction
-      velocityRef.current *= friction * extraBrake;
 
-      // ✅ travel budget: qalan məsafə bitdisə STOP (səndəki “dayanmır” burda qırılır)
-      const vAbs = Math.abs(velocityRef.current);
-      if (vAbs > 0) {
-        travelLeftRef.current = Math.max(0, travelLeftRef.current - vAbs);
-        if (travelLeftRef.current <= 0) {
-          stop();
+      // ✅ Slip-stop aktivdirsə: velocity-ni 0-a ease-out ilə gətir
+      if (easingStopRef.current.active) {
+        const t = clamp((now - easingStopRef.current.t0) / stopEaseMs, 0, 1);
+        const k = 1 - easeOutCubic(t); // 1->0
+        velocityRef.current = easingStopRef.current.v0 * k;
+
+        if (t >= 1 || Math.abs(velocityRef.current) < 0.10) {
+          stopHard();
           return;
         }
-      }
+      } else {
+        // normal inertia
+        const idleFor = now - (lastWheelTsRef.current || 0);
+        const extraBrake = idleFor > idleBrakeMs ? 0.86 : 1;
+        velocityRef.current *= friction * extraBrake;
 
-      // dayandırma həddi
-      if (Math.abs(velocityRef.current) < 0.10) {
-        stop();
-        return;
+        // travel budget azalması
+        const vAbs = Math.abs(velocityRef.current);
+        if (vAbs > 0) {
+          travelLeftRef.current = Math.max(0, travelLeftRef.current - vAbs);
+          if (travelLeftRef.current <= 0 && Math.abs(velocityRef.current) > 0.25) {
+            // ✅ HARD STOP YOX — slip-stop başlat
+            startSlipStop();
+          }
+        }
+
+        if (Math.abs(velocityRef.current) < 0.10) {
+          stopHard();
+          return;
+        }
       }
 
       const next = posRef.current + velocityRef.current;
@@ -179,7 +208,7 @@ export default function SmoothWheelScroll({
       window.scrollTo(0, clamped);
 
       if (clamped <= 0 || clamped >= mx) {
-        stop();
+        stopHard();
         return;
       }
 
@@ -196,21 +225,22 @@ export default function SmoothWheelScroll({
 
       let dy = normalizeDelta(e);
 
-      // xırda trackpad noise -> native
       if (Math.abs(dy) < 3.5) return;
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
 
-      // top/bottom-da native
       if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
-        stop();
+        stopHard();
         syncToNative();
         return;
       }
 
       e.preventDefault();
       syncToNative();
+
+      // yeni wheel gəlirsə slip-stop-u ləğv et (yeni jest başladı)
+      easingStopRef.current.active = false;
 
       dy = soften(dy, softCap);
 
@@ -220,15 +250,12 @@ export default function SmoothWheelScroll({
       const dt = now - (lastWheelTsRef.current || 0);
       lastWheelTsRef.current = now;
 
-      // ✅ əsas fix: velocity yığılmasın
-      // dt kiçikdirsə (ard-arda wheel), köhnə sürəti çox saxlamırıq
+      // velocity yığılmasın
       const carry = dt < 90 ? 0.25 : dt < 160 ? 0.35 : 0.45;
-
       velocityRef.current = clamp(velocityRef.current * carry + add, -maxVelocity, maxVelocity);
 
-      // ✅ hər wheel jestinə maksimum “sürüşmə məsafəsi” əlavə et
-      // ard-arda wheel vursan, bu budget yığılır, amma limitlidir
-      const budgetAdd = clamp(Math.abs(dy) * 1.6, 140, 520); // dy böyükdürsə bir az çox, amma nəzarətli
+      // travel budget: limitli, amma 1 scrollda “azca sürüşmə” üçün kifayət
+      const budgetAdd = clamp(Math.abs(dy) * 1.6, 140, 520);
       travelLeftRef.current = clamp(travelLeftRef.current + budgetAdd, 0, maxTravelPerWheel);
 
       if (!rafRef.current) rafRef.current = requestAnimationFrame(step);
@@ -239,14 +266,14 @@ export default function SmoothWheelScroll({
     const onResize = () => {
       syncToNative();
       const y = window.scrollY || 0;
-      if (y <= 0 || y >= maxScroll()) stop();
+      if (y <= 0 || y >= maxScroll()) stopHard();
     };
     window.addEventListener("resize", onResize);
 
     return () => {
       window.removeEventListener("wheel", onWheel as any);
       window.removeEventListener("resize", onResize);
-      stop();
+      stopHard();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -258,6 +285,7 @@ export default function SmoothWheelScroll({
     softCap,
     maxTravelPerWheel,
     idleBrakeMs,
+    stopEaseMs,
     locationKey,
     JSON.stringify(ignores),
   ]);
