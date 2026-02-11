@@ -1,9 +1,8 @@
 // src/pages/usecases/_ucShared.tsx
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
 
-/* ---------------- helpers ---------------- */
 export function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
@@ -21,7 +20,6 @@ export function withLang(path: string, lang: Lang) {
   return `/${lang}${p}`;
 }
 
-/* ---------------- motion prefs ---------------- */
 export function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -52,7 +50,7 @@ export function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Reveal: scoped + batched (FPS safe) ---------------- */
+/* Reveal: scoped + batched (FPS safe) */
 export function useRevealScopedBatched(
   rootRef: React.RefObject<HTMLElement>,
   opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
@@ -122,7 +120,7 @@ export function useRevealScopedBatched(
   }, [rootRef, rootMargin, batchSize, batchDelayMs]);
 }
 
-/* ---------------- SEO ---------------- */
+/* SEO */
 export function useSeo(opts: { title: string; description: string; canonicalPath: string; ogImage?: string }) {
   useEffect(() => {
     const prevTitle = document.title;
@@ -205,7 +203,6 @@ export type CaseItem = {
   tint: Tint;
 };
 
-/* ---------------- STYLES (includes Canva-like About block) ---------------- */
 export const UC_STYLES = `
 html, body{
   background:#000 !important;
@@ -233,16 +230,8 @@ html, body{
 }
 .uc-page *{ min-width:0; max-width:100%; }
 
-.uc-stack{ position: relative; isolation: isolate; overflow: clip; }
-
 .uc-page .uc-grad{
-  background: linear-gradient(
-    90deg,
-    #ffffff 0%,
-    rgba(170,225,255,.96) 34%,
-    rgba(47,184,255,.95) 68%,
-    rgba(42,125,255,.95) 100%
-  );
+  background: linear-gradient(90deg,#fff 0%, rgba(170,225,255,.96) 34%, rgba(47,184,255,.95) 68%, rgba(42,125,255,.95) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -261,58 +250,119 @@ html, body{
 }
 .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-/* hover pop (desktop only basically) */
-.uc-pop{
-  position: relative;
-  z-index: 1;
-  transform: translate3d(0,0,0) scale(1);
-  transition: transform .20s ease, border-color .20s ease, box-shadow .20s ease;
-  will-change: transform;
+/* Reveal (FPS safe): transform+opacity only */
+.uc-reveal{ opacity: 1; transform: none; }
+.uc-page.uc-io .uc-reveal{
+  opacity: 0;
+  transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
+  transition: opacity .50s ease, transform .50s ease;
+  will-change: transform, opacity;
 }
-.uc-pop:hover, .uc-pop:focus-within{
-  z-index: 60;
-  transform: translate3d(0,-10px,0) scale(1.03);
+.uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
+.reveal-left{ --rx: -18px; --ry: 0px; }
+.reveal-right{ --rx: 18px; --ry: 0px; }
+.reveal-bottom{ --rx: 0px; --ry: 14px; }
+
+/* ✅ drop/rise for media */
+.reveal-drop{ --rx: 0px; --ry: -26px; }
+.reveal-rise{ --rx: 0px; --ry: 26px; }
+
+/* ===== Canva-like HERO GRID (left text + right tall media) ===== */
+.uc-canva{
+  display:grid;
+  grid-template-columns: minmax(320px, 520px) 1fr;
+  gap: 26px;
+  align-items: start;
+}
+@media (max-width: 980px){
+  .uc-canva{ grid-template-columns: 1fr; }
 }
 
-.uc-hero{ position: relative; padding: 22px 0 0; overflow: hidden; }
-.uc-heroInner{
-  min-height: clamp(520px, 78vh, 860px);
+.uc-canvaLeft{
+  padding-top: 10px;
+}
+
+.uc-canvaTitle{
+  font-size: clamp(40px, 4.4vw, 64px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.uc-canvaSub{
+  margin-top: 14px;
+  color: rgba(255,255,255,.70);
+  font-size: 16px;
+  line-height: 1.7;
+  max-width: 46ch;
+}
+
+.uc-canvaList{
+  margin-top: 18px;
   display: grid;
-  place-items: center;
-  padding: 64px 0 26px;
+  gap: 12px;
+  max-width: 52ch;
+}
+
+.uc-canvaCtas{
+  margin-top: 22px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.uc-canvaMedia{
+  position: relative;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 980px){
+  .uc-canvaMedia{ grid-template-columns: 1fr; }
+}
+
+/* tall cards like Canva */
+.uc-mediaCard{
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  overflow: hidden;
+  height: clamp(360px, 55vh, 620px);
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
 @media (max-width: 560px){
-  .uc-heroInner{ min-height:auto; padding-top: 84px; padding-bottom: 18px; }
+  .uc-mediaCard{ height: clamp(420px, 62vh, 680px); }
 }
 
-.uc-heroBG{ pointer-events:none; position:absolute; inset:0; opacity: 1; }
-.uc-heroBG::before{
-  content:"";
-  position:absolute;
-  inset:-10% -10%;
-  background:
-    radial-gradient(900px 520px at 50% 10%, rgba(47,184,255,.09), transparent 62%),
-    radial-gradient(980px 560px at 20% 0%, rgba(42,125,255,.06), transparent 70%),
-    radial-gradient(980px 560px at 80% 0%, rgba(170,225,255,.05), transparent 70%);
-  opacity: .92;
-}
-.uc-heroBG::after{
-  content:"";
+.uc-mediaPh{
   position:absolute;
   inset:0;
-  background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.20), rgba(0,0,0,.92));
+  display:grid;
+  place-items:center;
+  color: rgba(255,255,255,.55);
+  font-size: 12px;
+  letter-spacing:.18em;
+  text-transform: uppercase;
+  background:
+    radial-gradient(700px 360px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
 }
 
-.uc-divider{
-  height: 1px;
-  width: 100%;
-  max-width: 920px;
-  margin: 42px auto 0;
-  background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
-  opacity: .95;
+/* bottom long bar */
+.uc-canvaBar{
+  grid-column: 1 / -1;
+  margin-top: 16px;
+  height: 92px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(42,125,255,.64), rgba(42,125,255,.30));
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
 }
-.uc-spacer{ height: 34px; }
 
+/* breadcrumb */
 .uc-crumb{
   display:inline-flex;
   align-items:center;
@@ -338,6 +388,7 @@ html, body{
   white-space: nowrap;
 }
 
+/* buttons */
 .uc-btn{
   display:inline-flex; align-items:center; justify-content:center; gap:10px;
   padding:12px 18px;
@@ -359,8 +410,6 @@ html, body{
   border-color: rgba(47,184,255,.46);
   box-shadow: 0 14px 34px rgba(0,0,0,.62), 0 0 22px rgba(47,184,255,.12);
 }
-.uc-btn:active{ transform: translate3d(0,-1px,0); }
-
 .uc-btnGhost{
   border-color: rgba(255,255,255,.14);
   background: rgba(255,255,255,.03);
@@ -371,149 +420,13 @@ html, body{
   box-shadow: 0 14px 34px rgba(0,0,0,.62);
 }
 
-.uc-ic{
-  width: 40px; height: 40px; border-radius: 14px;
-  display: grid; place-items: center;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
-  box-shadow: 0 12px 36px rgba(0,0,0,.45);
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
-}
-
-/* Reveal: transform+opacity only */
-.uc-reveal{ opacity: 1; transform: none; }
-.uc-page.uc-io .uc-reveal{
-  opacity: 0;
-  transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-  transition: opacity .45s ease, transform .45s ease;
-  will-change: transform, opacity;
-}
-.uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
-.reveal-left{ --rx: -18px; --ry: 0px; }
-.reveal-right{ --rx: 18px; --ry: 0px; }
-.reveal-bottom{ --rx: 0px; --ry: 14px; }
-
-/* ===== Canva-like About block (NEW) ===== */
-.uc-aboutGrid{
-  display:grid;
-  grid-template-columns: 1.05fr .95fr;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 960px){
-  .uc-aboutGrid{ grid-template-columns: 1fr; }
-}
-
-.uc-aboutText{
-  border: 1px solid rgba(255,255,255,.10);
-  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
-  border-radius: 22px;
-  padding: 22px;
-}
-
-.uc-aboutTitle{
-  font-size: 34px;
-  line-height: 1.05;
-  font-weight: 800;
-  letter-spacing: .02em;
-}
-
-.uc-aboutList{
-  margin-top: 16px;
-  display:grid;
-  gap: 12px;
-}
-
-.uc-imgWrap{
-  position: relative;
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  align-items: start;
-}
-@media (max-width: 960px){
-  .uc-imgWrap{ grid-template-columns: 1fr; }
-}
-
-.uc-imgCard{
-  position: relative;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.04);
-  overflow: hidden;
-  min-height: 300px;
-  transform: translateZ(0);
-  will-change: transform, opacity;
-}
-
-.uc-imgPh{
-  position:absolute;
-  inset:0;
-  display:grid;
-  place-items:center;
-  color: rgba(255,255,255,.55);
-  font-size: 12px;
-  letter-spacing:.18em;
-  text-transform: uppercase;
-  background:
-    radial-gradient(600px 300px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
-}
-
-.reveal-drop{ --rx: 0px; --ry: -22px; } /* soldakı yuxarıdan düşür */
-.reveal-rise{ --rx: 0px; --ry: 22px; }  /* sağdakı aşağıdan qalxır */
-
-.uc-bar{
-  margin-top: 14px;
-  height: 78px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: linear-gradient(180deg, rgba(42,125,255,.60), rgba(42,125,255,.32));
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-}
-
-/* cards (CaseRow uses these) */
-.uc-card{
-  position: relative;
-  border: 1px solid rgba(255,255,255,.10);
-  background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.016));
-  box-shadow: 0 16px 56px rgba(0,0,0,.60);
-  border-radius: 22px;
-  overflow: hidden;
-  padding: 18px;
-}
-.uc-line{
-  height: 1px;
-  background: linear-gradient(90deg, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18));
-  opacity: .95;
-}
-.uc-tile{
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.02);
-  box-shadow: 0 12px 36px rgba(0,0,0,.45);
-  padding: 12px 12px;
-}
-.uc-tileK{
-  font-weight: 900;
-  font-size: 22px;
-  line-height: 1;
-  background: linear-gradient(90deg, #fff 0%, rgba(47,184,255,.98) 60%, rgba(42,125,255,.95) 100%);
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-}
-.uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
-
+/* reduce motion */
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
-  .uc-pop{ transition:none !important; transform:none !important; }
-  .uc-btn{ transition:none !important; }
 }
 `;
 
-/* ---------------- UI parts ---------------- */
 export const BreadcrumbPill = memo(function BreadcrumbPill({
   text,
   enter,
@@ -540,17 +453,7 @@ export const Bullet = memo(function Bullet({ text }: { text: string }) {
   );
 });
 
-export const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
-  return (
-    <div className="uc-tile uc-pop uc-contain">
-      <div className="uc-tileK">{k}</div>
-      <div className="uc-tileV mt-1">{v}</div>
-      <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
-    </div>
-  );
-});
-
-/* ---------------- CaseRow (export needed for Cloudflare build) ---------------- */
+/* ✅ keep CaseRow exported so Cloudflare build does not fail */
 export const CaseRow = memo(function CaseRow({
   c,
   flip,
@@ -573,44 +476,31 @@ export const CaseRow = memo(function CaseRow({
   const Icon = c.icon;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-center uc-stack" data-tint={c.tint}>
-      {/* TEXT */}
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-center" data-tint={c.tint}>
       <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-          <header className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="uc-ic" aria-hidden="true">
-                <Icon className="h-5 w-5 text-white/85" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
-                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
-              </div>
+        <div className="p-5 rounded-[22px] border border-white/10 bg-white/[0.03]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[14px] border border-white/10 bg-white/[0.04] grid place-items-center">
+              <Icon className="w-5 h-5 text-white/85" />
             </div>
+            <div className="min-w-0">
+              <div className="text-white font-semibold">{c.sektor}</div>
+              <div className="text-white/55 text-[13px]">{tRealScenario}</div>
+            </div>
+          </div>
 
-            <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] tracking-[.08em] uppercase text-white/80">
-              Case
-            </span>
-          </header>
+          <div className="h-px my-4 bg-white/10" />
 
-          <div className="mt-4 uc-line" />
+          <div className="text-white text-[20px] sm:text-[22px] font-semibold">{c.basliq}</div>
+          <div className="mt-2 text-white/70 leading-[1.7]">{c.hekayə}</div>
 
-          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
-          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
-
-          <div className="mt-5 space-y-3">
-            {c.maddeler.map((b) => (
-              <Bullet key={b} text={b} />
+          <div className="mt-4 grid gap-3">
+            {c.maddeler.map((m) => (
+              <Bullet key={m} text={m} />
             ))}
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            {c.neticeler.map((r) => (
-              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
-            ))}
-          </div>
-
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-10">
             <a href={toContact} className="uc-btn">
               {ctaPrimary} <span aria-hidden="true">→</span>
             </a>
@@ -618,32 +508,19 @@ export const CaseRow = memo(function CaseRow({
               {ctaSecondary}
             </a>
           </div>
-        </article>
+        </div>
       </div>
 
-      {/* VISUAL (video placeholder or video) */}
       <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        {videoUrl ? (
-          <div
-            className="uc-card uc-pop uc-contain"
-            style={{ padding: 0, overflow: "hidden", minHeight: 340, display: "grid" }}
-            aria-label="Scenario video"
-          >
-            <video
-              src={videoUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          </div>
-        ) : (
-          <div className="uc-card uc-pop uc-contain" style={{ minHeight: 340, display: "grid", placeItems: "center" }}>
-            <div className="text-white/55 text-[12px] tracking-[.18em] uppercase">VISUAL PLACEHOLDER</div>
-          </div>
-        )}
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.04] overflow-hidden h-[420px] sm:h-[520px]">
+          {videoUrl ? (
+            <video src={videoUrl} autoPlay muted loop playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-white/55 text-[12px] tracking-[.18em] uppercase">
+              VISUAL PLACEHOLDER
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
