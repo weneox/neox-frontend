@@ -66,11 +66,11 @@ export default function Header({ introReady }: { introReady: boolean }) {
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // desktop menus
+  // desktop dropdowns
   const [openDD, setOpenDD] = useState<"services" | "scenarios" | "resources" | null>(null);
   const [langOpen, setLangOpen] = useState(false);
 
-  // mobile
+  // mobile top-sheet
   const [mOpen, setMOpen] = useState(false);
   const [mSoft, setMSoft] = useState(false);
   const [mTab, setMTab] = useState<"main" | "services" | "scenarios">("main");
@@ -156,7 +156,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
     []
   );
 
-  // scroll blur (raf)
+  // scroll blur (raf) — mobile fix: always update bg with var, plus fallback when no backdrop-filter
   useEffect(() => {
     let raf = 0;
     let prevOn = false;
@@ -213,15 +213,13 @@ export default function Header({ introReady }: { introReady: boolean }) {
     return () => cancelAnimationFrame(r);
   }, [mOpen]);
 
-  // click outside desktop dropdowns (lightweight)
+  // click outside (desktop)
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       const tnode = e.target as Node;
 
-      // lang
       if (langOpen && ddLangRef.current && !ddLangRef.current.contains(tnode)) setLangOpen(false);
 
-      // dd
       if (!openDD) return;
       const ref =
         openDD === "services" ? ddSvcRef.current : openDD === "scenarios" ? ddScnRef.current : ddResRef.current;
@@ -233,7 +231,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
 
   const closeMobile = () => {
     setMSoft(false);
-    window.setTimeout(() => setMOpen(false), 180);
+    window.setTimeout(() => setMOpen(false), 190);
   };
 
   const ElitePanel = ({ items }: { items: ItemDef[] }) => {
@@ -312,14 +310,22 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateZ(0);
           transition: background-color .18s ease, border-color .18s ease;
         }
+
+        /* ✅ mobile blur fallback: if backdrop-filter not supported, we still darken */
         .neoHdr.is-scrolled{
-          background: rgba(10,12,18, calc(0.06 + 0.28 * var(--hdrp)));
-          border-bottom-color: rgba(255,255,255, calc(0.05 + 0.08 * var(--hdrp)));
-          -webkit-backdrop-filter: blur(calc(10px + 14px * var(--hdrp))) saturate(1.10);
-          backdrop-filter: blur(calc(10px + 14px * var(--hdrp))) saturate(1.10);
+          background: rgba(10,12,18, calc(0.12 + 0.46 * var(--hdrp))); /* stronger on mobile */
+          border-bottom-color: rgba(255,255,255, calc(0.06 + 0.10 * var(--hdrp)));
         }
+        @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
+          .neoHdr.is-scrolled{
+            -webkit-backdrop-filter: blur(calc(10px + 14px * var(--hdrp))) saturate(1.10);
+            backdrop-filter: blur(calc(10px + 14px * var(--hdrp))) saturate(1.10);
+            background: rgba(10,12,18, calc(0.06 + 0.28 * var(--hdrp))); /* nicer with blur */
+          }
+        }
+
         .neoHdr.is-open{
-          background: rgba(10,12,18,.86);
+          background: rgba(10,12,18,.88);
           border-bottom-color: rgba(255,255,255,.10);
           -webkit-backdrop-filter: blur(18px) saturate(1.10);
           backdrop-filter: blur(18px) saturate(1.10);
@@ -342,10 +348,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           opacity: .9;
           animation: neoHair 2.8s linear infinite;
         }
-        @keyframes neoHair{
-          from{ transform: translateX(35%); }
-          to{ transform: translateX(-35%); }
-        }
+        @keyframes neoHair{ from{ transform: translateX(35%); } to{ transform: translateX(-35%); } }
 
         .neoInner{
           position: relative;
@@ -380,62 +383,56 @@ export default function Header({ introReady }: { introReady: boolean }) {
         }
         .neoBrand:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.10); }
 
-        /* ✅ Desktop nav text: daha premium + neon sweep hover (pill YOX) */
+        /* ✅ Desktop nav hover: underline real soldan-sağa */
         .neoTop{
           position: relative;
           display:inline-flex;
           align-items:center;
           height: 44px;
-          padding: 0 10px;
+          padding: 0 10px 0 10px;
           border: 0;
           background: transparent;
-          color: rgba(255,255,255,.84);
-          font-weight: 700;            /* gombul yox */
-          font-size: 15.5px;           /* daha böyük */
+          color: rgba(255,255,255,.86);
+          font-weight: 700;
+          font-size: 15.5px;
           letter-spacing: .01em;
           cursor:pointer;
           user-select:none;
           border-radius: 10px;
-          transition:
-            transform .28s cubic-bezier(.2,.8,.2,1),
-            color .20s ease;
+          transition: transform .28s cubic-bezier(.2,.8,.2,1), color .20s ease;
           will-change: transform;
         }
         .neoTop:hover{
-          color: rgba(255,255,255,.96);
-          transform: translateY(-0.5px); /* maksimum yumşaq */
+          color: rgba(255,255,255,.98);
+          transform: translateY(-0.5px);
         }
         .neoTop.is-active{ color: rgba(255,255,255,.98); }
 
-        /* Neon sweep: altdan soldan-sağa işıq */
+        /* Underline container: always same place under text */
         .neoTop::after{
           content:"";
           position:absolute;
-          left: 6px;
-          right: 6px;
-          bottom: 6px;
+          left: 10px;
+          right: 10px;
+          bottom: 8px;            /* ✅ textin altinda stabil */
           height: 2px;
           border-radius: 999px;
           background: linear-gradient(90deg,
             rgba(0,240,255,0),
-            rgba(120,170,255,.55),
-            rgba(0,240,255,.35),
-            rgba(255,255,255,.10),
+            rgba(120,170,255,.70),
+            rgba(0,240,255,.48),
+            rgba(255,255,255,.12),
             rgba(0,240,255,0)
           );
           opacity: 0;
-          transform: translateX(-24%);
-          filter: blur(.2px);
-          transition: opacity .18s ease;
+          transform: scaleX(0);
+          transform-origin: left center;  /* ✅ soldan saga */
+          transition: opacity .18s ease, transform .28s cubic-bezier(.2,.8,.2,1);
           pointer-events:none;
         }
         .neoTop:hover::after{
           opacity: 1;
-          animation: neoSweep .62s cubic-bezier(.2,.8,.2,1) both;
-        }
-        @keyframes neoSweep{
-          from{ transform: translateX(-38%); }
-          to{ transform: translateX(38%); }
+          transform: scaleX(1);
         }
 
         .neoChev{ opacity:.55; margin-left: 8px; transition: transform .18s ease, opacity .18s ease; }
@@ -489,17 +486,9 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: transform .22s cubic-bezier(.2,.8,.2,1), background-color .18s ease, color .18s ease;
           will-change: transform;
         }
-        .neoEliteItem:hover{
-          transform: translateY(-1px);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.98);
-        }
+        .neoEliteItem:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); color: rgba(255,255,255,.98); }
         .neoEliteItem.is-active{ background: rgba(120,170,255,.085); }
-        .neoEliteDot{
-          width: 8px; height: 8px; border-radius: 999px;
-          background: rgba(255,255,255,.22);
-          transition: background-color .18s ease;
-        }
+        .neoEliteDot{ width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,.22); transition: background-color .18s ease; }
         .neoEliteItem:hover .neoEliteDot{ background: rgba(120,170,255,.85); }
 
         .neoEliteTicker{
@@ -521,21 +510,21 @@ export default function Header({ introReady }: { introReady: boolean }) {
         .neoEliteTickerInner.is-anim{ animation: neoTicker 5.6s linear infinite; }
         @keyframes neoTicker{ from{ transform: translateX(0%); } to{ transform: translateX(-34%); } }
 
-        /* Lang button: premium + yüngül */
+        /* Lang */
         .neoLangWrap{ position: relative; display:inline-flex; }
         .neoLangBtn{
           display:inline-flex; align-items:center; gap: 10px;
           height: 44px; padding: 0 12px;
           border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.10);
+          border: 1px solid rgba(255,255,255,.12);
           background: rgba(255,255,255,.03);
           color: rgba(255,255,255,.92);
-          font-weight: 700;     /* gombul yox */
+          font-weight: 650;
           font-size: 12.5px;
           cursor:pointer;
           transition: transform .22s cubic-bezier(.2,.8,.2,1), background-color .18s ease, border-color .18s ease;
         }
-        .neoLangBtn:hover{ transform: translateY(-0.5px); background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); }
+        .neoLangBtn:hover{ transform: translateY(-0.5px); background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.16); }
 
         .neoLangPanel{
           position:absolute;
@@ -554,6 +543,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transform: translateY(-10px) scale(.99);
           transition: opacity .18s ease, transform .18s ease;
           overflow:hidden;
+          z-index: 100001; /* ✅ panel ustdə qalsın */
         }
         .neoLangWrap.is-open .neoLangPanel{ opacity: 1; pointer-events:auto; transform: translateY(0) scale(1); }
 
@@ -563,24 +553,24 @@ export default function Header({ introReady }: { introReady: boolean }) {
           gap: 10px;
           padding: 11px 12px;
           border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0);
           background: transparent;
+          border: 1px solid rgba(255,255,255,0);
           color: rgba(255,255,255,.90);
           cursor:pointer;
           transition: transform .22s cubic-bezier(.2,.8,.2,1), background-color .18s ease;
-          font-weight: 650;
+          font-weight: 620; /* ✅ gombul deyil */
         }
         .neoLangItem + .neoLangItem{ margin-top: 6px; }
         .neoLangItem:hover{ transform: translateY(-1px); background: rgba(255,255,255,.04); }
         .neoLangItem.is-active{ background: rgba(120,170,255,.10); }
-        .neoLangCode{ font-weight: 800; letter-spacing: .14em; opacity: .95; }
-        .neoLangName{ opacity: .75; font-size: 12px; white-space: nowrap; }
+        .neoLangCode{ font-weight: 820; letter-spacing: .14em; opacity: .95; }
+        .neoLangName{ opacity: .78; font-size: 12px; white-space: nowrap; }
 
-        /* Mobile button (SUPER light) */
+        /* Mobile button */
         .neoBurger{
           width: 48px; height: 44px;
           border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
+          border: 1px solid rgba(255,255,255,.14);
           background: rgba(255,255,255,.04);
           color: rgba(255,255,255,.92);
           display:none;
@@ -588,35 +578,48 @@ export default function Header({ introReady }: { introReady: boolean }) {
           cursor:pointer;
           transition: transform .22s cubic-bezier(.2,.8,.2,1), background-color .18s ease, border-color .18s ease;
         }
-        .neoBurger:hover{ transform: translateY(-0.5px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); }
-        .neoBurgerLines{
-          width: 18px; height: 12px; display:grid; gap: 4px;
-        }
+        .neoBurger:hover{ transform: translateY(-0.5px); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); }
+        .neoBurgerLines{ width: 18px; height: 12px; display:grid; gap: 4px; }
         .neoBurgerLines i{ height: 2px; border-radius: 999px; background: rgba(255,255,255,.90); display:block; }
 
         @media (max-width: 980px){
           .neoNav{ display:none; }
           .neoBurger{ display:inline-flex; }
-          .neoInner{ height: 70px; padding: 0 16px; }
+          .neoInner{ height: 68px; padding: 0 14px; }
         }
 
-        /* MOBILE SHEET — transform-only (fps-safe) */
-        .neoMOv{ position: fixed; inset: 0; z-index: 100000; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+        /* MOBILE TOP-SHEET (headerdən düşür) */
+        .neoMOv{
+          position: fixed; inset: 0;
+          z-index: 100000;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity .18s ease;
+        }
         .neoMOv.is-open{ opacity: 1; pointer-events: auto; }
-        .neoBg{ position:absolute; inset:0; border:0; background: rgba(0,0,0,.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+        .neoBg{
+          position:absolute; inset:0;
+          border:0;
+          background: rgba(0,0,0,.45);
+          -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+        }
 
         .neoSheet{
           position:absolute;
-          left: 10px; right: 10px; bottom: 10px;
-          border-radius: 22px;
+          top: calc(68px + 10px); /* ✅ headerin altindan */
+          left: 10px; right: 10px;
+          max-width: 520px;
+          margin: 0 auto;
+          border-radius: 18px;
           border: 1px solid rgba(255,255,255,.10);
           background: rgba(10,12,18,.94);
           -webkit-backdrop-filter: blur(18px) saturate(1.08);
           backdrop-filter: blur(18px) saturate(1.08);
           box-shadow: 0 40px 120px rgba(0,0,0,.75);
-          transform: translateY(24px);
+          transform: translateY(-16px);
           opacity: 0;
-          transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .22s ease;
+          transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .22s ease;
           overflow:hidden;
           will-change: transform;
         }
@@ -629,7 +632,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           gap: 12px;
         }
         .neoMTitle{
-          font-weight: 800;
+          font-weight: 820;
           font-size: 12px;
           letter-spacing: .16em;
           color: rgba(255,255,255,.72);
@@ -663,20 +666,16 @@ export default function Header({ introReady }: { introReady: boolean }) {
           transition: transform .22s cubic-bezier(.2,.8,.2,1), background-color .18s ease, border-color .18s ease;
         }
         .neoTab:active{ transform: scale(.99); }
-        .neoTab.is-on{
-          background: rgba(120,170,255,.12);
-          border-color: rgba(120,170,255,.22);
-        }
+        .neoTab.is-on{ background: rgba(120,170,255,.12); border-color: rgba(120,170,255,.22); }
 
         .neoMBody{
           padding: 12px 12px 14px;
           display:grid;
           gap: 10px;
-          max-height: min(62vh, 560px);
+          max-height: min(62vh, 520px);
           overflow: auto;
           -webkit-overflow-scrolling: touch;
         }
-
         .neoMItem{
           display:flex; align-items:center; justify-content: space-between;
           gap: 12px;
@@ -699,7 +698,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
           }
           .neoEliteTickerInner{ animation:none !important; }
           .neoHdr::after{ animation:none !important; }
-          .neoTop:hover::after{ animation:none !important; opacity: 1 !important; transform:none !important; }
+          .neoTop::after{ transition:none !important; transform:none !important; opacity: 1 !important; }
         }
       `}</style>
 
@@ -715,12 +714,12 @@ export default function Header({ introReady }: { introReady: boolean }) {
               decoding="async"
               draggable={false}
               style={{
-                height: isMobile ? 10 : 26,
+                height: isMobile ? 8 : 26, // ✅ mobil logo daha balaca
                 width: "auto",
                 objectFit: "contain",
                 display: "block",
                 userSelect: "none",
-                filter: "drop-shadow(0 6px 14px rgba(0,0,0,.28))",
+                filter: "drop-shadow(0 6px 14px rgba(0,0,0,.26))",
               }}
             />
           </Link>
@@ -794,7 +793,7 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </nav>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* LANG (click-only, stable) */}
+          {/* LANG (click-only) */}
           <div ref={ddLangRef} className={cx("neoLangWrap", langOpen && "is-open")} data-wg-notranslate>
             <button
               type="button"
@@ -835,21 +834,20 @@ export default function Header({ introReady }: { introReady: boolean }) {
         </div>
       </div>
 
-      {/* MOBILE SHEET */}
+      {/* MOBILE TOP SHEET */}
       {createPortal(
         <div className={cx("neoMOv", mOpen && "is-open")} aria-hidden={!mOpen}>
           <button className="neoBg" type="button" aria-label="Close" onClick={closeMobile} />
           <div id={panelId} className={cx("neoSheet", mSoft && "is-open")} role="dialog" aria-modal="true" aria-label="Menu">
             <div className="neoMTop">
               <div className="neoMTitle">
-                <span className="neoMDot" aria-hidden="true" /> NEOX
+                <span className="neoMDot" aria-hidden="true" /> MENU
               </div>
               <button className="neoMClose" type="button" aria-label="Close" onClick={closeMobile}>
                 <X size={18} />
               </button>
             </div>
 
-            {/* tabs */}
             <div className="neoMTabs">
               <button className={cx("neoTab", mTab === "main" && "is-on")} onClick={() => setMTab("main")} type="button">
                 Menu
@@ -877,7 +875,6 @@ export default function Header({ introReady }: { introReady: boolean }) {
                   <NavLink to={withLang("/contact")} className="neoMItem" onClick={closeMobile}>
                     {t("nav.contact") || "Əlaqə"} <span aria-hidden="true">↵</span>
                   </NavLink>
-                  {/* ✅ Resources mobil menyudan çıxarıldı — fps + sadəlik */}
                 </>
               ) : mTab === "services" ? (
                 <>
