@@ -4,7 +4,6 @@ type Props = {
   enabled?: boolean;
   minWidth?: number;
   locationKey?: string;
-
   ignoreSelectors?: string[];
 
   strength?: number;
@@ -18,8 +17,7 @@ type Props = {
   stopEaseMs?: number;
   wheelDeadzone?: number;
 
-  // ✅ NEW: travel bitəndə əvvəlcə azca “coast”, sonra yumşaq dayanma
-  coastMs?: number; // 80..180 (default 120)
+  coastMs?: number;
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -77,21 +75,21 @@ export default function SmoothWheelScroll({
   locationKey,
   ignoreSelectors,
 
+  // ✅ bir scroll = daha “düşsün”, amma yavaş hisslə
   strength = 0.11,
-  friction = 0.90,
+  friction = 0.905,
   maxVelocity = 36,
-  softCap = 70,
+  softCap = 75,
 
-  // ✅ bir az artır: travel tez bitməsin
-  maxTravelPerWheel = 620,
-  idleBrakeMs = 120,
+  // ✅ daha çox “glide”
+  maxTravelPerWheel = 980,
+  idleBrakeMs = 140,
 
-  // ✅ bir az uzat: yumşaq sönmə
-  stopEaseMs = 240,
-  wheelDeadzone = 3.5,
+  // ✅ daha yumşaq dayanma
+  coastMs = 180,
+  stopEaseMs = 420,
 
-  // ✅ NEW
-  coastMs = 120,
+  wheelDeadzone = 3.2,
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -122,12 +120,11 @@ export default function SmoothWheelScroll({
   const travelBudgetRef = useRef(0);
   const lastWheelTsRef = useRef(0);
 
-  // ✅ glide-stop state (+ coast)
-  const stopRef = useRef<{
-    active: boolean;
-    t0: number;
-    v0: number;
-  }>({ active: false, t0: 0, v0: 0 });
+  const stopRef = useRef<{ active: boolean; t0: number; v0: number }>({
+    active: false,
+    t0: 0,
+    v0: 0,
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -172,29 +169,33 @@ export default function SmoothWheelScroll({
       const mx = maxScroll();
 
       if (stopRef.current.active) {
-        // ✅ 1) əvvəlcə qısa “coast” (azca gedir)
-        const coastT = now - stopRef.current.t0;
-        if (coastT < coastMs) {
-          // coast zamanı normal friction ilə yavaşla
-          vRef.current *= friction;
-          if (Math.abs(vRef.current) < 0.10) {
+        const dt = now - stopRef.current.t0;
+
+        // ✅ daha uzun “coast”
+        if (dt < coastMs) {
+          // coast zamanı yavaş-yavaş sönsün (tam kəsməsin)
+          vRef.current *= (friction * 0.985);
+          if (Math.abs(vRef.current) < 0.08) {
             stopHard();
             return;
           }
         } else {
-          // ✅ 2) sonra yumşaq ease-out stop
-          const t = clamp((coastT - coastMs) / stopEaseMs, 0, 1);
-          const k = 1 - easeOutCubic(t); // 1 -> 0
-          vRef.current = stopRef.current.v0 * k;
+          // ✅ daha uzun ease-out
+          const t = clamp((dt - coastMs) / stopEaseMs, 0, 1);
+          const k = 1 - easeOutCubic(t);
 
-          if (t >= 1 || Math.abs(vRef.current) < 0.10) {
+          // ease ilə yanaşı azca friction da veririk → daha təbii “glide”
+          const eased = stopRef.current.v0 * k;
+          vRef.current = eased * (friction * 0.995);
+
+          if (t >= 1 || Math.abs(vRef.current) < 0.08) {
             stopHard();
             return;
           }
         }
       } else {
         const idleFor = now - (lastWheelTsRef.current || 0);
-        const extraBrake = idleFor > idleBrakeMs ? 0.86 : 1;
+        const extraBrake = idleFor > idleBrakeMs ? 0.90 : 1;
 
         vRef.current *= friction * extraBrake;
 
@@ -202,26 +203,27 @@ export default function SmoothWheelScroll({
         if (va > 0) {
           travelBudgetRef.current = Math.max(0, travelBudgetRef.current - va);
 
-          // ✅ travel bitəndə dərhal “kəsmə” — glide-stop başlat
-          if (travelBudgetRef.current <= 0 && Math.abs(vRef.current) > 0.25) {
+          // ✅ travel bitəndə glide-stop
+          if (travelBudgetRef.current <= 0 && Math.abs(vRef.current) > 0.22) {
             startGlideStop();
           }
         }
 
-        if (Math.abs(vRef.current) < 0.10) {
+        if (Math.abs(vRef.current) < 0.08) {
           stopHard();
           return;
         }
       }
 
       const next = posRef.current + vRef.current;
-      const clamped = clamp(next, 0, mx);
+      const mx2 = maxScroll();
+      const clamped = clamp(next, 0, mx2);
 
       posRef.current = clamped;
       lastNativeYRef.current = clamped;
       window.scrollTo(0, clamped);
 
-      if (clamped <= 0 || clamped >= mx) {
+      if (clamped <= 0 || clamped >= mx2) {
         stopHard();
         return;
       }
@@ -241,7 +243,6 @@ export default function SmoothWheelScroll({
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
-
       if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
         stopHard();
         syncNative();
@@ -251,11 +252,12 @@ export default function SmoothWheelScroll({
       e.preventDefault();
       syncNative();
 
-      // ✅ yeni wheel gələndə glide-stop cancel
+      // ✅ yeni jest gəldi → glide-stop ləğv
       stopRef.current.active = false;
 
       dy = softenDelta(dy, softCap);
 
+      // impulse
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
       const now = performance.now();
@@ -265,8 +267,8 @@ export default function SmoothWheelScroll({
       const carry = dt < 90 ? 0.25 : dt < 160 ? 0.35 : 0.45;
       vRef.current = clamp(vRef.current * carry + add, -maxVelocity, maxVelocity);
 
-      // ✅ travel budget bir az daha “geniş” — kəsik hissini azaldır
-      const budgetAdd = clamp(Math.abs(dy) * 1.8, 180, 620);
+      // ✅ travel daha çox əlavə: 1 scroll gedib-yavaşlayıb dayansın
+      const budgetAdd = clamp(Math.abs(dy) * 2.35, 260, 980);
       travelBudgetRef.current = clamp(
         travelBudgetRef.current + budgetAdd,
         0,
