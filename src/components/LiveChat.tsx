@@ -10,7 +10,7 @@ type Item =
 
 export default function LiveChat({
   messages,
-  typing, // "agent" | "customer" | null
+  typing,
   visibleSlots = 4,
 }: {
   messages: Msg[];
@@ -19,7 +19,6 @@ export default function LiveChat({
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  // ✅ son N slot (mesaj + typing) göstər
   const items = useMemo<Item[]>(() => {
     const base: Item[] = messages.map((m) => ({
       kind: "msg",
@@ -28,13 +27,10 @@ export default function LiveChat({
       text: m.text,
       time: m.time,
     }));
-
     if (typing) base.push({ kind: "typing", id: `typing-${typing}`, role: typing });
-
     return base.slice(-visibleSlots);
   }, [messages, typing, visibleSlots]);
 
-  // ✅ Həmişə aşağı: scrollIntoView anchor
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
@@ -45,290 +41,188 @@ export default function LiveChat({
   const whoLabel = (r: Role) => (r === "customer" ? "MÜŞTƏRİ" : "NEOX AGENT");
 
   return (
-    <section className="neo-chat" aria-label="Live chat">
-      {/* ✅ Scoped CSS — yalnız bu komponent */}
+    <section className="lcx" aria-label="Live chat demo">
       <style>{`
-        /* =========================
-           LiveChat — Premium Natural (scoped)
-           FPS-safe: no backdrop-filter, no heavy blur, minimal shadows
-        ========================= */
-
-        .neo-chat{
-          --bg: rgba(255,255,255,.03);
-          --bg2: rgba(0,0,0,.28);
-          --line: rgba(255,255,255,.10);
-          --line2: rgba(255,255,255,.14);
+        /* LİVE CHAT — tam izolyasiya (köhnə neo-* CSS heç toxunmasın) */
+        .lcx{
           --ink: rgba(255,255,255,.92);
           --muted: rgba(255,255,255,.68);
-          --dim: rgba(255,255,255,.52);
+          --dim: rgba(255,255,255,.50);
+          --line: rgba(255,255,255,.10);
+          --cyan:#00f0ff;
+          --violet:#7b68ff;
 
-          --cyan: #00f0ff;
-          --violet: #7b68ff;
-          --amber: #ffbe6e;
-
-          width: 100%;
-          border-radius: 22px;
-          border: 1px solid var(--line);
-          background: radial-gradient(1200px 600px at 12% -10%, rgba(0,240,255,.08), transparent 60%),
-                      radial-gradient(900px 500px at 92% 0%, rgba(123,104,255,.08), transparent 55%),
-                      linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-          overflow: hidden;
-          color: var(--ink);
+          width:100%;
+          border-radius:22px;
+          border:1px solid var(--line);
+          overflow:hidden;
+          color:var(--ink);
+          background:
+            radial-gradient(1200px 520px at 12% -10%, rgba(0,240,255,.10), transparent 60%),
+            radial-gradient(900px 500px at 92% 0%, rgba(123,104,255,.10), transparent 58%),
+            linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
         }
 
-        .neo-chat__head{
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 12px;
-          padding: 14px 14px 12px;
-          border-bottom: 1px solid rgba(255,255,255,.08);
-          background: linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.10));
+        .lcxHead{
+          display:flex; align-items:center; justify-content:space-between; gap:12px;
+          padding:14px 14px 12px;
+          border-bottom:1px solid rgba(255,255,255,.08);
+          background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.10));
+        }
+        .lcxLeft{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+        .lcxTitle{
+          display:flex; align-items:center; gap:10px;
+          font-weight:900; letter-spacing:.12em; font-size:12px; opacity:.92;
+          white-space:nowrap;
+        }
+        .lcxSub{
+          font-size:12px; color:var(--muted);
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
         }
 
-        .neo-chat__left{
-          display:flex;
-          flex-direction:column;
-          gap: 2px;
-          min-width: 0;
+        .lcxStatus{
+          display:flex; align-items:center; gap:8px;
+          padding:7px 10px; border-radius:999px;
+          border:1px solid rgba(255,255,255,.12);
+          background:rgba(0,0,0,.22);
+          font-size:12px; font-weight:800; letter-spacing:.08em;
+          white-space:nowrap;
         }
 
-        .neo-chat__title{
-          display:flex;
-          align-items:center;
-          gap: 10px;
-          font-weight: 900;
-          letter-spacing: .12em;
-          font-size: 12px;
-          opacity: .92;
-          white-space: nowrap;
+        .lcxDot{
+          width:8px; height:8px; border-radius:999px;
+          background:var(--cyan);
+          box-shadow:0 0 0 0 rgba(0,240,255,.35);
+          animation: lcxBreath 1.8s ease-in-out infinite;
+        }
+        @keyframes lcxBreath{
+          0%,100%{ transform:translateZ(0) scale(1); box-shadow:0 0 0 0 rgba(0,240,255,.35); }
+          50%{ transform:translateZ(0) scale(1.18); box-shadow:0 0 0 10px rgba(0,240,255,0); }
         }
 
-        .neo-chat__sub{
-          font-size: 12px;
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .neo-chat__status{
-          display:flex;
-          align-items:center;
-          gap: 8px;
-          padding: 7px 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.22);
-          color: rgba(255,255,255,.86);
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: .08em;
-          white-space: nowrap;
-        }
-
-        .neo-chat__dot{
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: var(--cyan);
-          box-shadow: 0 0 0 0 rgba(0,240,255,.35);
-          animation: neoChatBreath 1.8s ease-in-out infinite;
-        }
-
-        @keyframes neoChatBreath{
-          0%,100% { transform: translateZ(0) scale(1); box-shadow: 0 0 0 0 rgba(0,240,255,.35); }
-          50% { transform: translateZ(0) scale(1.18); box-shadow: 0 0 0 10px rgba(0,240,255,0); }
-        }
-
-        /* frame */
-        .neo-chat__frame{
-          padding: 12px;
-          background: linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.18));
-        }
-
-        .neo-chat__scroll{
-          height: 260px; /* natural, not too tall */
-          overflow: auto;
-          padding: 10px;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(0,0,0,.22);
-          scroll-behavior: auto;
+        .lcxFrame{ padding:12px; background:linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.18)); }
+        .lcxScroll{
+          height:260px;
+          overflow:auto;
+          padding:10px;
+          border-radius:18px;
+          border:1px solid rgba(255,255,255,.10);
+          background:rgba(0,0,0,.22);
           scrollbar-gutter: stable;
         }
-
-        /* scrollbars minimal */
-        .neo-chat__scroll::-webkit-scrollbar{ width: 10px; }
-        .neo-chat__scroll::-webkit-scrollbar-thumb{
-          background: rgba(255,255,255,.12);
-          border: 3px solid transparent;
-          background-clip: padding-box;
-          border-radius: 999px;
+        .lcxScroll::-webkit-scrollbar{ width:10px; }
+        .lcxScroll::-webkit-scrollbar-thumb{
+          background:rgba(255,255,255,.12);
+          border:3px solid transparent;
+          background-clip:padding-box;
+          border-radius:999px;
         }
-        .neo-chat__scroll::-webkit-scrollbar-track{ background: transparent; }
+        .lcxScroll::-webkit-scrollbar-track{ background:transparent; }
 
-        /* messages */
-        .neo-msg{
-          display:flex;
-          flex-direction:column;
-          gap: 6px;
-          margin: 10px 0;
+        .lcxMsg{ display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+        .lcxMeta{
+          display:flex; align-items:center; justify-content:space-between; gap:10px;
+          font-size:11px; color:var(--dim); letter-spacing:.08em;
         }
+        .lcxWho{ font-weight:900; color:rgba(255,255,255,.72); }
+        .lcxTime{ font-weight:700; color:rgba(255,255,255,.42); white-space:nowrap; }
 
-        .neo-msg__meta{
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 10px;
-          font-size: 11px;
-          color: var(--dim);
-          letter-spacing: .08em;
-        }
-
-        .neo-msg__who{
-          font-weight: 900;
-          color: rgba(255,255,255,.72);
+        .lcxBubble{
+          max-width:86%;
+          width:fit-content;
+          padding:10px 12px;
+          border-radius:16px;
+          border:1px solid rgba(255,255,255,.10);
+          background:rgba(255,255,255,.04);
+          color:rgba(255,255,255,.90);
+          line-height:1.35;
+          font-size:13px;
+          white-space:pre-wrap;
+          word-break:break-word;
         }
 
-        .neo-msg__time{
-          font-weight: 700;
-          color: rgba(255,255,255,.42);
-          letter-spacing: .06em;
-          white-space: nowrap;
+        .lcxCustomer{ align-items:flex-start; }
+        .lcxCustomer .lcxBubble{ border-top-left-radius:10px; }
+
+        .lcxAgent{ align-items:flex-end; }
+        .lcxAgent .lcxBubble{
+          border-top-right-radius:10px;
+          border-color:rgba(0,240,255,.22);
+          background:linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,0,0,.18));
         }
 
-        .neo-msg__bubble{
-          max-width: 86%;
-          width: fit-content;
-          padding: 10px 12px;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.90);
-          line-height: 1.35;
-          font-size: 13px;
-          white-space: pre-wrap;
-          word-break: break-word;
+        .lcxTyping{ display:flex; align-items:center; min-height:38px; }
+        .lcxDots{ display:inline-flex; align-items:center; gap:5px; }
+        .lcxDots i{
+          width:6px; height:6px; border-radius:999px;
+          background:rgba(255,255,255,.70);
+          animation: lcxDot 1.1s infinite ease-in-out;
+          transform:translateZ(0);
+        }
+        .lcxDots i:nth-child(2){ animation-delay:.12s; opacity:.85; }
+        .lcxDots i:nth-child(3){ animation-delay:.24s; opacity:.75; }
+        @keyframes lcxDot{
+          0%,100%{ transform:translateZ(0) translateY(0); opacity:.55; }
+          50%{ transform:translateZ(0) translateY(-4px); opacity:1; }
         }
 
-        /* alignment + bubble styles */
-        .neo-msg--customer{ align-items: flex-start; }
-        .neo-msg--customer .neo-msg__bubble{
-          border-top-left-radius: 10px;
-          background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+        .lcxFoot{
+          display:flex; flex-wrap:wrap; gap:8px;
+          padding:12px 14px 14px;
+          border-top:1px solid rgba(255,255,255,.08);
+          background:linear-gradient(180deg, rgba(0,0,0,.14), rgba(0,0,0,.28));
+        }
+        .lcxPill{
+          display:inline-flex; align-items:center;
+          height:30px; padding:0 10px;
+          border-radius:999px;
+          border:1px solid rgba(255,255,255,.12);
+          background:rgba(255,255,255,.04);
+          color:rgba(255,255,255,.78);
+          font-size:12px; font-weight:800;
+          letter-spacing:.04em;
+          user-select:none;
+          white-space:nowrap;
         }
 
-        .neo-msg--agent{ align-items: flex-end; }
-        .neo-msg--agent .neo-msg__meta{ justify-content:space-between; }
-        .neo-msg--agent .neo-msg__bubble{
-          border-top-right-radius: 10px;
-          border-color: rgba(0,240,255,.22);
-          background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,0,0,.18));
-        }
-
-        /* typing bubble */
-        .neo-msg__bubble--typing{
-          display:flex;
-          align-items:center;
-          gap: 8px;
-          min-height: 38px;
-        }
-
-        .neo-dots{
-          display:inline-flex;
-          align-items:center;
-          gap: 5px;
-        }
-        .neo-dots i{
-          width: 6px;
-          height: 6px;
-          border-radius: 999px;
-          background: rgba(255,255,255,.70);
-          transform: translateZ(0);
-          animation: neoDot 1.1s infinite ease-in-out;
-        }
-        .neo-dots i:nth-child(2){ animation-delay: .12s; opacity: .85; }
-        .neo-dots i:nth-child(3){ animation-delay: .24s; opacity: .75; }
-
-        @keyframes neoDot{
-          0%, 100% { transform: translateZ(0) translateY(0); opacity: .55; }
-          50% { transform: translateZ(0) translateY(-4px); opacity: 1; }
-        }
-
-        /* footer pills */
-        .neo-chat__footer{
-          display:flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding: 12px 14px 14px;
-          border-top: 1px solid rgba(255,255,255,.08);
-          background: linear-gradient(180deg, rgba(0,0,0,.14), rgba(0,0,0,.28));
-        }
-
-        .neo-pill{
-          display:inline-flex;
-          align-items:center;
-          height: 30px;
-          padding: 0 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.04);
-          color: rgba(255,255,255,.78);
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: .04em;
-          user-select: none;
-          white-space: nowrap;
-        }
-
-        /* reduced motion */
         @media (prefers-reduced-motion: reduce){
-          .neo-chat__dot, .neo-dots i { animation: none !important; }
+          .lcxDot, .lcxDots i{ animation:none !important; }
         }
-
-        /* small screens */
-        @media (max-width: 520px){
-          .neo-chat__scroll{ height: 240px; }
-          .neo-msg__bubble{ max-width: 92%; }
-          .neo-chat__title{ letter-spacing: .10em; }
+        @media (max-width:520px){
+          .lcxScroll{ height:240px; }
+          .lcxBubble{ max-width:92%; }
         }
       `}</style>
 
-      <div className="neo-chat__head">
-        <div className="neo-chat__left">
-          <div className="neo-chat__title">
-            <span className="neo-chat__dot" aria-hidden="true" />
+      <div className="lcxHead">
+        <div className="lcxLeft">
+          <div className="lcxTitle">
+            <span className="lcxDot" aria-hidden="true" />
             LIVE CHAT
           </div>
-          <div className="neo-chat__sub">Customer ↔ Agent • real-time demo</div>
+          <div className="lcxSub">Customer ↔ Agent • real-time demo</div>
         </div>
 
-        <div className="neo-chat__status">
-          <span className="neo-chat__dot" aria-hidden="true" />
+        <div className="lcxStatus">
+          <span className="lcxDot" aria-hidden="true" />
           ACTIVE
         </div>
       </div>
 
-      <div className="neo-chat__frame">
-        <div className="neo-chat__scroll" aria-label="Chat messages">
+      <div className="lcxFrame">
+        <div className="lcxScroll" aria-label="Chat messages">
           {items.map((it) => {
             if (it.kind === "typing") {
               const isCustomer = it.role === "customer";
               return (
-                <div
-                  key={it.id}
-                  className={isCustomer ? "neo-msg neo-msg--customer" : "neo-msg neo-msg--agent"}
-                >
-                  <div className="neo-msg__meta">
-                    <span className="neo-msg__who">{whoLabel(it.role)}</span>
-                    <span className="neo-msg__time">typing…</span>
+                <div key={it.id} className={`lcxMsg ${isCustomer ? "lcxCustomer" : "lcxAgent"}`}>
+                  <div className="lcxMeta">
+                    <span className="lcxWho">{whoLabel(it.role)}</span>
+                    <span className="lcxTime">typing…</span>
                   </div>
-                  <div className="neo-msg__bubble neo-msg__bubble--typing" aria-label="Typing indicator">
-                    <span className="neo-dots" aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
+                  <div className={`lcxBubble lcxTyping`} aria-label="Typing indicator">
+                    <span className="lcxDots" aria-hidden="true">
+                      <i /><i /><i />
                     </span>
                   </div>
                 </div>
@@ -337,12 +231,12 @@ export default function LiveChat({
 
             const isCustomer = it.role === "customer";
             return (
-              <div key={it.id} className={isCustomer ? "neo-msg neo-msg--customer" : "neo-msg neo-msg--agent"}>
-                <div className="neo-msg__meta">
-                  <span className="neo-msg__who">{whoLabel(it.role)}</span>
-                  <span className="neo-msg__time">{it.time ?? ""}</span>
+              <div key={it.id} className={`lcxMsg ${isCustomer ? "lcxCustomer" : "lcxAgent"}`}>
+                <div className="lcxMeta">
+                  <span className="lcxWho">{whoLabel(it.role)}</span>
+                  <span className="lcxTime">{it.time ?? ""}</span>
                 </div>
-                <div className="neo-msg__bubble">{it.text}</div>
+                <div className="lcxBubble">{it.text}</div>
               </div>
             );
           })}
@@ -351,13 +245,12 @@ export default function LiveChat({
         </div>
       </div>
 
-      <div className="neo-chat__footer" aria-label="Telemetry">
-        <span className="neo-pill">intent: detect</span>
-        <span className="neo-pill">route: auto</span>
-        <span className="neo-pill">audit: on</span>
-        <span className="neo-pill">latency: low</span>
+      <div className="lcxFoot" aria-label="Telemetry">
+        <span className="lcxPill">intent: detect</span>
+        <span className="lcxPill">route: auto</span>
+        <span className="lcxPill">audit: on</span>
+        <span className="lcxPill">latency: low</span>
       </div>
     </section>
   );
 }
- 
