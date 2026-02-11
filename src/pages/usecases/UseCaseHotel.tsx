@@ -1,3 +1,4 @@
+// src/pages/usecases/UseCaseHotel.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -5,8 +6,6 @@ import { Hotel } from "lucide-react";
 import {
   UC_STYLES,
   BreadcrumbPill,
-  CaseRow,
-  CaseItem,
   cx,
   getLangFromPath,
   withLang,
@@ -15,6 +14,12 @@ import {
   useRevealScopedBatched,
   useSeo,
 } from "./_ucShared";
+
+function autoCloudinary(url: string) {
+  if (!url.includes("/upload/")) return url;
+  if (url.includes("/upload/q_auto,f_auto/")) return url;
+  return url.replace("/upload/", "/upload/q_auto,f_auto/");
+}
 
 export default function UseCaseHotel() {
   const { t } = useTranslation();
@@ -35,85 +40,92 @@ export default function UseCaseHotel() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
-  // ✅ Hotel video (q_auto,f_auto əlavə olundu)
-  const VIDEO_URL =
-    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770660671/neox/media/asset_1770660652154_e89630c238b65.mp4";
+  // ✅ Hotel videosu səndə necə idisə elə saxla (buraya öz URL-ini qoy)
+  const VIDEO_URL = autoCloudinary(
+    "PUT_YOUR_EXISTING_HOTEL_VIDEO_URL_HERE"
+  );
 
   useSeo({
     title: "NEOX — Hotels & Resorts Scenario",
-    description:
-      "Hotels & Resorts automation scenario: 24/7 concierge, booking inquiries, guest requests, and smart staff routing.",
+    description: "Hotels scenario: reservations, FAQ, upsell, and operator handoff when needed.",
     canonicalPath: withLang("/use-cases/hotels", lang),
   });
 
   useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
 
-  const item: CaseItem = {
-    icon: Hotel,
-    tint: "cyan", // ✅ FIX: shared-də Tint yalnız: cyan/violet/pink/amber
-    sektor: "Hotels & Resorts",
-    basliq: "24/7 concierge + booking flow without friction",
-    hekayə:
-      "NEOX answers guest questions instantly, assists with booking inquiries, and turns service requests into structured tasks. Complex cases are escalated to your staff with full context.",
-    maddeler: [
-      "Booking inquiries: availability, rates, and date changes",
-      "Guest requests: late check-out, amenities, room service",
-      "Issue reporting → routed tasks for maintenance & housekeeping",
-      "Multilingual experience + operator handoff when needed",
-    ],
-    neticeler: [
-      { k: "-45%", v: "Front Desk Load", sub: "Less repetitive questions" },
-      { k: "+28%", v: "Booking Inquiries", sub: "Faster response → more leads" },
-      { k: "-38%", v: "Resolution Time", sub: "Requests routed correctly" },
-      { k: "+24%", v: "Guest Satisfaction", sub: "Consistent 24/7 answers" },
-    ],
-  };
+  const bullets = [
+    "Reservation Q&A and availability guidance",
+    "Upsell: rooms, packages, transfers",
+    "Fast answers for policies and check-in/out",
+    "Operator handoff for complex cases",
+  ];
 
   return (
     <main ref={rootRef as any} className="uc-page">
       <style>{UC_STYLES}</style>
 
-      <section className="uc-hero uc-section">
-        <div className="uc-heroBG" aria-hidden="true" />
-        <div className="uc-heroInner">
-          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
-            <div className="mx-auto max-w-[980px] text-center">
-              <div className="flex justify-center">
-                <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
-              </div>
+      <section className="uc-hHero">
+        <div className="uc-hHeroBG" aria-hidden="true" />
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="uc-hGrid">
+            {/* TEXT — solda */}
+            <div className={cx("uc-hLeft uc-enter", enter && "uc-in")} style={d(0)}>
+              <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
 
               <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
-                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
+                <span className="block text-[44px] leading-[1.05] sm:text-[64px] font-semibold">
                   <span className="uc-grad">Hotels &amp; Resorts</span> Scenario
                 </span>
               </h1>
 
               <p
-                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
-                style={d(180)}
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter",
+                  enter && "uc-in"
+                )}
+                style={d(170)}
               >
-                24/7 concierge support, smoother bookings, and service requests routed to the right staff.
+                Reservations + upsell + instant answers — with smooth handoff when needed.
               </p>
 
+              <div className={cx("uc-hBullets uc-enter", enter && "uc-in")} style={d(240)}>
+                {bullets.map((b) => (
+                  <div key={b} className="uc-hBullet">
+                    <Hotel className="uc-hBulletIcon" />
+                    <span>{b}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className={cx("uc-hCTA uc-enter", enter && "uc-in")} style={d(320)}>
+                <a className="uc-btn" href={toContact}>
+                  Əlaqə <span aria-hidden="true">→</span>
+                </a>
+                <a className="uc-btn uc-btnGhost" href={toServices}>
+                  Xidmətələr
+                </a>
+              </div>
+            </div>
+
+            {/* MEDIA — sağda, loop VAR */}
+            <div className={cx("uc-enter", enter && "uc-in")} style={d(420)}>
+              <div className="uc-mediaCard uc-contain">
+                <div className="uc-mediaInner uc-mediaInner--rect">
+                  <video
+                    className="uc-mediaVideo"
+                    src={VIDEO_URL}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                  />
+                  <div className="uc-mediaShade" aria-hidden="true" />
+                </div>
+              </div>
               <div className="uc-divider" />
             </div>
           </div>
-        </div>
-        <div className="uc-spacer" />
-      </section>
-
-      <section className="uc-section py-16 sm:py-20">
-        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-          <CaseRow
-            c={item}
-            flip={false}
-            tRealScenario={t("useCases.labels.realScenario", { defaultValue: "Real scenario" })}
-            toContact={toContact}
-            toServices={toServices}
-            ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
-            ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
-            videoUrl={VIDEO_URL}
-          />
         </div>
       </section>
 

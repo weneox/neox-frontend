@@ -1,3 +1,4 @@
+// src/pages/usecases/UseCaseFinance.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -5,8 +6,6 @@ import { Landmark } from "lucide-react";
 import {
   UC_STYLES,
   BreadcrumbPill,
-  CaseRow,
-  CaseItem,
   cx,
   getLangFromPath,
   withLang,
@@ -15,6 +14,12 @@ import {
   useRevealScopedBatched,
   useSeo,
 } from "./_ucShared";
+
+function autoCloudinary(url: string) {
+  if (!url.includes("/upload/")) return url;
+  if (url.includes("/upload/q_auto,f_auto/")) return url;
+  return url.replace("/upload/", "/upload/q_auto,f_auto/");
+}
 
 export default function UseCaseFinance() {
   const { t } = useTranslation();
@@ -35,83 +40,91 @@ export default function UseCaseFinance() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
-  const VIDEO_URL =
-    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770597752/neox/media/asset_1770597746529_36e8f6de7d5d8.mp4";
+  const VIDEO_URL = autoCloudinary(
+    "https://res.cloudinary.com/dppoomunj/video/upload/v1770783125/neox/media/asset_1770783123123_2ada78da599b5.mp4"
+  ); // loop YOX
 
   useSeo({
     title: "NEOX — Finance Scenario",
-    description: "Finance automation scenario: onboarding, document flows, and follow-ups with clarity.",
+    description: "Finance scenario: reduce repetitive questions and route high-risk requests to operators.",
     canonicalPath: withLang("/use-cases/finance", lang),
   });
 
   useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
 
-  const item: CaseItem = {
-    icon: Landmark,
-    tint: "violet",
-    sektor: "Finance",
-    basliq: "Automated onboarding that stays compliant",
-    hekayə:
-      "NEOX guides clients through onboarding, collects required details, and escalates exceptions to an operator — reducing delays without sacrificing compliance.",
-    maddeler: [
-      "Step-by-step onboarding with smart validation and clear next steps",
-      "Document requests & reminders (no manual chasing)",
-      "Risk/edge cases routed to operator with full context",
-      "Audit-friendly conversation summaries",
-    ],
-    neticeler: [
-      { k: "-52%", v: "Onboarding Time", sub: "Less back-and-forth" },
-      { k: "+28%", v: "Completion", sub: "More users finish the flow" },
-      { k: "-41%", v: "Manual Work", sub: "Support workload drops" },
-      { k: "+19%", v: "Lead Quality", sub: "Better qualification earlier" },
-    ],
-  };
+  const bullets = [
+    "Instant answers for common product & pricing questions",
+    "Risk routing: suspicious requests -> operator handoff",
+    "Lead capture with minimal friction",
+    "Conversation summaries for teams",
+  ];
 
   return (
     <main ref={rootRef as any} className="uc-page">
       <style>{UC_STYLES}</style>
 
-      <section className="uc-hero uc-section">
-        <div className="uc-heroBG" aria-hidden="true" />
-        <div className="uc-heroInner">
-          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
-            <div className="mx-auto max-w-[980px] text-center">
-              <div className="flex justify-center">
-                <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
-              </div>
+      <section className="uc-hHero">
+        <div className="uc-hHeroBG" aria-hidden="true" />
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="uc-hGrid">
+            {/* TEXT — solda */}
+            <div className={cx("uc-hLeft uc-enter", enter && "uc-in")} style={d(0)}>
+              <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
 
               <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
-                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
+                <span className="block text-[44px] leading-[1.05] sm:text-[64px] font-semibold">
                   <span className="uc-grad">Finance</span> Scenario
                 </span>
               </h1>
 
               <p
-                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
-                style={d(180)}
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter",
+                  enter && "uc-in"
+                )}
+                style={d(170)}
               >
-                Onboarding, reminders, and exceptions — automated end-to-end.
+                Faster replies with safer routing for sensitive requests.
               </p>
 
+              <div className={cx("uc-hBullets uc-enter", enter && "uc-in")} style={d(240)}>
+                {bullets.map((b) => (
+                  <div key={b} className="uc-hBullet">
+                    <Landmark className="uc-hBulletIcon" />
+                    <span>{b}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className={cx("uc-hCTA uc-enter", enter && "uc-in")} style={d(320)}>
+                <a className="uc-btn" href={toContact}>
+                  Əlaqə <span aria-hidden="true">→</span>
+                </a>
+                <a className="uc-btn uc-btnGhost" href={toServices}>
+                  Xidmətələr
+                </a>
+              </div>
+            </div>
+
+            {/* MEDIA — sağda */}
+            <div className={cx("uc-enter", enter && "uc-in")} style={d(420)}>
+              <div className="uc-mediaCard uc-contain">
+                <div className="uc-mediaInner uc-mediaInner--rect">
+                  <video
+                    className="uc-mediaVideo"
+                    src={VIDEO_URL}
+                    autoPlay
+                    muted
+                    loop={false}
+                    playsInline
+                    preload="metadata"
+                  />
+                  <div className="uc-mediaShade" aria-hidden="true" />
+                </div>
+              </div>
               <div className="uc-divider" />
             </div>
           </div>
-        </div>
-        <div className="uc-spacer" />
-      </section>
-
-      <section className="uc-section py-16 sm:py-20">
-        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-          <CaseRow
-            c={item}
-            flip={false}
-            tRealScenario={t("useCases.labels.realScenario", { defaultValue: "Real scenario" })}
-            toContact={toContact}
-            toServices={toServices}
-            ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
-            ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
-            videoUrl={VIDEO_URL}
-          />
         </div>
       </section>
 

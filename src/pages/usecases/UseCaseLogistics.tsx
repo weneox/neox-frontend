@@ -1,3 +1,4 @@
+// src/pages/usecases/UseCaseLogistics.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -5,8 +6,6 @@ import { Truck } from "lucide-react";
 import {
   UC_STYLES,
   BreadcrumbPill,
-  CaseRow,
-  CaseItem,
   cx,
   getLangFromPath,
   withLang,
@@ -15,6 +14,12 @@ import {
   useRevealScopedBatched,
   useSeo,
 } from "./_ucShared";
+
+function autoCloudinary(url: string) {
+  if (!url.includes("/upload/")) return url;
+  if (url.includes("/upload/q_auto,f_auto/")) return url;
+  return url.replace("/upload/", "/upload/q_auto,f_auto/");
+}
 
 export default function UseCaseLogistics() {
   const { t } = useTranslation();
@@ -35,8 +40,9 @@ export default function UseCaseLogistics() {
   const toContact = withLang("/contact", lang);
   const toServices = withLang("/services", lang);
 
-  const VIDEO_URL =
-    "https://res.cloudinary.com/dppoomunj/video/upload/q_auto,f_auto/v1770597681/neox/media/asset_1770597676765_677c534eb962b.mp4";
+  const VIDEO_URL = autoCloudinary(
+    "https://res.cloudinary.com/dppoomunj/video/upload/v1770597681/neox/media/asset_1770597676765_677c534eb962b.mp4"
+  ); // hazırkı qalır, loop YOX
 
   useSeo({
     title: "NEOX — Logistics Scenario",
@@ -46,72 +52,79 @@ export default function UseCaseLogistics() {
 
   useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -18% 0px" });
 
-  const item: CaseItem = {
-    icon: Truck,
-    tint: "amber",
-    sektor: "Logistics",
-    basliq: "Fewer tickets with proactive shipment updates",
-    hekayə:
-      "NEOX reduces “Where is my order?” by giving proactive updates, tracking answers, and routing exceptions to operators when needed.",
-    maddeler: [
-      "Tracking info and status updates inside chat",
-      "Automatic notifications when milestones change (picked up / in transit / delivered)",
-      "Exception routing: delays, address issues, customs questions",
-      "Summaries for support and internal teams",
-    ],
-    neticeler: [
-      { k: "-55%", v: "WISMO", sub: "Less repetitive tracking questions" },
-      { k: "+27%", v: "Resolution", sub: "Faster handling of exceptions" },
-      { k: "-33%", v: "Support Load", sub: "Tickets reduced significantly" },
-      { k: "+18%", v: "CSAT", sub: "Better customer experience" },
-    ],
-  };
+  const bullets = [
+    "Tracking info and status updates inside chat",
+    "Automatic notifications when milestones change",
+    "Exception routing: delays, address issues, customs questions",
+    "Summaries for support and internal teams",
+  ];
 
   return (
     <main ref={rootRef as any} className="uc-page">
       <style>{UC_STYLES}</style>
 
-      <section className="uc-hero uc-section">
-        <div className="uc-heroBG" aria-hidden="true" />
-        <div className="uc-heroInner">
-          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
-            <div className="mx-auto max-w-[980px] text-center">
-              <div className="flex justify-center">
-                <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
+      <section className="uc-hHero">
+        <div className="uc-hHeroBG" aria-hidden="true" />
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="uc-hGrid">
+            {/* MEDIA — solda (alternating) */}
+            <div className={cx("uc-enter order-1", enter && "uc-in")} style={d(420)}>
+              <div className="uc-mediaCard uc-contain">
+                <div className="uc-mediaInner uc-mediaInner--rect">
+                  <video
+                    className="uc-mediaVideo"
+                    src={VIDEO_URL}
+                    autoPlay
+                    muted
+                    loop={false}
+                    playsInline
+                    preload="metadata"
+                  />
+                  <div className="uc-mediaShade" aria-hidden="true" />
+                </div>
               </div>
+              <div className="uc-divider" />
+            </div>
+
+            {/* TEXT — sağda */}
+            <div className={cx("uc-hLeft uc-enter order-2", enter && "uc-in")} style={d(0)}>
+              <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
 
               <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
-                <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
+                <span className="block text-[44px] leading-[1.05] sm:text-[64px] font-semibold">
                   <span className="uc-grad">Logistics</span> Scenario
                 </span>
               </h1>
 
               <p
-                className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")}
-                style={d(180)}
+                className={cx(
+                  "mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter",
+                  enter && "uc-in"
+                )}
+                style={d(170)}
               >
                 Automated tracking answers + proactive updates = fewer tickets.
               </p>
 
-              <div className="uc-divider" />
+              <div className={cx("uc-hBullets uc-enter", enter && "uc-in")} style={d(240)}>
+                {bullets.map((b) => (
+                  <div key={b} className="uc-hBullet">
+                    <Truck className="uc-hBulletIcon" />
+                    <span>{b}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className={cx("uc-hCTA uc-enter", enter && "uc-in")} style={d(320)}>
+                <a className="uc-btn" href={toContact}>
+                  Əlaqə <span aria-hidden="true">→</span>
+                </a>
+                <a className="uc-btn uc-btnGhost" href={toServices}>
+                  Xidmətələr
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="uc-spacer" />
-      </section>
-
-      <section className="uc-section py-16 sm:py-20">
-        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-          <CaseRow
-            c={item}
-            flip={false}
-            tRealScenario={t("useCases.labels.realScenario", { defaultValue: "Real scenario" })}
-            toContact={toContact}
-            toServices={toServices}
-            ctaPrimary={t("useCases.cta.ownCase", { defaultValue: "Contact" })}
-            ctaSecondary={t("useCases.cta.services", { defaultValue: "Services" })}
-            videoUrl={VIDEO_URL}
-          />
         </div>
       </section>
 
