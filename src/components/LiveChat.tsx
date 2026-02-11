@@ -15,9 +15,12 @@ const LIVECHAT_CSS = `
    ========================= */
 
 .lcx{
+  --bg: rgba(255,255,255,.03);
+  --bg2: rgba(255,255,255,.05);
   --line: rgba(255,255,255,.10);
   --ink: rgba(255,255,255,.92);
   --muted: rgba(255,255,255,.70);
+  --dim: rgba(255,255,255,.55);
 
   --a1: rgba(47,184,255,.95);
   --a2: rgba(42,125,255,.95);
@@ -25,15 +28,14 @@ const LIVECHAT_CSS = `
   width:100%;
   border-radius: 22px;
   border: 1px solid var(--line);
-  background:
-    radial-gradient(1200px 600px at 12% 8%, rgba(47,184,255,.10), transparent 55%),
-    radial-gradient(900px 540px at 88% 12%, rgba(42,125,255,.10), transparent 55%),
-    rgba(0,0,0,.26);
+  background: radial-gradient(1200px 600px at 12% 8%, rgba(47,184,255,.10), transparent 55%),
+              radial-gradient(900px 540px at 88% 12%, rgba(42,125,255,.10), transparent 55%),
+              rgba(0,0,0,.26);
   overflow:hidden;
   position:relative;
+  isolation:isolate;
 }
 
-/* subtle glass layer (no heavy blur => better FPS) */
 .lcx:before{
   content:"";
   position:absolute;
@@ -73,9 +75,6 @@ const LIVECHAT_CSS = `
   text-transform:uppercase;
   color: rgba(255,255,255,.72);
   white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width: 62vw;
 }
 
 .lcxStatus{
@@ -89,7 +88,6 @@ const LIVECHAT_CSS = `
   color: rgba(255,255,255,.78);
   font-size:12px;
   white-space:nowrap;
-  flex:0 0 auto;
 }
 
 .lcxFrame{
@@ -99,26 +97,15 @@ const LIVECHAT_CSS = `
 }
 
 .lcxScroll{
-  height: 320px;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.08);
   background: rgba(0,0,0,.22);
-  overflow:auto;
   padding: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.18) transparent;
-
-  /* ✅ CRITICAL: page scroll bloklanmasın */
-  overscroll-behavior: auto;
-  touch-action: pan-y;
-}
-
-.lcxScroll::-webkit-scrollbar{ width:10px; }
-.lcxScroll::-webkit-scrollbar-thumb{
-  background: rgba(255,255,255,.14);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
+  /* IMPORTANT: page scroll bloklanmasın deyə daxili scroll yoxdur */
+  height:auto;
+  max-height:none;
+  overflow:visible;
+  overscroll-behavior:auto;
 }
 
 .lcxMsg{
@@ -143,7 +130,6 @@ const LIVECHAT_CSS = `
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  min-width:0;
 }
 
 .lcxTime{
@@ -161,7 +147,6 @@ const LIVECHAT_CSS = `
   color: var(--ink);
   line-height:1.35;
   font-size: 14px;
-  word-break: break-word;
 }
 
 .lcxMsg.isAgent{ align-items:flex-end; }
@@ -228,7 +213,7 @@ const LIVECHAT_CSS = `
 
 /* responsive */
 @media (max-width: 520px){
-  .lcxScroll{ height: 280px; padding: 10px; }
+  .lcxScroll{ padding: 10px; }
   .lcxBubble{ max-width: 94%; }
 }
 `;
@@ -258,11 +243,13 @@ export default function LiveChat({
   typing,
   visibleSlots = 4,
   title = "LIVE / CUSTOMER CHAT",
+  mode = "card",
 }: {
   messages: Msg[];
   typing: Role | null;
   visibleSlots?: number;
   title?: string;
+  mode?: "card" | "embed";
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const { ref, inView } = useInView<HTMLElement>(0.22);
@@ -279,7 +266,7 @@ export default function LiveChat({
     return base.slice(-visibleSlots);
   }, [messages, typing, visibleSlots]);
 
-  // ✅ autoscroll only when component is in view
+  // Autoscroll: yalnız görünəndə (perf + “scroll etmədən açılmasın” hissi)
   useEffect(() => {
     if (!inView) return;
     const raf = requestAnimationFrame(() => {
@@ -292,7 +279,16 @@ export default function LiveChat({
   const typingLabel = () => "typing…";
 
   return (
-    <section ref={ref as any} className="lcx" aria-label="Live chat demo">
+    <section
+      ref={ref as any}
+      className="lcx"
+      aria-label="Live chat demo"
+      style={
+        mode === "embed"
+          ? { borderRadius: 18, borderColor: "rgba(255,255,255,.10)" }
+          : undefined
+      }
+    >
       <style>{LIVECHAT_CSS}</style>
 
       <div className="lcxHead">
