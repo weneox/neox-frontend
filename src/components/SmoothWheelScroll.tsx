@@ -6,18 +6,30 @@ type Props = {
   locationKey?: string;
   ignoreSelectors?: string[];
 
+  /** wheel -> impulse */
   strength?: number;
+
+  /** inertia decay (normal) */
   friction?: number;
+
+  /** clamp */
   maxVelocity?: number;
+
+  /** soften wheel spikes */
   softCap?: number;
 
+  /** travel budget limit (per gesture) */
   maxTravelPerWheel?: number;
+
+  /** idle extra brake start */
   idleBrakeMs?: number;
 
-  stopEaseMs?: number;
-  wheelDeadzone?: number;
+  /** glide tail durations */
+  coastMs?: number;     // travel bitəndən sonra qısa “gediş”
+  stopEaseMs?: number;  // sonra uzun “sönmə”
 
-  coastMs?: number;
+  /** ignore tiny deltas */
+  wheelDeadzone?: number;
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -32,15 +44,17 @@ function normalizeWheelDelta(e: WheelEvent) {
   let dy = e.deltaY;
   if (e.deltaMode === 1) dy *= 16;
   else if (e.deltaMode === 2) dy *= window.innerHeight;
-  return clamp(dy, -260, 260);
+  return clamp(dy, -320, 320);
 }
 
 function softenDelta(dy: number, softCap: number) {
   const s = Math.sign(dy);
   const a = Math.abs(dy);
   if (a <= softCap) return dy;
+
+  // extra hissəni daha çox sıx → mouse “sert atma” azalsın
   const extra = a - softCap;
-  return s * (softCap + extra * 0.22);
+  return s * (softCap + extra * 0.18);
 }
 
 function getScrollableParent(el: Element | null) {
@@ -75,19 +89,17 @@ export default function SmoothWheelScroll({
   locationKey,
   ignoreSelectors,
 
-  // ✅ bir scroll = daha “düşsün”, amma yavaş hisslə
+  // ✅ hissiyat preset (səndə istənən: yumşaq + kontrollu)
   strength = 0.11,
   friction = 0.905,
-  maxVelocity = 36,
-  softCap = 75,
+  maxVelocity = 38,
+  softCap = 85,
 
-  // ✅ daha çox “glide”
-  maxTravelPerWheel = 980,
+  maxTravelPerWheel = 1150,
   idleBrakeMs = 140,
 
-  // ✅ daha yumşaq dayanma
-  coastMs = 180,
-  stopEaseMs = 420,
+  coastMs = 150,
+  stopEaseMs = 380,
 
   wheelDeadzone = 3.2,
 }: Props) {
@@ -117,9 +129,11 @@ export default function SmoothWheelScroll({
 
   const vRef = useRef(0);
 
+  // travel budget (gesture-lə idarə edirik)
   const travelBudgetRef = useRef(0);
   const lastWheelTsRef = useRef(0);
 
+  // tail stop state
   const stopRef = useRef<{ active: boolean; t0: number; v0: number }>({
     active: false,
     t0: 0,
@@ -128,6 +142,7 @@ export default function SmoothWheelScroll({
 
   useEffect(() => {
     if (!enabled) return;
+
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
 
     const fine = window.matchMedia?.("(pointer: fine)")?.matches;
@@ -153,7 +168,7 @@ export default function SmoothWheelScroll({
       stopRef.current.active = false;
     };
 
-    const startGlideStop = () => {
+    const startTailStop = () => {
       const now = performance.now();
       stopRef.current = { active: true, t0: now, v0: vRef.current };
       travelBudgetRef.current = 0;
@@ -171,59 +186,59 @@ export default function SmoothWheelScroll({
       if (stopRef.current.active) {
         const dt = now - stopRef.current.t0;
 
-        // ✅ daha uzun “coast”
+        // ✅ 1) əvvəlcə qısa “coast” → buraxanda azca da getsin
         if (dt < coastMs) {
-          // coast zamanı yavaş-yavaş sönsün (tam kəsməsin)
-          vRef.current *= (friction * 0.985);
-          if (Math.abs(vRef.current) < 0.08) {
+          vRef.current *= (friction * 0.99);
+          if (Math.abs(vRef.current) < 0.07) {
             stopHard();
             return;
           }
         } else {
-          // ✅ daha uzun ease-out
+          // ✅ 2) sonra uzun ease-out → yumşaq sönsün
           const t = clamp((dt - coastMs) / stopEaseMs, 0, 1);
           const k = 1 - easeOutCubic(t);
 
-          // ease ilə yanaşı azca friction da veririk → daha təbii “glide”
+          // birdən kəsilməsin deyə azca tail saxla
           const eased = stopRef.current.v0 * k;
-          vRef.current = eased * (friction * 0.995);
+          vRef.current = eased * 0.985;
 
-          if (t >= 1 || Math.abs(vRef.current) < 0.08) {
+          if (t >= 1 || Math.abs(vRef.current) < 0.07) {
             stopHard();
             return;
           }
         }
       } else {
+        // normal inertia
         const idleFor = now - (lastWheelTsRef.current || 0);
         const extraBrake = idleFor > idleBrakeMs ? 0.90 : 1;
 
         vRef.current *= friction * extraBrake;
 
+        // travel budget consume
         const va = Math.abs(vRef.current);
         if (va > 0) {
           travelBudgetRef.current = Math.max(0, travelBudgetRef.current - va);
 
-          // ✅ travel bitəndə glide-stop
-          if (travelBudgetRef.current <= 0 && Math.abs(vRef.current) > 0.22) {
-            startGlideStop();
+          // ✅ travel bitən kimi hard stop yox — tail-stop
+          if (travelBudgetRef.current <= 0 && Math.abs(vRef.current) > 0.20) {
+            startTailStop();
           }
         }
 
-        if (Math.abs(vRef.current) < 0.08) {
+        if (Math.abs(vRef.current) < 0.07) {
           stopHard();
           return;
         }
       }
 
       const next = posRef.current + vRef.current;
-      const mx2 = maxScroll();
-      const clamped = clamp(next, 0, mx2);
+      const clamped = clamp(next, 0, mx);
 
       posRef.current = clamped;
       lastNativeYRef.current = clamped;
       window.scrollTo(0, clamped);
 
-      if (clamped <= 0 || clamped >= mx2) {
+      if (clamped <= 0 || clamped >= mx) {
         stopHard();
         return;
       }
@@ -233,8 +248,10 @@ export default function SmoothWheelScroll({
 
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) return;
+
       if (shouldIgnoreTarget(e.target, ignores)) return;
 
+      // if wheel over scrollable container → native
       const sp = getScrollableParent(e.target instanceof Element ? e.target : null);
       if (sp) return;
 
@@ -243,6 +260,8 @@ export default function SmoothWheelScroll({
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
+
+      // edges → native
       if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
         stopHard();
         syncNative();
@@ -252,23 +271,33 @@ export default function SmoothWheelScroll({
       e.preventDefault();
       syncNative();
 
-      // ✅ yeni jest gəldi → glide-stop ləğv
+      // new gesture cancels tail-stop
       stopRef.current.active = false;
 
       dy = softenDelta(dy, softCap);
 
-      // impulse
+      // impulse to velocity
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
       const now = performance.now();
       const dt = now - (lastWheelTsRef.current || 0);
       lastWheelTsRef.current = now;
 
+      // carry prevents stacking too hard
       const carry = dt < 90 ? 0.25 : dt < 160 ? 0.35 : 0.45;
       vRef.current = clamp(vRef.current * carry + add, -maxVelocity, maxVelocity);
 
-      // ✅ travel daha çox əlavə: 1 scroll gedib-yavaşlayıb dayansın
-      const budgetAdd = clamp(Math.abs(dy) * 2.35, 260, 980);
+      // ✅ KEY FIX: travel budget adaptiv olsun
+      // kiçik dy → qısa glide (buz effekti olmasın)
+      // böyük dy → uzun glide (yumşaq dayanma)
+      const a = Math.abs(dy);
+      const budgetAdd =
+        a < 18
+          ? clamp(a * 8.5, 90, 180)
+          : a < 55
+          ? clamp(a * 5.2, 180, 520)
+          : clamp(a * 3.0, 520, 1100);
+
       travelBudgetRef.current = clamp(
         travelBudgetRef.current + budgetAdd,
         0,
@@ -285,6 +314,7 @@ export default function SmoothWheelScroll({
       if (y <= 0 || y >= mx) stopHard();
     };
 
+    // init
     syncNative();
     stopHard();
 
@@ -308,9 +338,9 @@ export default function SmoothWheelScroll({
     softCap,
     maxTravelPerWheel,
     idleBrakeMs,
+    coastMs,
     stopEaseMs,
     wheelDeadzone,
-    coastMs,
   ]);
 
   return null;
