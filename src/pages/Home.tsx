@@ -55,7 +55,7 @@ function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* ---------------- Premium wheel scroll (PERF SAFE) ---------------- */
+/* ---------------- Premium wheel scroll (KEEP OFF) ---------------- */
 function usePremiumWheelScroll(enabled: boolean) {
   const rafRef = useRef<number | null>(null);
   const targetRef = useRef<number>(0);
@@ -150,11 +150,10 @@ function useRevealIO(enabled: boolean) {
   }, [enabled]);
 }
 
-/* ========================= SOCIAL DEMO (typing source) ========================= */
+/* ========================= SOCIAL DEMO (typing feed) ========================= */
 type SocialMsg = { from: "client" | "ai"; text: string };
 type Plat = "WHATSAPP" | "FACEBOOK" | "INSTAGRAM";
 
-/* typing feed (LiveChat-ı qidalandırır) */
 function useSocialTypingFeed(opts: { script: SocialMsg[]; baseSpeedMs?: number; active: boolean }) {
   const { script, baseSpeedMs = 900, active } = opts;
 
@@ -468,7 +467,7 @@ function OpsAutomationDiagram({ reduced, t }: { reduced: boolean; t: (k: string,
 }
 const OpsAutomationDiagramMemo = memo(OpsAutomationDiagram);
 
-/* ========================= SOCIAL + PIPELINE + SMM + OPS ========================= */
+/* ========================= SECTION ========================= */
 function SocialAutomationSection({
   reducedMotion = false,
   isMobile = false,
@@ -509,7 +508,6 @@ function SocialAutomationSection({
     return { dot: "rgba(42,125,255,.95)", clientName: t("home.social.clientName.default") as string };
   }, [platform, t]);
 
-  // typing feed
   const { shown, typing, typingText } = useSocialTypingFeed({
     script: visibleScript,
     baseSpeedMs: 920,
@@ -518,7 +516,7 @@ function SocialAutomationSection({
 
   const liveChatMsgs = useMemo(() => {
     return shown.map((m, idx) => ({
-      id: `${platform}-${idx}-${m.from}`,
+      id: `${platform}-${idx}`,
       role: m.from === "ai" ? ("agent" as const) : ("customer" as const),
       text: m.text,
       time: "",
@@ -577,10 +575,7 @@ function SocialAutomationSection({
                 {t("home.social.lead")}
               </p>
 
-              <div
-                className="neo-actions reveal reveal-top"
-                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}
-              >
+              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}>
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.cta.demo")}
                 </Link>
@@ -590,7 +585,7 @@ function SocialAutomationSection({
               </div>
             </header>
 
-            {/* ✅ ONLY LiveChat (tablet shell yoxdur) */}
+            {/* TABLET CARD */}
             <div
               style={{
                 width: "100%",
@@ -600,25 +595,54 @@ function SocialAutomationSection({
                 minWidth: 0,
               }}
             >
-              <LiveChat
-                title="LIVE / CUSTOMER CHAT"
-                messages={
-                  typing && typingText
-                    ? [
-                        ...liveChatMsgs,
-                        {
-                          id: "typing-preview",
-                          role: typing === "ai" ? ("agent" as const) : ("customer" as const),
-                          text: typingText,
-                          time: "",
-                        },
-                      ].slice(-4)
-                    : liveChatMsgs
-                }
-                typing={reducedMotion ? null : liveTyping}
-                visibleSlots={4}
-                mode="card"
-              />
+              <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 0 }}>
+                <div className="neo-tabletCard neo-tabletCard--premium" style={{ width: "100%", height: "100%" }}>
+                  <div className="neo-tabletTop" aria-hidden="true">
+                    <span className="neo-tabletCamPill">
+                      <i className="neo-tabletCamDot" />
+                    </span>
+                    <span className="neo-tabletStatus" aria-hidden="true">
+                      <i className="neo-tabletLiveDot" style={{ background: meta.dot }} />
+                    </span>
+                  </div>
+
+                  <div className="neo-tabletScreen">
+                    <div className="neo-tabletScreenInner" style={{ padding: 10 }}>
+                      <LiveChat
+                        title="LIVE / CUSTOMER CHAT"
+                        messages={
+                          typing && typingText
+                            ? [
+                                ...liveChatMsgs,
+                                {
+                                  id: `typing-preview`,
+                                  role: typing === "ai" ? ("agent" as const) : ("customer" as const),
+                                  text: typingText,
+                                  time: "",
+                                },
+                              ].slice(-4)
+                            : liveChatMsgs
+                        }
+                        typing={reducedMotion ? null : liveTyping}
+                        visibleSlots={4}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="neo-tabletBottom" aria-hidden="true">
+                    <span className="neo-tabletPort" />
+                    <span className="neo-tabletHome" />
+                  </div>
+
+                  {/* ⚠️ Bunlar tablet CSS-də pseudo/blur verirsə “extra blok” hissi yarada bilər.
+                      İstəsən tam söndür:
+                      <div className="neo-tabletVignette" aria-hidden="true" />
+                      <div className="neo-tabletShine" aria-hidden="true" />
+                  */}
+                  <div className="neo-tabletVignette" aria-hidden="true" />
+                  <div className="neo-tabletShine" aria-hidden="true" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -673,10 +697,7 @@ function SocialAutomationSection({
 
               <p className="neo-p reveal reveal-top">{t("home.smm.copy")}</p>
 
-              <div
-                className="neo-actions reveal reveal-top"
-                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}
-              >
+              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.smm.cta.primary")}
                 </Link>
@@ -890,7 +911,7 @@ export default function Home() {
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
 
-  // always start top
+  // ✅ always start from top on entering home
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -898,7 +919,9 @@ export default function Home() {
     return () => cancelAnimationFrame(raf);
   }, [location.key]);
 
+  // ✅ keep OFF (otherwise it can feel like scroll “hijack”)
   usePremiumWheelScroll(false);
+
   useRevealIO(!reduced);
 
   const [enter, setEnter] = useState(false);
@@ -946,12 +969,7 @@ export default function Home() {
       {/* HERO */}
       <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground
-            className="neo-heroBg"
-            intensity={heroIntensity}
-            paused={!heroInView}
-            maxFps={isMobile ? 30 : 60}
-          />
+          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} paused={!heroInView} maxFps={isMobile ? 30 : 60} />
         </div>
 
         <div className="container neo-hero-inner">
@@ -984,6 +1002,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* spacer */}
       <div className="neo-afterHeroSpacer" aria-hidden="true" />
 
       {/* terminal strip */}

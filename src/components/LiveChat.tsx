@@ -28,9 +28,10 @@ const LIVECHAT_CSS = `
   width:100%;
   border-radius: 22px;
   border: 1px solid var(--line);
-  background: radial-gradient(1200px 600px at 12% 8%, rgba(47,184,255,.10), transparent 55%),
-              radial-gradient(900px 540px at 88% 12%, rgba(42,125,255,.10), transparent 55%),
-              rgba(0,0,0,.26);
+  background:
+    radial-gradient(1200px 600px at 12% 8%, rgba(47,184,255,.10), transparent 55%),
+    radial-gradient(900px 540px at 88% 12%, rgba(42,125,255,.10), transparent 55%),
+    rgba(0,0,0,.26);
   overflow:hidden;
   position:relative;
   isolation:isolate;
@@ -42,6 +43,7 @@ const LIVECHAT_CSS = `
   inset:0;
   background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 42%, rgba(0,0,0,.28));
   pointer-events:none;
+  z-index:0;
 }
 
 .lcxHead{
@@ -96,16 +98,27 @@ const LIVECHAT_CSS = `
   padding: 12px;
 }
 
+/* ✅ STABLE PANEL: fixed height + internal scroll */
 .lcxScroll{
+  height: 320px;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.08);
   background: rgba(0,0,0,.22);
+  overflow: auto;
   padding: 12px;
-  /* IMPORTANT: page scroll bloklanmasın deyə daxili scroll yoxdur */
-  height:auto;
-  max-height:none;
-  overflow:visible;
-  overscroll-behavior:auto;
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.18) transparent;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lcxScroll::-webkit-scrollbar{ width:10px; }
+.lcxScroll::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.14);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 
 .lcxMsg{
@@ -147,6 +160,9 @@ const LIVECHAT_CSS = `
   color: var(--ink);
   line-height:1.35;
   font-size: 14px;
+
+  /* ✅ protect layout from long text */
+  overflow-wrap: anywhere;
 }
 
 .lcxMsg.isAgent{ align-items:flex-end; }
@@ -213,7 +229,7 @@ const LIVECHAT_CSS = `
 
 /* responsive */
 @media (max-width: 520px){
-  .lcxScroll{ padding: 10px; }
+  .lcxScroll{ height: 280px; padding: 10px; }
   .lcxBubble{ max-width: 94%; }
 }
 `;
@@ -243,13 +259,11 @@ export default function LiveChat({
   typing,
   visibleSlots = 4,
   title = "LIVE / CUSTOMER CHAT",
-  mode = "card",
 }: {
   messages: Msg[];
   typing: Role | null;
   visibleSlots?: number;
   title?: string;
-  mode?: "card" | "embed";
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const { ref, inView } = useInView<HTMLElement>(0.22);
@@ -266,7 +280,7 @@ export default function LiveChat({
     return base.slice(-visibleSlots);
   }, [messages, typing, visibleSlots]);
 
-  // Autoscroll: yalnız görünəndə (perf + “scroll etmədən açılmasın” hissi)
+  // ✅ autoscroll only when visible
   useEffect(() => {
     if (!inView) return;
     const raf = requestAnimationFrame(() => {
@@ -276,19 +290,9 @@ export default function LiveChat({
   }, [items.length, inView]);
 
   const whoLabel = (r: Role) => (r === "customer" ? "MÜŞTƏRİ" : "NEOX AGENT");
-  const typingLabel = () => "typing…";
 
   return (
-    <section
-      ref={ref as any}
-      className="lcx"
-      aria-label="Live chat demo"
-      style={
-        mode === "embed"
-          ? { borderRadius: 18, borderColor: "rgba(255,255,255,.10)" }
-          : undefined
-      }
-    >
+    <section ref={ref as any} className="lcx" aria-label="Live chat demo">
       <style>{LIVECHAT_CSS}</style>
 
       <div className="lcxHead">
@@ -314,7 +318,7 @@ export default function LiveChat({
                     <span className="lcxWho">{whoLabel(it.role)}</span>
                     <span className="lcxTime">
                       <span className="lcxTyping">
-                        {typingLabel()}{" "}
+                        typing…{" "}
                         <span className="lcxDots" aria-hidden="true">
                           <i />
                           <i />
