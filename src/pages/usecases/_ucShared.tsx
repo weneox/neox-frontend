@@ -1,8 +1,9 @@
 // src/pages/usecases/_ucShared.tsx
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
 
+/* ---------------- helpers ---------------- */
 export function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
@@ -20,6 +21,7 @@ export function withLang(path: string, lang: Lang) {
   return `/${lang}${p}`;
 }
 
+/* ---------------- motion prefs ---------------- */
 export function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -50,7 +52,7 @@ export function useMedia(query: string, initial = false) {
   return v;
 }
 
-/* Reveal: scoped + batched (FPS safe) */
+/* ---------------- Reveal: scoped + batched (FPS safe) ---------------- */
 export function useRevealScopedBatched(
   rootRef: React.RefObject<HTMLElement>,
   opts?: { rootMargin?: string; batchSize?: number; batchDelayMs?: number }
@@ -120,7 +122,7 @@ export function useRevealScopedBatched(
   }, [rootRef, rootMargin, batchSize, batchDelayMs]);
 }
 
-/* SEO */
+/* ---------------- SEO ---------------- */
 export function useSeo(opts: { title: string; description: string; canonicalPath: string; ogImage?: string }) {
   useEffect(() => {
     const prevTitle = document.title;
@@ -203,6 +205,7 @@ export type CaseItem = {
   tint: Tint;
 };
 
+/* ---------------- STYLES (includes Canva-like About block) ---------------- */
 export const UC_STYLES = `
 html, body{
   background:#000 !important;
@@ -247,7 +250,7 @@ html, body{
 
 .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
 
-/* hero enter (only for hero) */
+/* hero enter */
 .uc-enter{
   opacity: 0;
   transform: translate3d(0, 16px, 0);
@@ -258,6 +261,7 @@ html, body{
 }
 .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
+/* hover pop (desktop only basically) */
 .uc-pop{
   position: relative;
   z-index: 1;
@@ -376,7 +380,7 @@ html, body{
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
 
-/* Reveal (FPS safe): only transform+opacity */
+/* Reveal: transform+opacity only */
 .uc-reveal{ opacity: 1; transform: none; }
 .uc-page.uc-io .uc-reveal{
   opacity: 0;
@@ -389,7 +393,7 @@ html, body{
 .reveal-right{ --rx: 18px; --ry: 0px; }
 .reveal-bottom{ --rx: 0px; --ry: 14px; }
 
-/* ===== NEW: Canva-like about section ===== */
+/* ===== Canva-like About block (NEW) ===== */
 .uc-aboutGrid{
   display:grid;
   grid-template-columns: 1.05fr .95fr;
@@ -437,7 +441,7 @@ html, body{
   border: 1px solid rgba(255,255,255,.10);
   background: rgba(255,255,255,.04);
   overflow: hidden;
-  min-height: 280px;
+  min-height: 300px;
   transform: translateZ(0);
   will-change: transform, opacity;
 }
@@ -448,29 +452,58 @@ html, body{
   display:grid;
   place-items:center;
   color: rgba(255,255,255,.55);
-  font-size: 13px;
-  letter-spacing:.14em;
+  font-size: 12px;
+  letter-spacing:.18em;
   text-transform: uppercase;
   background:
     radial-gradient(600px 300px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
     linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
 }
 
-/* soldakı yuxarıdan düşür, sağdakı aşağıdan qalxır */
-.reveal-drop{ --rx: 0px; --ry: -22px; }
-.reveal-rise{ --rx: 0px; --ry: 22px; }
+.reveal-drop{ --rx: 0px; --ry: -22px; } /* soldakı yuxarıdan düşür */
+.reveal-rise{ --rx: 0px; --ry: 22px; }  /* sağdakı aşağıdan qalxır */
 
-/* Canva-like bottom bar */
-.uc-barWrap{
-  grid-column: 1 / -1;
-}
 .uc-bar{
+  margin-top: 14px;
   height: 78px;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.08);
-  background: linear-gradient(180deg, rgba(42,125,255,.55), rgba(42,125,255,.35));
+  background: linear-gradient(180deg, rgba(42,125,255,.60), rgba(42,125,255,.32));
   box-shadow: 0 18px 60px rgba(0,0,0,.55);
 }
+
+/* cards (CaseRow uses these) */
+.uc-card{
+  position: relative;
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.016));
+  box-shadow: 0 16px 56px rgba(0,0,0,.60);
+  border-radius: 22px;
+  overflow: hidden;
+  padding: 18px;
+}
+.uc-line{
+  height: 1px;
+  background: linear-gradient(90deg, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18));
+  opacity: .95;
+}
+.uc-tile{
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.02);
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
+  padding: 12px 12px;
+}
+.uc-tileK{
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1;
+  background: linear-gradient(90deg, #fff 0%, rgba(47,184,255,.98) 60%, rgba(42,125,255,.95) 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
 
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
@@ -480,6 +513,7 @@ html, body{
 }
 `;
 
+/* ---------------- UI parts ---------------- */
 export const BreadcrumbPill = memo(function BreadcrumbPill({
   text,
   enter,
@@ -497,12 +531,120 @@ export const BreadcrumbPill = memo(function BreadcrumbPill({
   );
 });
 
-/* (qalan komponentlər səndə istifadə olunsa saxla) */
 export const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
-    <div className="uc-bullet flex items-start gap-2">
+    <div className="flex items-start gap-2">
       <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
       <span className="text-white/75 leading-[1.65] break-words">{text}</span>
+    </div>
+  );
+});
+
+export const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
+  return (
+    <div className="uc-tile uc-pop uc-contain">
+      <div className="uc-tileK">{k}</div>
+      <div className="uc-tileV mt-1">{v}</div>
+      <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
+    </div>
+  );
+});
+
+/* ---------------- CaseRow (export needed for Cloudflare build) ---------------- */
+export const CaseRow = memo(function CaseRow({
+  c,
+  flip,
+  tRealScenario,
+  toContact,
+  toServices,
+  ctaPrimary,
+  ctaSecondary,
+  videoUrl,
+}: {
+  c: CaseItem;
+  flip: boolean;
+  tRealScenario: string;
+  toContact: string;
+  toServices: string;
+  ctaPrimary: string;
+  ctaSecondary: string;
+  videoUrl?: string;
+}) {
+  const Icon = c.icon;
+
+  return (
+    <div className="grid gap-10 lg:grid-cols-2 lg:items-center uc-stack" data-tint={c.tint}>
+      {/* TEXT */}
+      <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
+        <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
+          <header className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="uc-ic" aria-hidden="true">
+                <Icon className="h-5 w-5 text-white/85" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
+                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
+              </div>
+            </div>
+
+            <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] tracking-[.08em] uppercase text-white/80">
+              Case
+            </span>
+          </header>
+
+          <div className="mt-4 uc-line" />
+
+          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
+          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
+
+          <div className="mt-5 space-y-3">
+            {c.maddeler.map((b) => (
+              <Bullet key={b} text={b} />
+            ))}
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            {c.neticeler.map((r) => (
+              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
+            ))}
+          </div>
+
+          <div className="mt-7 flex flex-wrap gap-3">
+            <a href={toContact} className="uc-btn">
+              {ctaPrimary} <span aria-hidden="true">→</span>
+            </a>
+            <a href={toServices} className="uc-btn uc-btnGhost">
+              {ctaSecondary}
+            </a>
+          </div>
+        </article>
+      </div>
+
+      {/* VISUAL (video placeholder or video) */}
+      <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
+        {videoUrl ? (
+          <div
+            className="uc-card uc-pop uc-contain"
+            style={{ padding: 0, overflow: "hidden", minHeight: 340, display: "grid" }}
+            aria-label="Scenario video"
+          >
+            <video
+              src={videoUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          </div>
+        ) : (
+          <div className="uc-card uc-pop uc-contain" style={{ minHeight: 340, display: "grid", placeItems: "center" }}>
+            <div className="text-white/55 text-[12px] tracking-[.18em] uppercase">VISUAL PLACEHOLDER</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 });

@@ -2,10 +2,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Stethoscope, CheckCircle } from "lucide-react";
+import { Stethoscope } from "lucide-react";
 import {
   UC_STYLES,
   BreadcrumbPill,
+  Bullet,
+  CaseItem,
   cx,
   getLangFromPath,
   withLang,
@@ -30,6 +32,7 @@ export default function UseCaseHealthcare() {
     return () => window.clearTimeout(tt);
   }, []);
 
+  // hero delay helper
   const d = (ms: number) => ({ ["--d" as any]: `${isMobile ? Math.round(ms * 0.7) : ms}ms` });
 
   const toContact = withLang("/contact", lang);
@@ -41,35 +44,52 @@ export default function UseCaseHealthcare() {
     canonicalPath: withLang("/use-cases/healthcare", lang),
   });
 
-  // ✅ 30% girmədən açılmasın: rootMargin mənfi bottom veririk
-  useRevealScopedBatched(rootRef, { batchSize: 3, batchDelayMs: 90, rootMargin: "0px 0px -30% 0px" });
+  // ✅ reveal (scroll-based)
+  useRevealScopedBatched(rootRef, { batchSize: 2, batchDelayMs: 110, rootMargin: "0px 0px -22% 0px" });
+
+  const item: CaseItem = {
+    icon: Stethoscope,
+    tint: "pink",
+    sektor: "Healthcare",
+    basliq: "Instant answers + clean scheduling flow",
+    hekayə:
+      "NEOX answers common patient questions, collects required information, and schedules appointments faster. Complex cases are handed off to operators with full context.",
+    maddeler: [
+      "FAQ automation: services, pricing, preparation instructions",
+      "Smart intake: symptoms & appointment intent (optional)",
+      "No-show reduction via reminders & clear next steps",
+      "Operator handoff for sensitive or complex requests",
+    ],
+    neticeler: [
+      { k: "-44%", v: "No-shows", sub: "Better reminders & clarity" },
+      { k: "+36%", v: "Booked Visits", sub: "Less friction to schedule" },
+      { k: "-40%", v: "Call Volume", sub: "Fewer phone interruptions" },
+      { k: "+22%", v: "Satisfaction", sub: "Faster answers for patients" },
+    ],
+  };
 
   return (
     <main ref={rootRef as any} className="uc-page">
       <style>{UC_STYLES}</style>
 
       {/* HERO */}
-      <section className="uc-hero">
+      <section className="uc-hero uc-section">
         <div className="uc-heroBG" aria-hidden="true" />
         <div className="uc-heroInner">
-          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
+          <div className="relative z-[1] mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 w-full">
             <div className="mx-auto max-w-[980px] text-center">
               <div className="flex justify-center">
-                <BreadcrumbPill
-                  text={t("useCases.hero.crumb", { defaultValue: "Use Case" })}
-                  enter={enter}
-                  delayMs={0}
-                />
+                <BreadcrumbPill text={t("useCases.hero.crumb", { defaultValue: "Use Case" })} enter={enter} delayMs={0} />
               </div>
 
-              <h1 className={cx("mt-6 text-white uc-enter", enter && "uc-in")} style={d(90)}>
+              <h1 className={cx("mt-6 text-white break-words uc-enter", enter && "uc-in")} style={d(90)}>
                 <span className="block text-[40px] leading-[1.05] sm:text-[60px] font-semibold">
-                  <span className="uc-grad">Healthcare</span> Automation
+                  <span className="uc-grad">Healthcare</span> Scenario
                 </span>
               </h1>
 
-              <p className={cx("mt-5 text-[16px] sm:text-[18px] text-white/70 uc-enter", enter && "uc-in")} style={d(180)}>
-                Daha az manual iş. Daha sürətli cavab. Daha çox qəbul.
+              <p className={cx("mt-5 text-[16px] sm:text-[18px] leading-[1.7] text-white/70 break-words uc-enter", enter && "uc-in")} style={d(180)}>
+                Faster scheduling, fewer no-shows, and instant patient answers.
               </p>
 
               <div className="uc-divider" />
@@ -79,42 +99,20 @@ export default function UseCaseHealthcare() {
         <div className="uc-spacer" />
       </section>
 
-      {/* ABOUT PROJECT LAYOUT (Canva style) */}
-      <section className="py-16 sm:py-20">
+      {/* CANVA-LIKE ABOUT PROJECT BLOCK */}
+      <section className="uc-section py-16 sm:py-20">
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
           <div className="uc-aboutGrid">
-            {/* TEXT: əvvəlcə sözlər açılır */}
-            <div className="uc-reveal reveal-left">
-              <article className="uc-aboutText uc-pop uc-contain">
-                <div className="flex items-center gap-3">
-                  <div className="uc-ic" aria-hidden="true">
-                    <Stethoscope className="w-5 h-5" />
-                  </div>
-                  <div className="text-white/60 text-[12px] tracking-[.14em] uppercase">
-                    ABOUT PROJECT
-                  </div>
+            {/* LEFT TEXT (first reveals) */}
+            <div className={cx("uc-reveal reveal-left")}>
+              <div className="uc-aboutText">
+                <div className="uc-aboutTitle">
+                  ABOUT <br /> PROJECT
                 </div>
 
-                <h2 className="uc-aboutTitle mt-4">
-                  AI ilə xəstə axınının avtomatlaşdırılması
-                </h2>
-
-                <p className="mt-3 text-white/70 leading-[1.7]">
-                  NEOX xəstələrin suallarını dərhal cavablayır, lazımi məlumatları toplayır və
-                  görüşlərin təyin edilməsini sürətləndirir. Həssas sorğular operatorlara tam kontekstlə ötürülür.
-                </p>
-
                 <div className="uc-aboutList">
-                  {[
-                    "FAQ avtomatlaşdırma: xidmətlər, qiymətlər, hazırlıq qaydaları",
-                    "Ağıllı intake: simptomlar və görüş niyyəti",
-                    "No-show azaldılması: xatırlatmalar + növbəti addımlar",
-                    "Həssas hallarda operatora yönləndirmə",
-                  ].map((x) => (
-                    <div key={x} className="flex items-start gap-2">
-                      <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] mt-0.5 flex-shrink-0" />
-                      <span className="text-white/75 leading-[1.65]">{x}</span>
-                    </div>
+                  {item.maddeler.map((m) => (
+                    <Bullet key={m} text={m} />
                   ))}
                 </div>
 
@@ -126,35 +124,33 @@ export default function UseCaseHealthcare() {
                     {t("useCases.cta.services", { defaultValue: "Services" })}
                   </a>
                 </div>
-              </article>
+              </div>
             </div>
 
-            {/* IMAGES: sonra panellər gəlir */}
+            {/* RIGHT 2 IMAGE PLACEHOLDERS */}
             <div className="uc-imgWrap">
-              {/* LEFT: yuxarıdan düşür */}
-              <div className="uc-reveal reveal-drop">
-                <div className="uc-imgCard uc-pop uc-contain">
-                  <div className="uc-imgPh">Image #1 (top → down)</div>
+              {/* left image: DROP from top */}
+              <div className={cx("uc-reveal reveal-drop")} style={{ transitionDelay: reduced ? "0ms" : "120ms" }}>
+                <div className="uc-imgCard">
+                  <div className="uc-imgPh">IMAGE 1 (TOP DROP)</div>
                 </div>
               </div>
 
-              {/* RIGHT: aşağıdan qalxır */}
-              <div className="uc-reveal reveal-rise">
-                <div className="uc-imgCard uc-pop uc-contain">
-                  <div className="uc-imgPh">Image #2 (bottom → up)</div>
+              {/* right image: RISE from bottom */}
+              <div className={cx("uc-reveal reveal-rise")} style={{ transitionDelay: reduced ? "0ms" : "220ms" }}>
+                <div className="uc-imgCard">
+                  <div className="uc-imgPh">IMAGE 2 (BOTTOM RISE)</div>
                 </div>
               </div>
 
-              {/* Canva-dakı kimi altda mavi bar (optional) */}
-              <div className="uc-reveal reveal-bottom uc-barWrap">
+              {/* bottom bar */}
+              <div className={cx("uc-reveal reveal-bottom")} style={{ gridColumn: "1 / -1", transitionDelay: reduced ? "0ms" : "300ms" }}>
                 <div className="uc-bar" />
               </div>
             </div>
           </div>
         </div>
       </section>
-
-      {reduced ? null : null}
     </main>
   );
 }

@@ -2429,20 +2429,6 @@ html, body{
     padding: 14px 14px 12px; /* iç boşluq azalır */
   }
 
-  /* chat demo içində bubble-lar / bloklar çox böyükdürsə */
-  .neo-chat-card{
-    min-height: 360px;      /* əvvəl böyük idisə, kiçilt */
-    max-height: 420px;      /* ekrana sığsın */
-  }
-  .neo-chat-card .neo-chat-scroll{
-    max-height: 300px;      /* scroll alanını kiçilt */
-  }
-  .neo-chat-card .neo-bubble{
-    font-size: 13px;        /* mətn bir az kiçik */
-    padding: 10px 12px;
-    border-radius: 16px;
-  }
-
   /* ---- Diagram card-lar (pipeline / ops / smart) daha balaca ---- */
   .neo-diagramcard,
   .neo-pipeline-card,
@@ -2513,23 +2499,6 @@ html, body{
 
   .neo-social-card .neo-social-card-body{
     padding: 12px 12px 10px;
-  }
-
-  /* chat demo kartı */
-  .neo-chat-card{
-    min-height: 300px;
-    max-height: 340px;
-  }
-
-  .neo-chat-card .neo-chat-scroll{
-    max-height: 220px;
-  }
-
-  .neo-chat-card .neo-bubble{
-    font-size: 12.5px;
-    padding: 8px 10px;
-    border-radius: 14px;
-    line-height: 1.45;
   }
 
   /* ---------- DIAGRAM / PIPELINE ---------- */
@@ -2647,19 +2616,6 @@ html, body{
     flex-wrap: wrap !important;
   }
 
-  /* 4) Kartlar: radius/padding kiçilsin */
-  .neo-social-card,
-  .neo-chat-card,
-  .neo-proof-card,
-  .neo-proof-card--final,
-  .neo-diagramcard,
-  .neo-pipeline-card,
-  .neo-smart-diagram,
-  .neo-flowblock-left,
-  .neo-flowblock-right{
-    border-radius: 16px !important;
-  }
-
   .neo-diagramcard,
   .neo-pipeline-card,
   .neo-smart-diagram{
@@ -2706,16 +2662,6 @@ html, body{
     transform: none !important;
     filter: none !important;
     transition: none !important;
-  }
-
-  /* 11) Chat kartı: telefon üçün limitlə */
-  .neo-chat-card{
-    max-height: 360px !important;
-  }
-  .neo-chat-scroll{
-    max-height: 230px !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
   }
 
   .neox-home *{
