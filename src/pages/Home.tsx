@@ -18,7 +18,6 @@ function getLangFromPath(pathname: string): Lang {
 }
 
 function withLang(path: string, lang: Lang) {
-  // path: "/contact" və ya "contact"
   const p = path.startsWith("/") ? path : `/${path}`;
   return `/${lang}${p}`;
 }
@@ -53,44 +52,6 @@ function useMedia(query: string, initial = false) {
     };
   }, [query]);
   return v;
-}
-
-/* ---------------- Scroll restore (harada qalmısansa ora) ---------------- */
-function useScrollRestore(key: string) {
-  // mount: restore
-  useEffect(() => {
-    const raw = sessionStorage.getItem(key);
-    const y = raw ? Number(raw) : 0;
-
-    // 1 frame gözlə: layout hazır olsun
-    const raf = requestAnimationFrame(() => {
-      if (Number.isFinite(y) && y > 0) window.scrollTo({ top: y, left: 0, behavior: "auto" });
-    });
-
-    return () => cancelAnimationFrame(raf);
-  }, [key]);
-
-  // unmount + scroll: save (throttle via rAF)
-  useEffect(() => {
-    let raf = 0;
-
-    const save = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        sessionStorage.setItem(key, String(window.scrollY || 0));
-      });
-    };
-
-    window.addEventListener("scroll", save, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", save);
-      if (raf) cancelAnimationFrame(raf);
-      // son dəfə də save et
-      sessionStorage.setItem(key, String(window.scrollY || 0));
-    };
-  }, [key]);
 }
 
 /* ---------------- Premium wheel scroll (PERF SAFE) ---------------- */
@@ -725,7 +686,10 @@ function SocialAutomationSection({
                 {t("home.social.lead")}
               </p>
 
-              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}>
+              <div
+                className="neo-actions reveal reveal-top"
+                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10 }}
+              >
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.cta.demo")}
                 </Link>
@@ -834,7 +798,10 @@ function SocialAutomationSection({
 
               <p className="neo-p reveal reveal-top">{t("home.smm.copy")}</p>
 
-              <div className="neo-actions reveal reveal-top" style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+              <div
+                className="neo-actions reveal reveal-top"
+                style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 10, marginTop: 12 }}
+              >
                 <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
                   {t("home.smm.cta.primary")}
                 </Link>
@@ -884,73 +851,6 @@ function SocialAutomationSection({
             <div className="neo-splitsec-visual reveal reveal-bottom" style={{ minWidth: 0 }}>
               <OpsAutomationDiagramMemo reduced={reducedMotion} t={t} />
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FINAL */}
-      <section className="neo-finalSystem" aria-label={t("home.final.aria")}>
-        <div className="container" style={{ overflowX: "visible" }}>
-          <div className="neo-finalSystem-head reveal reveal-top">
-            <div className="neo-kickerPill">
-              <span className="neo-kdot" aria-hidden="true" />
-              <span className="neo-kickerPillText">{t("home.final.kicker")}</span>
-            </div>
-
-            <h3 className="neo-h2 neo-h2-premium" style={{ marginTop: 12 }}>
-              {t("home.final.title.p1")} <span className="neo-gradient">{t("home.final.title.grad1")}</span>{" "}
-              {t("home.final.title.p2")} <span className="neo-gradient">{t("home.final.title.grad2")}</span>{" "}
-              {t("home.final.title.p3")}
-            </h3>
-
-            <p className="neo-p neo-p--lead reveal reveal-top" style={{ maxWidth: 920, margin: "12px auto 0" }}>
-              {t("home.final.copy")}
-            </p>
-          </div>
-
-          <div className="neo-finalBlocks reveal reveal-bottom" style={{ marginTop: 18 }}>
-            <div className="neo-finalBlock neo-finalBlock--a">
-              <div className="neo-finalBlockTop">{t("home.final.blocks.a.top")}</div>
-              <div className="neo-finalBlockMid">
-                {t("home.final.blocks.a.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.a.mid.grad")}</span>
-              </div>
-              <div className="neo-finalBlockBot">{t("home.final.blocks.a.bot")}</div>
-            </div>
-
-            <div className="neo-finalBlock neo-finalBlock--b">
-              <div className="neo-finalBlockTop">{t("home.final.blocks.b.top")}</div>
-              <div className="neo-finalBlockMid">
-                {t("home.final.blocks.b.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.b.mid.grad")}</span>{" "}
-                {t("home.final.blocks.b.mid.p2")}
-              </div>
-              <div className="neo-finalBlockBot">{t("home.final.blocks.b.bot")}</div>
-            </div>
-
-            <div className="neo-finalBlock neo-finalBlock--c">
-              <div className="neo-finalBlockTop">{t("home.final.blocks.c.top")}</div>
-              <div className="neo-finalBlockMid">
-                {t("home.final.blocks.c.mid.p1")} <span className="neo-gradient">{t("home.final.blocks.c.mid.grad")}</span>{" "}
-                {t("home.final.blocks.c.mid.p2")}
-              </div>
-              <div className="neo-finalBlockBot">{t("home.final.blocks.c.bot")}</div>
-            </div>
-          </div>
-
-          <div
-            className="neo-finalSystem-actions reveal reveal-top"
-            style={{ marginTop: 18, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
-          >
-            <Link className="neo-btn neo-btn-primary neo-btn--premium neo-btn--unified" to={withLang("/contact", lang)}>
-              {t("home.final.cta.primary")}
-            </Link>
-
-            <button
-              type="button"
-              className="neo-btn neo-btn--premium neo-btn--unified"
-              onClick={() => window.dispatchEvent(new CustomEvent("neox-ai:open"))}
-            >
-              {t("home.final.cta.secondary")}
-            </button>
           </div>
         </div>
       </section>
@@ -1098,66 +998,6 @@ const HOME_CSS = `
     .neo-stripWord{ font-size: 13px; padding: 0 14px; letter-spacing: .20em; }
   }
 
-  /* final blocks */
-  .neo-finalBlocks{
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-  }
-  @media (max-width: 980px){ .neo-finalBlocks{ grid-template-columns: 1fr; } }
-
-  .neo-finalBlock{
-    border-radius: 22px;
-    border: 1px solid rgba(255,255,255,.10);
-    background: linear-gradient(180deg, rgba(255,255,255,.032), rgba(255,255,255,.018));
-    box-shadow: 0 16px 56px rgba(0,0,0,.62);
-    padding: 16px;
-    position: relative;
-    overflow: hidden;
-    transform: translate3d(0,0,0) scale(1);
-    transition: transform .20s ease, filter .20s ease, border-color .20s ease;
-    will-change: transform;
-  }
-  .neo-finalBlock::before{
-    content:"";
-    position:absolute; inset:-40% -30%;
-    opacity:0;
-    transform: translate3d(-10px,0,0);
-    transition: opacity .22s ease, transform .22s ease;
-    background:
-      radial-gradient(520px 220px at 20% 0%, rgba(255,255,255,.10), transparent 70%),
-      radial-gradient(520px 220px at 80% 0%, rgba(47,184,255,.10), transparent 70%);
-    pointer-events:none;
-  }
-  .neo-finalBlock:hover{
-    transform: translate3d(0,-12px,0) scale(1.03);
-    border-color: rgba(47,184,255,.22);
-    filter: saturate(1.06);
-  }
-  .neo-finalBlock:hover::before{ opacity:1; transform: translate3d(0,0,0); }
-
-  .neo-finalBlockTop{
-    color: rgba(255,255,255,.70);
-    font-weight: 750;
-    letter-spacing:.14em;
-    font-size:12px;
-    text-transform: uppercase;
-  }
-  .neo-finalBlockMid{
-    margin-top: 10px;
-    font-weight: 750;
-    font-size: 26px;
-    letter-spacing: -.02em;
-    line-height: 1.18;
-  }
-  .neo-finalBlockBot{
-    margin-top: 8px;
-    color: rgba(255,255,255,.64);
-    line-height: 1.6;
-    font-size: 13.5px;
-    font-weight: 450;
-  }
-
   @keyframes neoHomeMarquee{
     from{ transform: translate3d(0,0,0); }
     to{ transform: translate3d(-50%,0,0); }
@@ -1169,14 +1009,23 @@ const HOME_CSS = `
 /* ========================= HOME ========================= */
 export default function Home() {
   const { t } = useTranslation();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+
   const lang = useMemo(() => getLangFromPath(pathname), [pathname]);
 
   const reduced = usePrefersReducedMotion();
   const isMobile = useMedia("(max-width: 860px)", false);
 
-  // ✅ scroll restore key (route + lang)
-  useScrollRestore(`neox_scroll:${pathname}`);
+  // ✅ ALWAYS start from top when entering Home
+  useEffect(() => {
+    // 1 frame: layout tam otursun
+    const raf = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(raf);
+    // location.key dəyişəndə (hər navigation) yenidən işləsin
+  }, [location.key]);
 
   // səndə false idi -> saxladım
   usePremiumWheelScroll(false);
@@ -1229,7 +1078,12 @@ export default function Home() {
       {/* HERO */}
       <section ref={heroRef as any} className="neo-hero neo-hero--full">
         <div className="neo-heroMatrix" aria-hidden="true">
-          <HeroSystemBackground className="neo-heroBg" intensity={heroIntensity} paused={!heroInView} maxFps={isMobile ? 30 : 60} />
+          <HeroSystemBackground
+            className="neo-heroBg"
+            intensity={heroIntensity}
+            paused={!heroInView}
+            maxFps={isMobile ? 30 : 60}
+          />
         </div>
 
         <div className="container neo-hero-inner">
@@ -1306,4 +1160,3 @@ export default function Home() {
     </main>
   );
 }
- 
