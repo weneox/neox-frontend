@@ -2,24 +2,50 @@ import React, { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   enabled?: boolean;
-  minWidth?: number;
-  locationKey?: string;
+  minWidth?: number; // only enable >= this width
+  locationKey?: string; // re-sync when route changes (pass pathname)
+
   ignoreSelectors?: string[];
 
-  strength?: number;
-  friction?: number;
-  maxVelocity?: number;
-  softCap?: number;
+  // feel
+  strength?: number;      // wheel -> velocity gain
+  friction?: number;      // inertia decay per frame
+  maxVelocity?: number;   // clamp velocity
+  softCap?: number;       // soften big wheel spikes
 
-  maxTravelPerWheel?: number;
-  idleBrakeMs?: number;
+  maxTravelPerWheel?: number; // max px travel budget per wheel burst
+  idleBrakeMs?: number;       // when no wheel for X ms, extra braking
 
-  // ✅ travel bitəndə “sürüşərək dayanma”
-  stopEaseMs?: number; // 120..220
+  stopEaseMs?: number;        // glide-to-zero duration
+  wheelDeadzone?: number;     // ignore tiny deltas
 };
 
 function clamp(v: number, a: number, b: number) {
   return Math.max(a, Math.min(b, v));
+}
+
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function normalizeWheelDelta(e: WheelEvent) {
+  let dy = e.deltaY;
+
+  // deltaMode: 0=pixels, 1=lines, 2=pages
+  if (e.deltaMode === 1) dy *= 16;
+  else if (e.deltaMode === 2) dy *= window.innerHeight;
+
+  // clamp crazy spikes (mouse wheels can be huge)
+  return clamp(dy, -260, 260);
+}
+
+function softenDelta(dy: number, softCap: number) {
+  const s = Math.sign(dy);
+  const a = Math.abs(dy);
+  if (a <= softCap) return dy;
+  const extra = a - softCap;
+  // compress tail: keep responsive but not “teleport”
+  return s * (softCap + extra * 0.22);
 }
 
 function getScrollableParent(el: Element | null) {
@@ -48,46 +74,23 @@ function shouldIgnoreTarget(target: EventTarget | null, ignoreSelectors: string[
   });
 }
 
-function normalizeDelta(e: WheelEvent) {
-  let dy = e.deltaY;
-  if (e.deltaMode === 1) dy *= 16;
-  else if (e.deltaMode === 2) dy *= window.innerHeight;
-  dy = clamp(dy, -240, 240);
-  return dy;
-}
-
-function soften(v: number, softCap: number) {
-  const s = Math.sign(v);
-  const a = Math.abs(v);
-  if (a <= softCap) return v;
-  const extra = a - softCap;
-  const damped = softCap + extra * 0.22;
-  return s * damped;
-}
-
-// 0..1 -> easeOutCubic
-function easeOutCubic(t: number) {
-  return 1 - Math.pow(1 - t, 3);
-}
-
 export default function SmoothWheelScroll({
   enabled = true,
   minWidth = 980,
   locationKey,
   ignoreSelectors,
 
-  // ✅ sürət yavaşdır
-  strength = 0.12,
+  // tuned for “slow + premium”
+  strength = 0.11,
   friction = 0.90,
-  maxVelocity = 42,
+  maxVelocity = 36,
   softCap = 70,
 
-  // ✅ 1 scrollda limit
-  maxTravelPerWheel = 420,
-  idleBrakeMs = 110,
+  maxTravelPerWheel = 460,
+  idleBrakeMs = 120,
 
-  // ✅ “sürüşərək dayan”
-  stopEaseMs = 170,
+  stopEaseMs = 180,
+  wheelDeadzone = 3.5,
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -101,112 +104,116 @@ export default function SmoothWheelScroll({
             ".admin-main",
             "[data-scroll-lock]",
             "[data-native-scroll]",
+            "textarea",
+            "input",
+            "select",
           ],
     [ignoreSelectors]
   );
 
   const rafRef = useRef<number | null>(null);
-  const velocityRef = useRef(0);
-  const posRef = useRef(0);
-  const lastYRef = useRef(0);
 
-  const travelLeftRef = useRef(0);
+  const posRef = useRef(0);
+  const lastNativeYRef = useRef(0);
+
+  const vRef = useRef(0);
+
+  const travelBudgetRef = useRef(0);
   const lastWheelTsRef = useRef(0);
 
-  // ✅ slip-stop state
-  const easingStopRef = useRef<{
-    active: boolean;
-    t0: number;
-    v0: number;
-  }>({ active: false, t0: 0, v0: 0 });
+  // glide-stop state
+  const stopRef = useRef<{ active: boolean; t0: number; v0: number }>({
+    active: false,
+    t0: 0,
+    v0: 0,
+  });
 
   useEffect(() => {
     if (!enabled) return;
 
-    const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (prefersReduced) return;
+    // respect reduced motion
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
 
-    if (window.innerWidth < minWidth) return;
-
+    // only desktop-like pointers
     const fine = window.matchMedia?.("(pointer: fine)")?.matches;
     const hover = window.matchMedia?.("(hover: hover)")?.matches;
     if (!fine || !hover) return;
 
+    if (window.innerWidth < minWidth) return;
+
     const docEl = document.documentElement;
+
     const maxScroll = () => Math.max(0, docEl.scrollHeight - window.innerHeight);
+
+    const syncNative = () => {
+      const y = window.scrollY || 0;
+      posRef.current = y;
+      lastNativeYRef.current = y;
+    };
 
     const stopHard = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
-      velocityRef.current = 0;
-      travelLeftRef.current = 0;
-      easingStopRef.current.active = false;
+      vRef.current = 0;
+      travelBudgetRef.current = 0;
+      stopRef.current.active = false;
     };
 
-    const startSlipStop = () => {
+    const startGlideStop = () => {
       const now = performance.now();
-      easingStopRef.current = { active: true, t0: now, v0: velocityRef.current };
-      // travelLeftRef bitdi deyə artıq “yeni” məsafə vermirik
-      travelLeftRef.current = 0;
+      stopRef.current = { active: true, t0: now, v0: vRef.current };
+      travelBudgetRef.current = 0;
     };
-
-    const syncToNative = () => {
-      const y = window.scrollY || 0;
-      posRef.current = y;
-      lastYRef.current = y;
-    };
-
-    syncToNative();
-    stopHard();
 
     const step = () => {
       const nativeY = window.scrollY || 0;
-      if (Math.abs(nativeY - lastYRef.current) > 2) {
+
+      // if something else moved scroll (anchor, browser, etc), follow it
+      if (Math.abs(nativeY - lastNativeYRef.current) > 2) {
         posRef.current = nativeY;
       }
 
       const now = performance.now();
+      const mx = maxScroll();
 
-      // ✅ Slip-stop aktivdirsə: velocity-ni 0-a ease-out ilə gətir
-      if (easingStopRef.current.active) {
-        const t = clamp((now - easingStopRef.current.t0) / stopEaseMs, 0, 1);
-        const k = 1 - easeOutCubic(t); // 1->0
-        velocityRef.current = easingStopRef.current.v0 * k;
+      if (stopRef.current.active) {
+        const t = clamp((now - stopRef.current.t0) / stopEaseMs, 0, 1);
+        const k = 1 - easeOutCubic(t); // 1 -> 0
+        vRef.current = stopRef.current.v0 * k;
 
-        if (t >= 1 || Math.abs(velocityRef.current) < 0.10) {
+        if (t >= 1 || Math.abs(vRef.current) < 0.10) {
           stopHard();
           return;
         }
       } else {
-        // normal inertia
         const idleFor = now - (lastWheelTsRef.current || 0);
         const extraBrake = idleFor > idleBrakeMs ? 0.86 : 1;
-        velocityRef.current *= friction * extraBrake;
 
-        // travel budget azalması
-        const vAbs = Math.abs(velocityRef.current);
-        if (vAbs > 0) {
-          travelLeftRef.current = Math.max(0, travelLeftRef.current - vAbs);
-          if (travelLeftRef.current <= 0 && Math.abs(velocityRef.current) > 0.25) {
-            // ✅ HARD STOP YOX — slip-stop başlat
-            startSlipStop();
+        vRef.current *= friction * extraBrake;
+
+        // consume travel budget
+        const va = Math.abs(vRef.current);
+        if (va > 0) {
+          travelBudgetRef.current = Math.max(0, travelBudgetRef.current - va);
+          if (travelBudgetRef.current <= 0 && Math.abs(vRef.current) > 0.25) {
+            startGlideStop(); // no hard stop
           }
         }
 
-        if (Math.abs(velocityRef.current) < 0.10) {
+        if (Math.abs(vRef.current) < 0.10) {
           stopHard();
           return;
         }
       }
 
-      const next = posRef.current + velocityRef.current;
-      const mx = maxScroll();
+      const next = posRef.current + vRef.current;
       const clamped = clamp(next, 0, mx);
 
       posRef.current = clamped;
-      lastYRef.current = clamped;
+      lastNativeYRef.current = clamped;
       window.scrollTo(0, clamped);
 
+      // edges: stop clean
       if (clamped <= 0 || clamped >= mx) {
         stopHard();
         return;
@@ -216,58 +223,72 @@ export default function SmoothWheelScroll({
     };
 
     const onWheel = (e: WheelEvent) => {
+      // allow browser zoom on ctrl+wheel
       if (e.ctrlKey) return;
 
+      // ignore inside certain UI
       if (shouldIgnoreTarget(e.target, ignores)) return;
 
+      // if wheel is over a scrollable container, let it scroll natively
       const sp = getScrollableParent(e.target instanceof Element ? e.target : null);
       if (sp) return;
 
-      let dy = normalizeDelta(e);
-
-      if (Math.abs(dy) < 3.5) return;
+      let dy = normalizeWheelDelta(e);
+      if (Math.abs(dy) < wheelDeadzone) return;
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
 
+      // at edges: let normal behavior happen
       if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
         stopHard();
-        syncToNative();
+        syncNative();
         return;
       }
 
+      // we take over
       e.preventDefault();
-      syncToNative();
+      syncNative();
 
-      // yeni wheel gəlirsə slip-stop-u ləğv et (yeni jest başladı)
-      easingStopRef.current.active = false;
+      // new gesture cancels glide-stop
+      stopRef.current.active = false;
 
-      dy = soften(dy, softCap);
+      dy = softenDelta(dy, softCap);
 
+      // convert to velocity impulse (slow, premium)
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
       const now = performance.now();
       const dt = now - (lastWheelTsRef.current || 0);
       lastWheelTsRef.current = now;
 
-      // velocity yığılmasın
+      // carry: prevents “velocity stacking” too hard
       const carry = dt < 90 ? 0.25 : dt < 160 ? 0.35 : 0.45;
-      velocityRef.current = clamp(velocityRef.current * carry + add, -maxVelocity, maxVelocity);
+      vRef.current = clamp(vRef.current * carry + add, -maxVelocity, maxVelocity);
 
-      // travel budget: limitli, amma 1 scrollda “azca sürüşmə” üçün kifayət
-      const budgetAdd = clamp(Math.abs(dy) * 1.6, 140, 520);
-      travelLeftRef.current = clamp(travelLeftRef.current + budgetAdd, 0, maxTravelPerWheel);
+      // travel budget per burst (prevents 1 wheel = infinite travel)
+      const budgetAdd = clamp(Math.abs(dy) * 1.6, 150, 520);
+      travelBudgetRef.current = clamp(
+        travelBudgetRef.current + budgetAdd,
+        0,
+        maxTravelPerWheel
+      );
 
       if (!rafRef.current) rafRef.current = requestAnimationFrame(step);
     };
 
-    window.addEventListener("wheel", onWheel, { passive: false });
-
     const onResize = () => {
-      syncToNative();
+      syncNative();
       const y = window.scrollY || 0;
-      if (y <= 0 || y >= maxScroll()) stopHard();
+      const mx = maxScroll();
+      if (y <= 0 || y >= mx) stopHard();
     };
+
+    // init
+    syncNative();
+    stopHard();
+
+    window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onResize);
 
     return () => {
@@ -279,6 +300,8 @@ export default function SmoothWheelScroll({
   }, [
     enabled,
     minWidth,
+    locationKey,
+    JSON.stringify(ignores),
     strength,
     friction,
     maxVelocity,
@@ -286,8 +309,7 @@ export default function SmoothWheelScroll({
     maxTravelPerWheel,
     idleBrakeMs,
     stopEaseMs,
-    locationKey,
-    JSON.stringify(ignores),
+    wheelDeadzone,
   ]);
 
   return null;
