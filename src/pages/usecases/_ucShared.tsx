@@ -1,3 +1,4 @@
+// src/pages/usecases/_ucShared.tsx
 import React, { memo, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle } from "lucide-react";
@@ -246,6 +247,7 @@ html, body{
 
 .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
 
+/* hero enter (only for hero) */
 .uc-enter{
   opacity: 0;
   transform: translate3d(0, 16px, 0);
@@ -365,20 +367,6 @@ html, body{
   box-shadow: 0 14px 34px rgba(0,0,0,.62);
 }
 
-.uc-card{
-  position: relative;
-  border: 1px solid rgba(255,255,255,.10);
-  background: linear-gradient(180deg, rgba(255,255,255,.030), rgba(255,255,255,.016));
-  box-shadow: 0 16px 56px rgba(0,0,0,.60);
-  border-radius: 22px;
-  overflow: hidden;
-  padding: 18px;
-}
-.uc-line{
-  height: 1px;
-  background: linear-gradient(90deg, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18));
-  opacity: .95;
-}
 .uc-ic{
   width: 40px; height: 40px; border-radius: 14px;
   display: grid; place-items: center;
@@ -387,166 +375,8 @@ html, body{
   box-shadow: 0 12px 36px rgba(0,0,0,.45);
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
-.uc-pop:hover .uc-ic{
-  transform: translate3d(0,-2px,0);
-  border-color: rgba(47,184,255,.22);
-  box-shadow: 0 16px 44px rgba(0,0,0,.60);
-}
 
-/* tiles */
-.uc-tile{
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.02);
-  box-shadow: 0 12px 36px rgba(0,0,0,.45);
-  padding: 12px 12px;
-}
-.uc-tileK{
-  font-weight: 900;
-  font-size: 22px;
-  line-height: 1;
-  background: linear-gradient(90deg, #fff 0%, rgba(47,184,255,.98) 60%, rgba(42,125,255,.95) 100%);
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-}
-.uc-tileV{ color: rgba(255,255,255,.86); font-weight: 700; font-size: 13px; }
-
-/* Visual panel */
-.uc-hud{
-  position: relative;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,.10);
-  overflow: hidden;
-  transform: translate3d(0,0,0);
-}
-.uc-hudInner{
-  position: relative;
-  min-height: 360px;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-}
-@media (max-width: 560px){
-  .uc-hudInner{ min-height: 320px; }
-}
-
-/* =========================
-   ✅ VIDEO PANEL — HOLO RIGHT EDGE
-========================= */
-.uc-video{
-  position: relative;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.22);
-  transform: translate3d(0,0,0);
-  overflow: visible;
-}
-.uc-videoInner{
-  position: relative;
-  min-height: 360px;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  overflow: hidden;
-}
-@media (max-width: 560px){
-  .uc-videoInner{ min-height: 320px; }
-}
-.uc-videoEl{
-  width: 100%;
-  height: 100%;
-  min-height: 360px;
-  object-fit: cover;
-  display: block;
-  transform: translateZ(0);
-}
-@media (max-width: 560px){
-  .uc-videoEl{ min-height: 320px; }
-}
-.uc-videoShade{
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.08), rgba(0,0,0,.70)),
-    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.52));
-  opacity: .92;
-}
-
-/* holo protrusion */
-.uc-video::after{
-  content:"";
-  position:absolute;
-  top: 10px;
-  bottom: 10px;
-  right: -44px;
-  width: 120px;
-  border-radius: 26px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015)),
-    radial-gradient(120px 160px at 40% 30%, rgba(47,184,255,.18), transparent 60%),
-    radial-gradient(120px 180px at 60% 80%, rgba(42,125,255,.14), transparent 62%);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow:
-    0 18px 70px rgba(0,0,0,.55),
-    0 0 0 1px rgba(47,184,255,.10) inset,
-    0 0 40px rgba(47,184,255,.08);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  opacity: .95;
-  pointer-events: none;
-}
-.uc-video::before{
-  content:"";
-  position:absolute;
-  top: 0;
-  bottom: 0;
-  right: -90px;
-  width: 220px;
-  background: radial-gradient(180px 380px at 20% 50%, rgba(47,184,255,.14), transparent 62%);
-  filter: blur(6px);
-  opacity: .65;
-  pointer-events: none;
-}
-
-@media (max-width: 560px){
-  .uc-video{ overflow:hidden; }
-  .uc-video::before, .uc-video::after{ display:none; }
-}
-
-/* LIVE dot only */
-.uc-liveBadge{
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(10,12,18,.52);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-.uc-liveDot{
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(47,184,255,.98);
-  box-shadow: 0 0 0 6px rgba(47,184,255,.14), 0 0 22px rgba(47,184,255,.30);
-  animation: ucBreath 1.35s ease-in-out infinite;
-  transform: translateZ(0);
-}
-@keyframes ucBreath{
-  0%   { transform: scale(0.88); opacity: .72; box-shadow: 0 0 0 5px rgba(47,184,255,.12), 0 0 16px rgba(47,184,255,.22); }
-  50%  { transform: scale(1.10); opacity: 1;    box-shadow: 0 0 0 8px rgba(47,184,255,.16), 0 0 30px rgba(47,184,255,.42); }
-  100% { transform: scale(0.88); opacity: .72; box-shadow: 0 0 0 5px rgba(47,184,255,.12), 0 0 16px rgba(47,184,255,.22); }
-}
-
-/* Reveal */
+/* Reveal (FPS safe): only transform+opacity */
 .uc-reveal{ opacity: 1; transform: none; }
 .uc-page.uc-io .uc-reveal{
   opacity: 0;
@@ -557,41 +387,99 @@ html, body{
 .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
 .reveal-left{ --rx: -18px; --ry: 0px; }
 .reveal-right{ --rx: 18px; --ry: 0px; }
-.reveal-top{ --rx: 0px; --ry: 14px; }
-.reveal-bottom{ --rx: 0px; --ry: -14px; }
+.reveal-bottom{ --rx: 0px; --ry: 14px; }
+
+/* ===== NEW: Canva-like about section ===== */
+.uc-aboutGrid{
+  display:grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 960px){
+  .uc-aboutGrid{ grid-template-columns: 1fr; }
+}
+
+.uc-aboutText{
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+  border-radius: 22px;
+  padding: 22px;
+}
+
+.uc-aboutTitle{
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.uc-aboutList{
+  margin-top: 16px;
+  display:grid;
+  gap: 12px;
+}
+
+.uc-imgWrap{
+  position: relative;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px){
+  .uc-imgWrap{ grid-template-columns: 1fr; }
+}
+
+.uc-imgCard{
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  overflow: hidden;
+  min-height: 280px;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.uc-imgPh{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  color: rgba(255,255,255,.55);
+  font-size: 13px;
+  letter-spacing:.14em;
+  text-transform: uppercase;
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(47,184,255,.10), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.00));
+}
+
+/* soldakı yuxarıdan düşür, sağdakı aşağıdan qalxır */
+.reveal-drop{ --rx: 0px; --ry: -22px; }
+.reveal-rise{ --rx: 0px; --ry: 22px; }
+
+/* Canva-like bottom bar */
+.uc-barWrap{
+  grid-column: 1 / -1;
+}
+.uc-bar{
+  height: 78px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(42,125,255,.55), rgba(42,125,255,.35));
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+}
 
 @media (prefers-reduced-motion: reduce){
   .uc-enter{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; }
   .uc-page.uc-io .uc-reveal{ opacity:1; transform:none; transition:none; }
   .uc-pop{ transition:none !important; transform:none !important; }
   .uc-btn{ transition:none !important; }
-  .uc-liveDot{ animation:none !important; }
-}
-@media (hover: none){
-  .uc-pop:hover{ transform:none !important; }
-  .uc-btn:hover{ transform:none !important; }
-}
-
-/* Tint vars */
-[data-tint="cyan"]{ --tA: rgba(47,184,255,.62); --tB: rgba(170,225,255,.28); }
-[data-tint="violet"]{ --tA: rgba(42,125,255,.66); --tB: rgba(47,184,255,.22); }
-[data-tint="pink"]{ --tA: rgba(170,225,255,.55); --tB: rgba(47,184,255,.20); }
-[data-tint="amber"]{ --tA: rgba(80,170,255,.58); --tB: rgba(47,184,255,.20); }
-
-.uc-bullet{ position: relative; padding-left: 2px; }
-.uc-bullet::before{
-  content:"";
-  position:absolute;
-  left: 9px;
-  top: 14px;
-  width: 28px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--tA), transparent);
-  opacity: .65;
 }
 `;
 
-/* ---------- UI parts ---------- */
 export const BreadcrumbPill = memo(function BreadcrumbPill({
   text,
   enter,
@@ -609,146 +497,12 @@ export const BreadcrumbPill = memo(function BreadcrumbPill({
   );
 });
 
+/* (qalan komponentlər səndə istifadə olunsa saxla) */
 export const Bullet = memo(function Bullet({ text }: { text: string }) {
   return (
     <div className="uc-bullet flex items-start gap-2">
       <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
       <span className="text-white/75 leading-[1.65] break-words">{text}</span>
-    </div>
-  );
-});
-
-export const ResultTile = memo(function ResultTile({ k, v, sub }: { k: string; v: string; sub: string }) {
-  return (
-    <div className="uc-tile uc-pop uc-contain">
-      <div className="uc-tileK">{k}</div>
-      <div className="uc-tileV mt-1">{v}</div>
-      <div className="text-white/55 text-[12px] mt-2 leading-[1.5]">{sub}</div>
-    </div>
-  );
-});
-
-export const CreativeHUD = memo(function CreativeHUD({
-  tint,
-  icon: Icon,
-  title,
-  subtitle,
-  hint,
-}: {
-  tint: Tint;
-  icon: LucideIcon;
-  title: string;
-  subtitle: string;
-  hint: string;
-}) {
-  return (
-    <div className="uc-hud uc-pop uc-contain" data-tint={tint} aria-label="Visual panel">
-      <div className="uc-hudInner">
-        <div className="text-center max-w-[520px]">
-          <div className="mx-auto mb-4 w-14 h-14 rounded-2xl border border-white/10 bg-white/[0.04] grid place-items-center">
-            <Icon className="w-6 h-6 text-white/80" />
-          </div>
-
-          <div className="text-white text-[22px] sm:text-[26px] font-semibold">{title}</div>
-          <div className="mt-2 text-white/65 leading-[1.7]">{subtitle}</div>
-
-          <div className="mt-6 text-white/55 text-[12px] tracking-[.14em] uppercase">{hint}</div>
-          <div className="mt-2 text-white/40 text-[12px]">(Burada sonra video qoyacağıq — sən linkləri göndərəndə mən HUD-u video ilə əvəz edəcəm.)</div>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ✅ new prop: videoUrl
-export const CaseRow = memo(function CaseRow({
-  c,
-  flip,
-  tRealScenario,
-  toContact,
-  toServices,
-  ctaPrimary,
-  ctaSecondary,
-  videoUrl,
-}: {
-  c: CaseItem;
-  flip: boolean;
-  tRealScenario: string;
-  toContact: string;
-  toServices: string;
-  ctaPrimary: string;
-  ctaSecondary: string;
-  videoUrl?: string;
-}) {
-  const Icon = c.icon;
-
-  return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-center uc-stack" data-tint={c.tint}>
-      {/* TEXT */}
-      <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <article className="uc-card uc-pop uc-contain" data-tint={c.tint} aria-label={`${c.sektor} use case`}>
-          <header className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="uc-ic" aria-hidden="true">
-                <Icon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-white font-semibold text-[18px] break-words">{c.sektor}</div>
-                <div className="text-white/55 text-[13px] mt-1 break-words">{tRealScenario}</div>
-              </div>
-            </div>
-
-            <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] tracking-[.08em] uppercase text-white/80">
-              Case
-            </span>
-          </header>
-
-          <div className="mt-4 uc-line" />
-
-          <h3 className="mt-4 text-white text-[20px] sm:text-[22px] font-semibold break-words">{c.basliq}</h3>
-          <p className="mt-3 text-white/70 leading-[1.75] break-words">{c.hekayə}</p>
-
-          <div className="mt-5 space-y-3">
-            {c.maddeler.map((b) => (
-              <Bullet key={b} text={b} />
-            ))}
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            {c.neticeler.map((r) => (
-              <ResultTile key={`${r.v}-${r.k}`} k={r.k} v={r.v} sub={r.sub} />
-            ))}
-          </div>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <a href={toContact} className="uc-btn">
-              {ctaPrimary} <span aria-hidden="true">→</span>
-            </a>
-            <a href={toServices} className="uc-btn uc-btnGhost">
-              {ctaSecondary}
-            </a>
-          </div>
-        </article>
-      </div>
-
-      {/* VISUAL */}
-      <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        {videoUrl ? (
-          <div className="uc-video uc-pop uc-contain" data-tint={c.tint} aria-label="Scenario video">
-            <div className="uc-videoInner">
-              <video className="uc-videoEl" src={videoUrl} autoPlay muted loop playsInline preload="metadata" />
-              <div className="uc-videoShade" aria-hidden="true" />
-
-              {/* ✅ only LIVE dot */}
-              <div className="uc-liveBadge" aria-hidden="true">
-                <span className="uc-liveDot" />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <CreativeHUD tint={c.tint} icon={Icon} title="Scenario Visual" subtitle="Bu paneli az sonra video ilə əvəz edəcəyik." hint="VIDEO PLACEHOLDER" />
-        )}
-      </div>
     </div>
   );
 });
