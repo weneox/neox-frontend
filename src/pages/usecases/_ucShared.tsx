@@ -239,10 +239,10 @@ html, body{
 
 .uc-contain{ contain: layout paint style; transform: translateZ(0); backface-visibility: hidden; }
 
-/* hero enter */
+/* hero enter (sequence) */
 .uc-enter{
   opacity: 0;
-  transform: translate3d(0, 16px, 0);
+  transform: translate3d(0, 18px, 0);
   filter: blur(7px);
   transition: opacity .62s ease, transform .62s ease, filter .62s ease;
   transition-delay: var(--d, 0ms);
@@ -250,12 +250,12 @@ html, body{
 }
 .uc-enter.uc-in{ opacity:1; transform: translate3d(0,0,0); filter: blur(0px); }
 
-/* Reveal (FPS safe): transform+opacity only */
+/* Reveal (scroll) */
 .uc-reveal{ opacity: 1; transform: none; }
 .uc-page.uc-io .uc-reveal{
   opacity: 0;
   transform: translate3d(var(--rx, 0px), var(--ry, 14px), 0);
-  transition: opacity .50s ease, transform .50s ease;
+  transition: opacity .52s ease, transform .52s ease;
   will-change: transform, opacity;
 }
 .uc-page.uc-io .uc-reveal.is-in{ opacity: 1; transform: translate3d(0,0,0); }
@@ -263,98 +263,138 @@ html, body{
 .reveal-right{ --rx: 18px; --ry: 0px; }
 .reveal-bottom{ --rx: 0px; --ry: 14px; }
 
-/* ✅ drop/rise for media */
-.reveal-drop{ --rx: 0px; --ry: -26px; }
-.reveal-rise{ --rx: 0px; --ry: 26px; }
+/* ✅ NEW: Healthcare hero layout (left text, right two tall videos) */
+.uc-hHero{
+  position: relative;
+  padding: 22px 0 0;
+}
+.uc-hHeroBG{
+  pointer-events:none;
+  position:absolute;
+  inset:0;
+}
+.uc-hHeroBG::before{
+  content:"";
+  position:absolute;
+  inset:-12% -10%;
+  background:
+    radial-gradient(900px 520px at 22% 10%, rgba(47,184,255,.10), transparent 62%),
+    radial-gradient(980px 560px at 80% 0%, rgba(42,125,255,.08), transparent 70%),
+    radial-gradient(980px 560px at 60% 40%, rgba(170,225,255,.06), transparent 72%);
+  opacity: .95;
+}
+.uc-hHeroBG::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.22), rgba(0,0,0,.94));
+}
 
-/* ===== Canva-like HERO GRID (left text + right tall media) ===== */
-.uc-canva{
+.uc-hGrid{
+  position: relative;
+  z-index: 1;
   display:grid;
-  grid-template-columns: minmax(320px, 520px) 1fr;
-  gap: 26px;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 28px;
   align-items: start;
+  padding: 86px 0 26px;
 }
 @media (max-width: 980px){
-  .uc-canva{ grid-template-columns: 1fr; }
+  .uc-hGrid{ grid-template-columns: 1fr; padding-top: 92px; }
 }
 
-.uc-canvaLeft{ padding-top: 10px; }
-
-.uc-canvaTitle{
-  font-size: clamp(40px, 4.4vw, 64px);
-  line-height: 1.05;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.uc-hLeft{
+  max-width: 560px;
+}
+@media (max-width: 980px){
+  .uc-hLeft{ max-width: 720px; margin: 0 auto; text-align: left; }
 }
 
-.uc-canvaSub{
-  margin-top: 14px;
-  color: rgba(255,255,255,.70);
-  font-size: 16px;
-  line-height: 1.7;
-  max-width: 46ch;
-}
-
-.uc-canvaList{
+.uc-hBullets{
   margin-top: 18px;
-  display: grid;
+  display:grid;
   gap: 12px;
-  max-width: 52ch;
 }
-
-.uc-canvaCtas{
-  margin-top: 22px;
+.uc-hBullet{
   display:flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+  align-items:flex-start;
+  color: rgba(255,255,255,.72);
+  line-height: 1.65;
+}
+.uc-hBulletIcon{
+  width: 22px; height: 22px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: rgba(170,225,255,.95);
 }
 
-.uc-canvaMedia{
-  position: relative;
+.uc-hCTA{
+  margin-top: 18px;
+  display:flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.uc-hMediaGrid{
   display:grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items: start;
+  gap: 14px;
+  align-items: stretch;
 }
 @media (max-width: 980px){
-  .uc-canvaMedia{ grid-template-columns: 1fr; }
-}
-
-/* tall cards like Canva */
-.uc-mediaCard{
-  position: relative;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.04);
-  overflow: hidden;
-  height: clamp(360px, 55vh, 620px);
-  transform: translateZ(0);
-  will-change: transform, opacity;
+  .uc-hMediaGrid{ grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px){
-  .uc-mediaCard{ height: clamp(420px, 62vh, 680px); }
+  .uc-hMediaGrid{ grid-template-columns: 1fr; gap: 12px; }
 }
 
-/* ✅ make video crisp + FPS friendly */
+.uc-mediaCard{
+  position: relative;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid rgba(47,184,255,.28);
+  background: rgba(255,255,255,.03);
+  box-shadow: 0 18px 70px rgba(0,0,0,.65);
+  transform: translateZ(0);
+}
+.uc-mediaInner{
+  height: clamp(520px, 66vh, 780px); /* ✅ LONG for mobile video */
+}
+@media (max-width: 980px){
+  .uc-mediaInner{ height: clamp(520px, 62vh, 760px); }
+}
+@media (max-width: 560px){
+  .uc-mediaInner{ height: clamp(560px, 72vh, 860px); }
+}
+
 .uc-mediaVideo{
   width: 100%;
   height: 100%;
+  display:block;
   object-fit: cover;
-  display: block;
   transform: translateZ(0);
 }
 
-.uc-canvaBar{
-  grid-column: 1 / -1;
-  margin-top: 16px;
-  height: 92px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: linear-gradient(180deg, rgba(42,125,255,.64), rgba(42,125,255,.30));
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+.uc-mediaShade{
+  pointer-events:none;
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(900px 520px at 50% 0%, rgba(0,0,0,.10), rgba(0,0,0,.56)),
+    linear-gradient(180deg, rgba(0,0,0,.00), rgba(0,0,0,.38));
+  opacity: .92;
 }
 
-/* breadcrumb */
+.uc-divider{
+  height: 1px;
+  width: 100%;
+  max-width: 920px;
+  margin: 34px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(47,184,255,.22), rgba(255,255,255,.08), rgba(42,125,255,.18), transparent);
+  opacity: .95;
+}
+
 .uc-crumb{
   display:inline-flex;
   align-items:center;
@@ -380,7 +420,6 @@ html, body{
   white-space: nowrap;
 }
 
-/* buttons */
 .uc-btn{
   display:inline-flex; align-items:center; justify-content:center; gap:10px;
   padding:12px 18px;
@@ -440,87 +479,6 @@ export const Bullet = memo(function Bullet({ text }: { text: string }) {
     <div className="flex items-start gap-2">
       <CheckCircle className="w-5 h-5 text-[rgba(170,225,255,.95)] flex-shrink-0 mt-0.5" />
       <span className="text-white/75 leading-[1.65] break-words">{text}</span>
-    </div>
-  );
-});
-
-/* ✅ keep CaseRow exported so Cloudflare build does not fail */
-export const CaseRow = memo(function CaseRow({
-  c,
-  flip,
-  tRealScenario,
-  toContact,
-  toServices,
-  ctaPrimary,
-  ctaSecondary,
-  videoUrl,
-}: {
-  c: CaseItem;
-  flip: boolean;
-  tRealScenario: string;
-  toContact: string;
-  toServices: string;
-  ctaPrimary: string;
-  ctaSecondary: string;
-  videoUrl?: string;
-}) {
-  const Icon = c.icon;
-
-  return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-center" data-tint={c.tint}>
-      <div className={cx("uc-reveal", flip ? "reveal-right lg:order-2" : "reveal-left")}>
-        <div className="p-5 rounded-[22px] border border-white/10 bg-white/[0.03]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[14px] border border-white/10 bg-white/[0.04] grid place-items-center">
-              <Icon className="w-5 h-5 text-white/85" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-white font-semibold">{c.sektor}</div>
-              <div className="text-white/55 text-[13px]">{tRealScenario}</div>
-            </div>
-          </div>
-
-          <div className="h-px my-4 bg-white/10" />
-
-          <div className="text-white text-[20px] sm:text-[22px] font-semibold">{c.basliq}</div>
-          <div className="mt-2 text-white/70 leading-[1.7]">{c.hekayə}</div>
-
-          <div className="mt-4 grid gap-3">
-            {c.maddeler.map((m) => (
-              <Bullet key={m} text={m} />
-            ))}
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-10">
-            <a href={toContact} className="uc-btn">
-              {ctaPrimary} <span aria-hidden="true">→</span>
-            </a>
-            <a href={toServices} className="uc-btn uc-btnGhost">
-              {ctaSecondary}
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div className={cx("uc-reveal", flip ? "reveal-left lg:order-1" : "reveal-right")}>
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.04] overflow-hidden h-[420px] sm:h-[520px]">
-          {videoUrl ? (
-            <video
-              src={videoUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          ) : (
-            <div className="w-full h-full grid place-items-center text-white/55 text-[12px] tracking-[.18em] uppercase">
-              VISUAL PLACEHOLDER
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 });
