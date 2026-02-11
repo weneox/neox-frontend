@@ -8,9 +8,12 @@ type Props = {
 
   // tuning
   strength?: number;     // wheel -> accel
-  friction?: number;     // inertia decay (0.80..0.92)  (aşağı = tez dayanır)
+  friction?: number;     // inertia decay (0.90..0.96)  (yuxarı = daha çox sürüşmə)
   maxVelocity?: number;  // clamp
   softCap?: number;      // yumuşatma həddi
+
+  // ✅ "buzda sürüşmə" hissi
+  iceTail?: number;      // 0..0.25 (0 = off). Dayanmanı daha “slippy” edir
 };
 
 function clamp(v: number, a: number, b: number) {
@@ -46,27 +49,22 @@ function shouldIgnoreTarget(target: EventTarget | null, ignoreSelectors: string[
 function normalizeDelta(e: WheelEvent) {
   let dy = e.deltaY;
 
-  // firefox / line-mode
   if (e.deltaMode === 1) dy *= 16;
-  // page-mode
   else if (e.deltaMode === 2) dy *= window.innerHeight;
 
-  // ultra böyük wheel-ləri (free-spin) dərhal kəs
+  // free-spin wheel-ləri dərhal kəs (uçmasın)
   dy = clamp(dy, -260, 260);
-
   return dy;
 }
 
-// böyük dəyərləri daha sərt yumşalt (sürət “uçmasın”)
+// böyük dəyərləri yumşalt (uçuşu kəs)
 function soften(v: number, softCap: number) {
   const s = Math.sign(v);
   const a = Math.abs(v);
-
   if (a <= softCap) return v;
 
-  // cap-dən sonra artım çox yavaşıyır
   const extra = a - softCap;
-  const damped = softCap + extra * 0.22; // əvvəl 0.35 idi -> daha yavaş
+  const damped = softCap + extra * 0.22;
   return s * damped;
 }
 
@@ -76,11 +74,14 @@ export default function SmoothWheelScroll({
   locationKey,
   ignoreSelectors,
 
-  // ✅ YEKUN: daha yavaş, daha kontrollu
-  strength = 0.12,    // daha az impuls
-  friction = 0.88,    // daha tez dayanır
-  maxVelocity = 45,   // maksimum sürət aşağı
-  softCap = 70,       // böyük delta yumşaldılır
+  // ✅ Buz effekti üçün yavaş impuls + uzun inertia
+  strength = 0.10,
+  friction = 0.93,
+  maxVelocity = 40,
+  softCap = 70,
+
+  // ✅ sürüşərək dayanma
+  iceTail = 0.16,
 }: Props) {
   const ignores = useMemo(
     () =>
@@ -103,7 +104,6 @@ export default function SmoothWheelScroll({
   const posRef = useRef(0);
   const lastYRef = useRef(0);
 
-  // əlavə: wheel ardıcıllığı sürəti yığmasın deyə “qapı”
   const lastWheelTsRef = useRef(0);
 
   useEffect(() => {
@@ -142,11 +142,20 @@ export default function SmoothWheelScroll({
         posRef.current = nativeY;
       }
 
-      // inertia
+      // ✅ base inertia
       velocityRef.current *= friction;
 
-      // dayandırma həddi
-      if (Math.abs(velocityRef.current) < 0.12) {
+      // ✅ "ice tail": sürət azaldıqca dayanma daha yumşaq olsun (buz hissi)
+      // yəni sonda birdən kəsilməsin, sürüşə-sürüşə sönsün
+      if (iceTail > 0) {
+        const v = Math.abs(velocityRef.current);
+        const tailBoost =
+          v < 10 ? 1 + iceTail : v < 22 ? 1 + iceTail * 0.55 : 1; // yalnız son mərhələdə təsir etsin
+        velocityRef.current *= tailBoost;
+      }
+
+      // dayandırma həddi (buzda belə “sonda” dayanır)
+      if (Math.abs(velocityRef.current) < 0.10) {
         stop();
         return;
       }
@@ -177,13 +186,12 @@ export default function SmoothWheelScroll({
 
       let dy = normalizeDelta(e);
 
-      // xırda trackpad noise -> native
+      // trackpad noise -> native
       if (Math.abs(dy) < 3.5) return;
 
       const y = window.scrollY || 0;
       const mx = maxScroll();
 
-      // top/bottom-da native
       if ((y <= 0 && dy < 0) || (y >= mx && dy > 0)) {
         stop();
         syncToNative();
@@ -191,23 +199,18 @@ export default function SmoothWheelScroll({
       }
 
       e.preventDefault();
-
       syncToNative();
 
-      // ✅ yumşalt
       dy = soften(dy, softCap);
 
-      // ✅ impuls daha aşağı
       const add = clamp(dy * strength, -maxVelocity, maxVelocity);
 
-      // ✅ ardıcıl wheel-lərdə sürət yığılmasını azalt (cooldown blend)
       const now = performance.now();
       const dt = now - (lastWheelTsRef.current || 0);
       lastWheelTsRef.current = now;
 
-      // dt kiçikdirsə (ard-arda), köhnə sürəti daha çox “kəs”
-      // 0ms..80ms => 0.45; 200ms+ => 0.70
-      const blend = dt < 80 ? 0.45 : dt < 140 ? 0.55 : 0.70;
+      // ardıcıl wheel-lərdə yığılmanı azalt
+      const blend = dt < 80 ? 0.45 : dt < 140 ? 0.55 : 0.72;
 
       velocityRef.current = clamp(velocityRef.current * blend + add, -maxVelocity, maxVelocity);
 
@@ -229,7 +232,17 @@ export default function SmoothWheelScroll({
       stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, minWidth, strength, friction, maxVelocity, softCap, locationKey, JSON.stringify(ignores)]);
+  }, [
+    enabled,
+    minWidth,
+    strength,
+    friction,
+    maxVelocity,
+    softCap,
+    iceTail,
+    locationKey,
+    JSON.stringify(ignores),
+  ]);
 
   return null;
 }
